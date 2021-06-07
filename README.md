@@ -37,8 +37,6 @@ Host tamp-workspace
 
 `docker_scripts` contains the files for building the docker image and starting the docker container.
 
-`drake-tamp` contains all the source code
-
 TODO(agro): fill out readme
 
 
