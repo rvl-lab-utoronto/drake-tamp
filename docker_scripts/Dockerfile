@@ -2,9 +2,10 @@ FROM ubuntu:18.04
 
 RUN apt-get -y update
 RUN apt-get install -y wget unzip
-RUN apt-get -y install libgl1-mesa-dev libgl1-mesa-glx libosmesa6-dev patchelf libopenmpi-dev libglew-dev libglfw3 libglfw3-dev
 
 # for display through vnc
+RUN apt-get -y update
+RUN apt-get install -y wget unzip
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y xfce4 tigervnc-standalone-server
 
 RUN apt-get update
