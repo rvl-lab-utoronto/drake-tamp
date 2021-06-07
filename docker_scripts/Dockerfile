@@ -1,7 +1,10 @@
 FROM ubuntu:18.04
 
 RUN apt-get -y update
-RUN apt-get install -y wget unzip
+RUN apt-get -y install wget unzip 
+
+RUN apt-get -y update
+RUN apt-get -y install git cmake g++ make
 
 # for display through vnc
 RUN apt-get -y update
@@ -42,7 +45,6 @@ RUN wget https://ompl.kavrakilab.org/install-ompl-ubuntu.sh -O /install-ompl-ubu
 RUN bash /install-ompl-ubuntu.sh --python
 
 # pddlstream
-RUN apt-get install -y git cmake g++ make
 RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream
 RUN cd pddlstream && ./FastDownward/build.py release64
 RUN cd pddlstream/FastDownward/builds && ln -s release64 release32
