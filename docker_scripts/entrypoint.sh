@@ -8,7 +8,6 @@ echo "password: $PASS"
 sudo service ssh start
 # starting tigervncserver using password: $password
 tigervncserver
-#printf "$PASS\n$PASS\n\n" | tigervncserver
 export DISPLAY=:1
 
 exec "$@"

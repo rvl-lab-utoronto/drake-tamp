@@ -1,11 +1,12 @@
 #!/bin/bash
 
 echo ""
-echo "Running drake_workspace container"
+echo "Running docker-tamp-$USER container"
+echo "You can specify the port with the -p flag and the container name with the -n flag"
 echo ""
 
 port=2300
-name='drake_workspace'
+name='drake-tamp-$USER'
 
 while getopts p:n: option
 do
@@ -20,8 +21,9 @@ echo "Using port: $port"
 echo "Using container name: $name"
 
 sudo docker run -it \
-    -v /home/agrobenj/drake_workspace:/home/$USER/workspace \
+    -v /home/$USER/drake-tamp:/home/$USER/drake-tamp \
     -p $port:22 \
     --name $name \
-    drake_workspace \
+    --gpus all \
+    drake-tamp-$USER \
     /bin/bash
