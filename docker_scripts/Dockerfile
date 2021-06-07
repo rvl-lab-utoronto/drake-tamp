@@ -75,7 +75,7 @@ RUN pip install -r requirements.txt
 
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
-RUN echo "export  $USER=$user" >> ~/.bashrc
+RUN echo "export  USER=$user" >> ~/.bashrc
 
 WORKDIR /home/$user/drake-tamp
 COPY .tmux.conf /home/$user/.tmux.conf
