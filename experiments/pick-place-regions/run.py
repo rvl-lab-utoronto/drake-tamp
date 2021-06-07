@@ -116,7 +116,7 @@ domain_pddl = '''(define (domain pickplaceregions)
             (?pose)
             (and
                 (pose ?item ?pose)
-                (region ?r)
+                (region ?region)
                 (item ?item)
                 (contained ?item ?region ?pose)
                 (atpose ?item ?pose)
@@ -202,7 +202,7 @@ for r in regions:
     init += [('region', r)]
 
 goal = ('and',
-    ('grasped', 'arm1', 'item1'),
+    ('in', 'item1', 'red'),
 )
 
 # TODO: construct any models we need for the geometries of the scene, regions and items
