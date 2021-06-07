@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+    <model name="square_target">
+        <link name="base_link">
+            <pose>0 0 0.025 0 0 0</pose>
+            <inertial>
+                <pose>0 0 0 0 0 0</pose>
+                <mass>1</mass>
+                <inertia>
+                    <ixx>0.003542</ixx>
+                    <ixy>0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>0.006667</iyy>
+                    <iyz>0</iyz>
+                    <izz>0.003542</izz>
+                </inertia>
+            </inertial>
+            <visual name = "visual">
+                <pose>0 0 0.025 0 0 0</pose>
+                <geometry>
+                    <box> 
+                        <size>0.2 0.2 0.05</size>
+                    </box>
+                </geometry>
+                <material>
+                    <ambient>1 0.15 0.8 1</ambient>
+                    <diffuse>1 0.15 0.8 1</diffuse>
+                    <specular>0 0 0 1</specular>
+                    <emissive>0 0 0 1</emissive>
+                </material>
+            </visual>
+            <collision name = "collision">
+                <pose>0 0 0.025 0 0 0</pose>
+                <geometry>
+                    <box> 
+                        <size>0.2 0.2 0.05</size>
+                    </box>
+                </geometry>
+            </collision>
+        </link>
+    </model>
+</sdf>

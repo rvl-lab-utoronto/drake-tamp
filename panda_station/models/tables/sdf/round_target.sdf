@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+    <model name="round_target">
+        <link name="base_link">
+            <pose>0 0 0.025 0 0 0</pose>
+            <inertial>
+                <pose>0 0 0 0 0 0</pose>
+                <mass>1</mass>
+                <inertia>
+                    <ixx>0.002708</ixx>
+                    <ixy>0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>0.002708</iyy>
+                    <iyz>0</iyz>
+                    <izz>0.005</izz>
+                </inertia>
+            </inertial>
+            <visual name = "visual">
+                <pose>0 0 0.025 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.1</radius>
+                        <length>0.05</length>
+                    </cylinder>
+                </geometry>
+                <material>
+                    <diffuse>0.647 0.941 0.478 1</diffuse>
+                </material>
+            </visual>
+            <collision name = "collision">
+                <pose>0 0 0.025 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.1</radius>
+                        <length>0.05</length>
+                    </cylinder>
+                </geometry>
+            </collision>
+        </link>
+    </model>
+</sdf>
