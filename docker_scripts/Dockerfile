@@ -72,6 +72,7 @@ USER $user
 # other requirements
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
+ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc

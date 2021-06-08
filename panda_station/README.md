@@ -20,3 +20,4 @@ This package provides much of the Drake functionality for TAMP with the franka-p
 `panda_station.py` contains the code for the `PandaStation` class, a Drake `diagram` used for setting up the panda arm. It is largely based on Drake's [manipulation station](https://github.com/RobotLocomotion/drake/tree/master/examples/manipulation_station).
     - TODO(agro): list functions here 
 
+`panda_hand_position_controller.py` contains the PandaHandPositionController class for controlling the panda hand by joint positions. It is based on the code for the `schunk_wsg_position_controller` supplied with drake ([here](https://github.com/RobotLocomotion/drake/blob/master/manipulation/schunk_wsg/schunk_wsg_position_controller.cc))
