@@ -8,6 +8,8 @@ This package provides much of the Drake functionality for TAMP with the franka-p
 
 `directives/` contains `yaml` files with directives for Drake to parse into the multibody plant
 
+`test/` contains unit and integration tests for this package
+
 `construction_utils.py` has drake utility functions to help with simulation construction
     - `add_panda`: add the panda arm to the plant
     - `add_panda_hand`: add a panda hand the the plant, and attack it to the arm 

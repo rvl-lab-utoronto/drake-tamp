@@ -73,7 +73,6 @@ USER $user
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 
-
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
 

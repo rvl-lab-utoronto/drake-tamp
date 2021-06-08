@@ -1,3 +1,3 @@
 # Test
 
-This directory contains tests used for debugging 
+This directory contains scripts and notebooks used for debugging 
