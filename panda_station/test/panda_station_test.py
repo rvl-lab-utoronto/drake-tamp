@@ -10,6 +10,7 @@ from pydrake.all import (
     MultibodyPlant,
     SceneGraph,
     FindResourceOrThrow,
+    Simulator,
 )
 from panda_station import *
 
@@ -22,9 +23,7 @@ class TestPandaStation(unittest.TestCase):
         q_initial = np.zeros(7)
         station.add_panda_with_hand(q_initial=q_initial)
         brick = station.add_model_from_file(
-            FindResourceOrThrow(
-                "drake/examples/manipulation_station/models/061_foam_brick.sdf"
-            ),
+            find_resource("models/manipulands/sdf/061_foam_brick.sdf"),
             RigidTransform(RotationMatrix(), [0.6, 0, 0.2]),
             main_body_name="base_link",
             name="brick",
@@ -43,6 +42,32 @@ class TestPandaStation(unittest.TestCase):
         q_init = plant.GetPositions(plant_context, panda)
         self.assertTrue(np.all(q_init == q_initial))
         brick_body = plant.GetBodyByName("base_link", brick)
+
+        builder = DiagramBuilder()
+        station = builder.AddSystem(PandaStation())
+        station.setup_from_file("directives/three_tables.yaml")
+        station.add_panda_with_hand()
+        brick = station.add_model_from_file(
+            find_resource("models/manipulands/sdf/010_potted_meat_can.sdf"),
+            RigidTransform(RotationMatrix(), [0.6, 0, 0.2]),
+        )
+        station.finalize()
+        diagram = builder.Build()
+        plant, scene_graph = station.get_plant_and_scene_graph()
+        simulator = Simulator(diagram)
+        simulator_context = simulator.get_context()
+        diagram_context = diagram.GetMyContextFromRoot(simulator_context)
+        station_context = station.GetMyContextFromRoot(simulator_context)
+        plant_context = plant.GetMyContextFromRoot(simulator_context)
+        des_q = np.array([np.pi / 4, 0.1, 0, -1, 0, 1.5, 0])
+        station.GetInputPort("panda_position").FixValue(station_context, des_q)
+
+        station.GetInputPort("hand_position").FixValue(station_context, [0.08])
+        simulator.AdvanceTo(1.0)
+        panda = station.get_panda()
+        hand = station.get_hand()
+        test_q = plant.GetPositions(plant_context, panda)
+        self.assertTrue(np.all(np.isclose(des_q, test_q, atol=np.pi * 0.01)))
 
 
 if __name__ == "__main__":
