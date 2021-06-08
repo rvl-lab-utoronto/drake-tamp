@@ -1,11 +1,12 @@
 import os
 import pydrake.all
 import numpy as np
+import argparse
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
-from panda_station import PandaStation
+from panda_station import PandaStation, find_resource
 
 ARRAY = tuple
 
@@ -184,6 +185,14 @@ stream_pddl = """(define (stream example)
 
 
 def construct_problem_from_sim(drake_sim):
+
+    
+    """
+    TODO:
+        
+
+    """
+
     init = []
     start_poses = {  # TODO: replace these with SE(3) Poses from the scene
         "item1": "pose1",
@@ -217,6 +226,7 @@ def construct_problem_from_sim(drake_sim):
         Takes two 7DOF configurations, and yields collision free trajector(ies) between them.
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>) defining the current pose of all items.
         """
+        # TODO: add interal station with ALL object welded at the positions in fluents
         # TODO: call some collision free planning here
         while True:
             yield (f"free_traj_{start}_to_{end}",)
@@ -227,7 +237,9 @@ def construct_problem_from_sim(drake_sim):
         Yields collision free trajectories between the 7DOF configurations considering that the named item is grasped.
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>) defining the current pose of all items.
         """
+        #TODO: add internal station with ALL objects welded at the positions in fluents, and the object welded to the hand
         # TODO: update models and call some collision free planning here
+        print("HERE")
         while True:
             yield (f"holding_traj_{item}_{start}_to_{end}",)
 
@@ -237,7 +249,6 @@ def construct_problem_from_sim(drake_sim):
         Yields tuples of the form (<pregrasp_conf>, <postgrasp_conf>) representing valid robot arm configurations
         for pre/post grasp stages of a two stage grasp when the <item> is at <pose>.
         """
-        print("hey")
         # TODO: plan a grasp
         while True:
             yield (f"{item}_{pose}_pregrasp_conf", f"{item}_{pose}_postgrasp_conf")
@@ -277,28 +288,83 @@ def make_panda_station(builder):
     station.setup_from_file("directives/three_tables.yaml")
     # add panda arm and hand in default config
     station.add_panda_with_hand()
-    # add a brick, soupcan, and meat manipulands
+    # add a brick, soup can, and meat manipulands
     station.add_model_from_file(
-        find_resource("models/manipulands/sdf/061_foam_brick.sdf"),
+        find_resource("models/manipulands/sdf/foam_brick.sdf"),
         pydrake.math.RigidTransform(pydrake.math.RotationMatrix(), [0.6, 0, 0.2]),
     )
+    station.add_model_from_file(
+        find_resource("models/manipulands/sdf/meat_can.sdf"),
+        pydrake.math.RigidTransform(
+            pydrake.math.RotationMatrix.MakeXRotation(-np.pi / 2), [0.5, 0.2, 0.2]
+        ),
+    )
+    station.add_model_from_file(
+        find_resource("models/manipulands/sdf/soup_can.sdf"),
+        pydrake.math.RigidTransform(
+            pydrake.math.RotationMatrix.MakeXRotation(-np.pi / 2), [0.5, -0.2, 0.2]
+        ),
+    )
 
+    station.finalize()
     return station
+
+def make_and_init_simulation(zmq_url):
+    """
+    Make the simulation, and let it run for 0.2 s to let all the objects
+    settle into their stating positions 
+    """
+    builder = pydrake.systems.framework.DiagramBuilder()
+    station = make_panda_station(builder)
+    plant, scene_graph = station.get_plant_and_scene_graph()
+
+    if args.url is not None:
+        meshcat = pydrake.systems.meshcat_visualizer.ConnectMeshcatVisualizer(
+            builder,
+            scene_graph,
+            output_port=station.GetOutputPort("query_object"),
+            delete_prefix_on_load=True,
+            zmq_url=args.url,
+        )
+        meshcat.load()
+    else:
+        print("No meshcat server url provided, running without gui")
+
+    diagram = builder.Build()
+    simulator = pydrake.systems.analysis.Simulator(diagram)
+    simulator_context = simulator.get_context()
+    panda = station.get_panda()
+    station_context = station.GetMyContextFromRoot(simulator_context)
+    plant_context = plant.GetMyContextFromRoot(simulator_context)
+    # for now, keep the arm still. TODO(agro): add trajectory system
+    station.GetInputPort("panda_position").FixValue(station_context, plant.GetPositions(plant_context, panda))
+    station.GetInputPort("hand_position").FixValue(station_context, [0.08])
+
+    meshcat.start_recording()
+    simulator.AdvanceTo(0.2)
+    meshcat.stop_recording()
+    meshcat.publish_recording()
 
 
 if __name__ == "__main__":
 
-    builder = pydrake.systems.framework.DiagramBuilder()
-    make_panda_station(builder)
+    parser = argparse.ArgumentParser(description="zmq_url for meshcat server")
+    parser.add_argument("-u", "--url", nargs="?", default=None)
+    args = parser.parse_args()
+    
+    simulator = make_and_init_simulation(args.url)
 
-    drake_sim = None
-    problem = construct_problem_from_sim(drake_sim)
+    problem = construct_problem_from_sim(simulator)
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
     for algorithm in [
         "binding",
     ]:
         solution = solve(problem, algorithm=algorithm, verbose=True)
-        print(f"\n\n{algorithm} solution:")
-        print_solution(solution)
-        input("Continue")
+        #print(f"\n\n{algorithm} solution:")
+        #print_solution(solution)
+        #input("Continue")
+        plan, _, _ = solution
+        for action in plan:
+            print(action.name)
+            print(action.args)
