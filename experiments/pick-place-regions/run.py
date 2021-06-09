@@ -23,7 +23,7 @@ domain_pddl = """(define (domain pickplaceregions)
         (conf ?conf) ; robot configuration
         (contained ?item ?region ?pose) ; if ?item were at ?pose, it would be inside ?region
 
-        (grasp ?item ?pose ?pregraspconf ?postgraspconf)
+        (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
         (place ?item ?region ?placementpose ?preplaceconf ?postplaceconf)
         (mftraj ?traj ?start ?end)
         (mhtraj ?item ?startconf ?endconf ?traj)
@@ -33,7 +33,7 @@ domain_pddl = """(define (domain pickplaceregions)
         (empty ?arm)
         (grasped ?arm ?item)
         (atpose ?item ?pose)
-        (atgrasppose ?item ?pose ?graspconf)
+        (atgrasppose ?item ?grasppose)
 
         ; derived
         (in ?item ?region)
@@ -52,14 +52,14 @@ domain_pddl = """(define (domain pickplaceregions)
             (not (at ?arm ?start)) (at ?arm ?end))
     )
     (:action pick
-        :parameters (?arm ?item ?pose ?pregraspconf ?postgraspconf)
+        :parameters (?arm ?item ?pose ?grasppose ?pregraspconf ?postgraspconf) ; grasppose is X_Hand_Item
         :precondition (and
             (arm ?arm)
             (item ?item)
             (conf ?pregraspconf)
             (conf ?postgraspconf)
             (pose ?item ?pose)
-            (grasp ?item ?pose ?pregraspconf ?postgraspconf)
+            (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
 
             (empty ?arm)
             (atpose ?item ?pose)
@@ -72,6 +72,7 @@ domain_pddl = """(define (domain pickplaceregions)
 
             (grasped ?arm ?item)
             (at ?arm ?postgraspconf)
+            (atgrasppose ?item ?grasppose)
         )
     )
     (:action move-holding
@@ -91,7 +92,7 @@ domain_pddl = """(define (domain pickplaceregions)
         )
     )
     (:action place
-        :parameters (?arm ?item ?region ?placepose ?preplaceconf ?postplaceconf)
+        :parameters (?arm ?item ?region ?grasppose ?placepose ?preplaceconf ?postplaceconf)
         :precondition (and
             (arm ?arm)
             (item ?item)
@@ -108,6 +109,7 @@ domain_pddl = """(define (domain pickplaceregions)
         :effect (and
             (not (grasped ?arm ?item))
             (not (at ?arm ?preplaceconf))
+            (not (atgrasppose ?item ?grasppose))
 
             (empty ?arm)
             (at ?arm ?preplaceconf)
@@ -147,7 +149,7 @@ stream_pddl = """(define (stream example)
         (conf ?end)
         (item ?item)
     )
-    :fluents (atpose)
+    :fluents (atpose atgrasppose)
     :outputs (?t)
     :certified (and
         (mhtraj ?item ?start ?end ?t)
@@ -155,7 +157,7 @@ stream_pddl = """(define (stream example)
   )
   (:stream grasp-conf
     :inputs (?item ?pose)
-    :outputs (?pregraspconf ?postgraspconf)
+    :outputs (?grasppose ?pregraspconf ?postgraspconf)
     :domain (and
         (item ?item)
         (pose ?item ?pose)
@@ -163,7 +165,7 @@ stream_pddl = """(define (stream example)
     :certified (and
         (conf ?pregraspconf)
         (conf ?postgraspconf)
-        (grasp ?item ?pose ?pregraspconf ?postgraspconf)
+        (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
     )
   )
   (:stream placement-conf
@@ -246,12 +248,13 @@ def construct_problem_from_sim(simulator):
     def plan_grasp_gen(item, pose):
         """
         Takes an item name and the corresponding SE(3) pose.
-        Yields tuples of the form (<pregrasp_conf>, <postgrasp_conf>) representing valid robot arm configurations
-        for pre/post grasp stages of a two stage grasp when the <item> is at <pose>.
+        Yields tuples of the form (<grasppose>, <pregrasp_conf>, <postgrasp_conf>) representing a relative pose of the
+        the item to the hand after the grasp, and two valid robot arm configurations for pre/post grasp stages of a
+        two stage grasp when the <item> is at <pose>.
         """
         # TODO: plan a grasp
         while True:
-            yield (f"{item}_{pose}_pregrasp_conf", f"{item}_{pose}_postgrasp_conf")
+            yield (f"{item}_grasppose", f"{item}_{pose}_pregrasp_conf", f"{item}_{pose}_postgrasp_conf")
 
     def plan_place_gen(item, region):
         """
