@@ -184,12 +184,12 @@ stream_pddl = """(define (stream example)
 )"""
 
 
-def construct_problem_from_sim(drake_sim):
+def construct_problem_from_sim(simulator):
 
     
     """
     TODO:
-        
+       parse
 
     """
 
