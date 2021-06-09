@@ -23,3 +23,6 @@ This package provides much of the Drake functionality for TAMP with the franka-p
 `panda_hand_position_controller.py` contains the PandaHandPositionController class for controlling the panda hand by joint positions. It is based on the code for the `schunk_wsg_position_controller` supplied with drake ([here](https://github.com/RobotLocomotion/drake/blob/master/manipulation/schunk_wsg/schunk_wsg_position_controller.cc))
 
 `planning_utils.py` contains utility functions nessecary for interfacing with PDDL and creating the *streams* (generators).
+
+`streams.py` has functions/generators used in TAMP: picking, placing, 
+and collision free motion planning

@@ -10,7 +10,7 @@ directives:
             translation: [0.75, 0, 0]
 
     - add_model:
-        name: table
+        name: table # use the prefix `table` to denote objects that are safe to place on
         file: package://tables/sdf/big_white_table.sdf
 
     - add_weld:
@@ -18,32 +18,32 @@ directives:
         child: table::base_link
 
     - add_frame:
-        name: square_target_origin
+        name: table_square_origin
         X_PF:
             base_frame: world
             rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
             translation: [-0.7, 0, 0]
 
     - add_model:
-        name: square_target
+        name: table_square
         file: package://tables/sdf/square_target.sdf
 
     - add_weld:
-        parent: square_target_origin
-        child: square_target::base_link
+        parent: table_square_origin
+        child: table_square::base_link
 
     - add_frame:
-        name: round_target_origin
+        name: table_round_origin
         X_PF:
             base_frame: world
             rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
             translation: [0, 0.7, 0]
 
     - add_model:
-        name: round_target
+        name: round_table
         file: package://tables/sdf/round_target.sdf
 
     - add_weld:
-        parent: round_target_origin
-        child: round_target::base_link
+        parent: table_round_origin
+        child: round_table::base_link
 
