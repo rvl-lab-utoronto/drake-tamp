@@ -6,6 +6,7 @@ import os
 import argparse
 import numpy as np
 import pydrake.all
+from pydrake.all import RigidTransform
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
@@ -16,7 +17,9 @@ from panda_station import (
     ProblemInfo,
     parse_start_poses,
     parse_config,
-    parse_tables
+    parse_tables,
+    update_station,
+    TrajectoryDirector,
 )
 
 ARRAY = tuple
@@ -203,6 +206,9 @@ def construct_problem_from_sim(simulator, stations):
     main_station = stations["main"]
     simulator_context = simulator.get_context()
     main_station_context = main_station.GetMyContextFromRoot(simulator_context)
+    station_contexts = {}
+    for name in stations:
+        station_contexts[name] = stations[name].CreateDefaultContext()
     start_poses = parse_start_poses(main_station, main_station_context)
     for k, v in start_poses.items():
         init += [("item", k), ("pose", k, v), ("atpose", k, v)]
@@ -218,7 +224,7 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "foam_brick", "round_table"),
+        ("in", "foam_brick", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -228,7 +234,11 @@ def construct_problem_from_sim(simulator, stations):
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
         defining the current pose of all items.
         """
-        print(fluents)
+        print("\nHERE\n")
+        station = stations["move_free"]
+        station_context = station_contexts["move_free"]
+        # udate poses in station
+        update_station(station, station_context, fluents)
         while True:
             yield (f"free_traj_{start}_to_{end}",)
 
@@ -240,7 +250,11 @@ def construct_problem_from_sim(simulator, stations):
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
         defining the current pose of all items.
         """
-        print(fluents)
+        print("\nHERE\n")
+        station = stations[item]
+        station_context = station_contexts[item]
+        # udate poses in station
+        update_station(station, station_context, fluents)
         while True:
             yield (f"holding_traj_{item}_{start}_to_{end}",)
 
@@ -253,11 +267,15 @@ def construct_problem_from_sim(simulator, stations):
         arm configurations for pre/post grasp stages of a
         two stage grasp when the <item> is at <pose>.
         """
+        print("\nHERE\n")
+        station = stations["move_free"]
+        station_context = station_contexts["move_free"]
+        # udate poses in station
         while True:
             yield (
-                f"{item}_grasppose",
-                f"{item}_{pose}_pregrasp_conf",
-                f"{item}_{pose}_postgrasp_conf",
+                RigidTransform(),
+                np.zeros(7),
+                np.zeros(7),
             )
 
     def plan_place_gen(item, region):
@@ -267,11 +285,12 @@ def construct_problem_from_sim(simulator, stations):
         <postplace_conf>) representing the pose of <item> after
         being placed in <region>, and pre/post place robot arm configurations.
         """
+        print("\nHERE\n")
         while True:
             yield (
-                f"{item}_{region}_pose",
-                f"{item}_{region}_preplace_conf",
-                f"{item}_{region}_postplace_conf",
+                RigidTransform(),
+                np.zeros(7),
+                np.zeros(7),
             )
 
     stream_map = {
@@ -294,8 +313,9 @@ def make_and_init_simulation(zmq_url, problem):
     stations = problem_info.make_all_stations()
     station = stations["main"]
     builder.AddSystem(station)
-    plant, scene_graph = station.get_plant_and_scene_graph()
+    scene_graph = station.get_scene_graph()
 
+    meshcat = None
     if zmq_url is not None:
         meshcat = pydrake.systems.meshcat_visualizer.ConnectMeshcatVisualizer(
             builder,
@@ -308,26 +328,32 @@ def make_and_init_simulation(zmq_url, problem):
     else:
         print("No meshcat server url provided, running without gui")
 
+    director = builder.AddSystem(TrajectoryDirector())
+    builder.Connect(
+        station.GetOutputPort("panda_position_measured"),
+        director.GetInputPort("panda_position"),
+    )
+    builder.Connect(
+        station.GetOutputPort("hand_state_measured"),
+        director.GetInputPort("hand_state"),
+    )
+    builder.Connect(
+        director.GetOutputPort("panda_position_command"),
+        station.GetInputPort("panda_position"),
+    )
+    builder.Connect(
+        director.GetOutputPort("hand_position_command"),
+        station.GetInputPort("hand_position"),
+    )
+
     diagram = builder.Build()
     simulator = pydrake.systems.analysis.Simulator(diagram)
     simulator_context = simulator.get_context()
-    panda = station.get_panda()
-    station_context = station.GetMyContextFromRoot(simulator_context)
-    plant_context = plant.GetMyContextFromRoot(simulator_context)
-    # for now, keep the arm still. TODO(agro): add trajectory system
-    station.GetInputPort("panda_position").FixValue(
-        station_context, plant.GetPositions(plant_context, panda)
-    )
-    station.GetInputPort("hand_position").FixValue(station_context, [0.08])
 
-    if zmq_url is not None:
+    if meshcat is not None:
         meshcat.start_recording()
     simulator.AdvanceTo(0.2)
-    if zmq_url is not None:
-        meshcat.stop_recording()
-    if zmq_url is not None:
-        meshcat.publish_recording()
-    return simulator, stations
+    return simulator, stations, director, meshcat
 
 
 if __name__ == "__main__":
@@ -340,6 +366,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     res = make_and_init_simulation(args.url, args.problem)
+    director = res[2]
+    meshcat = res[3]
 
     problem = construct_problem_from_sim(res[0], res[1])
     print("Initial:", str_from_object(problem.init))
@@ -355,3 +383,7 @@ if __name__ == "__main__":
         for action in plan:
             print(action.name)
             print(action.args)
+
+        if meshcat is not None:
+            meshcat.stop_recording()
+            meshcat.publish_recording()

@@ -184,6 +184,10 @@ def parse_start_poses(station, station_context):
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
     for object_info, _ in station.object_infos.values():
+        #TODO(agro) generalize this
+        if "table" in object_info.get_name():
+            # exclude tables
+            continue 
         X_WO = object_info.get_main_body().get_body().EvalPoseInWorld(plant_context)
         start_poses[object_info.get_name()] = X_WO
     return start_poses

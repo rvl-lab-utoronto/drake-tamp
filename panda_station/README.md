@@ -24,5 +24,7 @@ This package provides much of the Drake functionality for TAMP with the franka-p
 
 `planning_utils.py` contains utility functions nessecary for interfacing with PDDL and creating the *streams* (generators).
 
-`streams.py` has functions/generators used in TAMP: picking, placing, 
+`stream_utils.py` has functions/generators used in TAMP: picking, placing, 
 and collision free motion planning
+
+`trajectory_director.py` has a simple system that sends trajectories to a PandaStation if they are available, otherwise it tells the panda to stay still
