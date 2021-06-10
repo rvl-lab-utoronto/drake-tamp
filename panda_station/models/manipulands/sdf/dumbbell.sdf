@@ -1,0 +1,120 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+    <model name="dumbbell">
+        <link name = "base_link">
+            <inertial>
+                <mass>0.1</mass>
+                <pose>0 0 0 0 0 0</pose>
+                <inertia>
+                    <ixx>0.000105</ixx>
+                    <ixy>0.0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>0.000105</iyy>
+                    <iyz>0.0</iyz>
+                    <izz>4.5e-05</izz>
+                </inertia>
+            </inertial>
+            <visual name = "visual">
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.03</radius>
+                        <length>0.1</length>
+                    </cylinder>
+                </geometry>
+                <material>
+                    <diffuse>0.7 0.7 0.7 1.0</diffuse>
+                </material>
+            </visual>
+            <collision name = "collision">
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.03</radius>
+                        <length>0.1</length>
+                    </cylinder>
+                </geometry>
+            </collision>
+        </link>
+        <link name = "bottom_weight">
+            <pose>0 0 -0.08 0 0 0</pose>
+            <inertial>
+                <mass>1</mass>
+                <pose>0 0 0 0 0 0</pose>
+                <inertia>
+                    <ixx>0.0028</ixx>
+                    <ixy>0.0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>0.0028</iyy>
+                    <iyz>0.0</iyz>
+                    <izz>0.005</izz>
+                </inertia>
+            </inertial>
+            <visual name = "visual">
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.1</radius>
+                        <length>0.06</length>
+                    </cylinder>
+                    <material>
+                      <diffuse>0.31 0.01 0.13 1.0</diffuse>
+                    </material>
+                </geometry>
+            </visual>
+            <collision name = "collision">
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.1</radius>
+                        <length>0.06</length>
+                    </cylinder>
+                </geometry>
+            </collision>
+        </link>
+        <link name = "top_weight">
+            <pose>0 0 0.08 0 0 0</pose>
+            <inertial>
+                <mass>1</mass>
+                <pose>0 0 0 0 0 0</pose>
+                <inertia>
+                    <ixx>0.0028</ixx>
+                    <ixy>0.0</ixy>
+                    <ixz>0</ixz>
+                    <iyy>0.0028</iyy>
+                    <iyz>0.0</iyz>
+                    <izz>0.005</izz>
+                </inertia>
+            </inertial>
+            <visual name = "visual">
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.1</radius>
+                        <length>0.06</length>
+                    </cylinder>
+                    <material>
+                      <diffuse>0.31 0.01 0.13 1.0</diffuse>
+                    </material>
+                </geometry>
+            </visual>
+            <collision name = "collision">
+                <pose>0 0 0 0 0 0</pose>
+                <geometry>
+                    <cylinder>
+                        <radius>0.1</radius>
+                        <length>0.06</length>
+                    </cylinder>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="bottom_weld" type="fixed">
+            <parent>base_link</parent>
+            <child>bottom_weight</child>
+        </joint>
+        <joint name="top_weld" type="fixed">
+            <parent>base_link</parent>
+            <child>top_weight</child>
+        </joint>
+    </model>
+</sdf>

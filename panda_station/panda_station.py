@@ -55,7 +55,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         ) = pydrake.multibody.plant.AddMultibodyPlantSceneGraph(
             self.builder, time_step=self.time_step
         )
-        self.object_infos = []
+        self.object_infos = {}
         self.controller_plant = pydrake.multibody.plant.MultibodyPlant(
             time_step=self.time_step
         )
@@ -155,8 +155,14 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 test_name = self.plant.get_body(i).name()
                 if test_name == main_body_name:
                     index = i
-        self.object_infos.append(ObjectInfo(path, index, Xinit_WO, name))
+        self.object_infos[name] = ObjectInfo(path, index, Xinit_WO, name)
         return model
+
+    def get_directive(self):
+        """
+        Return the directive used to create the static objects in this plant
+        """
+        return self.directive 
 
     def get_multibody_plant(self):
         """
@@ -195,7 +201,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         assert self.hand is not None, "No panda hand model added"
         self.plant.Finalize()
 
-        for info in self.object_infos:
+        for info in self.object_infos.values():
             body = self.plant.get_body(info.main_body_index)
             self.plant.SetDefaultFreeBodyPose(body, info.Xinit_WO)
         num_panda_positions = self.plant.num_positions(self.panda)
