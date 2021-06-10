@@ -6,7 +6,7 @@ from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
-from panda_station import PandaStation, find_resource
+from panda_station import PandaStation, find_resource, ProblemInfo
 
 ARRAY = tuple
 
@@ -321,13 +321,13 @@ def make_and_init_simulation(zmq_url):
     station = make_panda_station(builder)
     plant, scene_graph = station.get_plant_and_scene_graph()
 
-    if args.url is not None:
+    if zmq_url is not None:
         meshcat = pydrake.systems.meshcat_visualizer.ConnectMeshcatVisualizer(
             builder,
             scene_graph,
             output_port=station.GetOutputPort("query_object"),
             delete_prefix_on_load=True,
-            zmq_url=args.url,
+            zmq_url=zmq_url,
         )
         meshcat.load()
     else:
@@ -343,18 +343,20 @@ def make_and_init_simulation(zmq_url):
     station.GetInputPort("panda_position").FixValue(station_context, plant.GetPositions(plant_context, panda))
     station.GetInputPort("hand_position").FixValue(station_context, [0.08])
 
-    meshcat.start_recording()
+    if zmq_url is not None: meshcat.start_recording()
     simulator.AdvanceTo(0.2)
-    meshcat.stop_recording()
-    meshcat.publish_recording()
+    if zmq_url is not None: meshcat.stop_recording()
+    if zmq_url is not None: meshcat.publish_recording()
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="zmq_url for meshcat server")
     parser.add_argument("-u", "--url", nargs="?", default=None)
+    parser.add_argument("-p", "--problem", nargs="?", default="problems/test_problem.yaml")
     args = parser.parse_args()
-    
+
+    problem_info = ProblemInfo(args.problem)
     simulator = make_and_init_simulation(args.url)
 
     problem = construct_problem_from_sim(simulator)

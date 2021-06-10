@@ -11,7 +11,7 @@
         (conf ?conf) ; robot configuration
         (contained ?item ?region ?pose) ; if ?item were at ?pose, it would be inside ?region
 
-        (grasp ?item ?pose ?pregraspconf ?postgraspconf)
+        (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
         (place ?item ?region ?placementpose ?preplaceconf ?postplaceconf)
         (mftraj ?traj ?start ?end)
         (mhtraj ?item ?startconf ?endconf ?traj)
@@ -21,7 +21,7 @@
         (empty ?arm)
         (grasped ?arm ?item)
         (atpose ?item ?pose)
-        (atgrasppose ?item ?pose ?graspconf)
+        (atgrasppose ?item ?grasppose)
 
         ; derived
         (in ?item ?region)
@@ -40,14 +40,14 @@
             (not (at ?arm ?start)) (at ?arm ?end))
     )
     (:action pick
-        :parameters (?arm ?item ?pose ?pregraspconf ?postgraspconf)
+        :parameters (?arm ?item ?pose ?grasppose ?pregraspconf ?postgraspconf) ; grasppose is X_Hand_Item
         :precondition (and
             (arm ?arm)
             (item ?item)
             (conf ?pregraspconf)
             (conf ?postgraspconf)
             (pose ?item ?pose)
-            (grasp ?item ?pose ?pregraspconf ?postgraspconf)
+            (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
 
             (empty ?arm)
             (atpose ?item ?pose)
@@ -60,6 +60,7 @@
 
             (grasped ?arm ?item)
             (at ?arm ?postgraspconf)
+            (atgrasppose ?item ?grasppose)
         )
     )
     (:action move-holding
@@ -79,7 +80,7 @@
         )
     )
     (:action place
-        :parameters (?arm ?item ?region ?placepose ?preplaceconf ?postplaceconf)
+        :parameters (?arm ?item ?region ?grasppose ?placepose ?preplaceconf ?postplaceconf)
         :precondition (and
             (arm ?arm)
             (item ?item)
@@ -96,6 +97,7 @@
         :effect (and
             (not (grasped ?arm ?item))
             (not (at ?arm ?preplaceconf))
+            (not (atgrasppose ?item ?grasppose))
 
             (empty ?arm)
             (at ?arm ?preplaceconf)

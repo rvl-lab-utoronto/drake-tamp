@@ -6,31 +6,9 @@ import pydrake.all
 from . import construction_utils
 from .panda_hand_position_controller import (
     PandaHandPositionController,
-    make_multibody_state_to_panda_hand_state_system
+    make_multibody_state_to_panda_hand_state_system,
 )
-
-
-class ObjectInfo:
-    """
-    Simple struct for carrying information about objects added to PandaStation
-    """
-
-    def __init__(self, path, main_body_index, Xinit_WO, name):
-        """
-        Construct an ObjectInfo struct
-
-        Args:
-            path: the path the the model file [string]
-            main_body_index: the pydrake.multibody.tree.BodyIndex of
-            the main link of the object
-            Xinit_WO: the pydrake.math.RigidTransform represnting the initial
-            world pose of the object
-            name: the name of the added model
-        """
-        self.path = path
-        self.main_body_index = main_body_index
-        self.Xinit_WO = Xinit_WO
-        self.name = name
+from .planning_utils import ObjectInfo, BodyInfo, ShapeInfo
 
 
 class PandaStation(pydrake.systems.framework.Diagram):
@@ -55,7 +33,8 @@ class PandaStation(pydrake.systems.framework.Diagram):
         ) = pydrake.multibody.plant.AddMultibodyPlantSceneGraph(
             self.builder, time_step=self.time_step
         )
-        self.object_infos = {}
+        # dict in the form: {object_name: (ObjectInfo, Xinit_WO)}
+        self.object_infos = {}  # list of tuples (ObjectInfo, Xinit_WO)
         self.controller_plant = pydrake.multibody.plant.MultibodyPlant(
             time_step=self.time_step
         )
@@ -108,13 +87,18 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.weld_fingers = weld_fingers
         self.fix_collisions()
 
-    def setup_from_file(self, filename):
+    def setup_from_file(self, filename, names_and_links=None):
         """
         Setup a station with the path to the directive in `filename`
 
         Args:
             filename: [string] that path (starting from this directory of this
             file) to the directive. e.g `directives/table_top.yaml`
+
+            names_name_links: provide a list of the form
+            [(model_name, main_link_name), ... ]
+            to be added to this PandaStations object_infos.
+            This is used if you want these objects to be considerd for placement
         """
         self.directive = construction_utils.find_resource(filename)
         parser = pydrake.multibody.parsing.Parser(self.plant)
@@ -124,8 +108,82 @@ class PandaStation(pydrake.systems.framework.Diagram):
             self.plant,
             parser,
         )
+        if names_and_links is not None:
+            for name, link_name in names_and_links:
+                object_info = ObjectInfo(name)
+                model = self.plant.GetModelInstanceByName(name)
+                body_indices = self.plant.GetBodyIndices(model)
+                for i in body_indices:
+                    body = self.plant.get_body(i)
+                    body_info = BodyInfo(body, i)
+                    if body.name() == link_name:
+                        object_info.set_main_body_info(body_info)
+                    else:
+                        object_info.add_body_info(body_info)
+                self.object_infos[name] = (object_info, None)
 
-    def add_model_from_file(self, path, Xinit_WO, main_body_name=None, name=None):
+    def add_model_from_file(
+        self, path, Xinit_PO, P=None, welded=False, main_body_name=None, name=None
+    ):
+        """
+        Add a model to this plant from the full path provided in `path`
+        at initial position Xinit_PO relative to parent frame P (default to
+        world frame)
+
+        Args:
+            path: [string] full path to model file (eg. from FindResourceOrThrow or
+            find_resource)
+            Xinit_PO: the initial object pose relative to the parent frame P
+            P: parent frame (defaults to world frame)
+            main_body_name: [string] provide the name of the body link to set the
+            position of the model, if there is more than one link in the model.
+            name: [string] optional name for the model.
+            welded: True iff the body should be welded to a fixedoffsetframe
+            attached to the parent frame
+        Returns:
+            the model instance index of the added model
+        """
+        parser = pydrake.multibody.parsing.Parser(self.plant)
+        if name is None:
+            num = str(len(self.object_infos))
+            name = "added_model_" + num
+        model = parser.AddModelFromFile(path, name)
+        indices = self.plant.GetBodyIndices(model)
+        assert (len(indices) == 1) or (
+            main_body_name is not None
+        ), "You must specify the main link name"
+        main_body_index = indices[0]
+        body_infos = {}
+        if main_body_name is not None:
+            for i in indices:
+                test_name = self.plant.get_body(i).name()
+                body_infos[i] = BodyInfo(self.plant.get_body(i), i)
+                if test_name == main_body_name:
+                    main_body_index = i
+        Xinit_WO = None
+        if P is None:
+            P = self.plant.world_frame()
+            Xinit_WO = Xinit_PO  # assume parent frame is world frame
+        offset_frame = None
+        main_body = self.plant.get_body(main_body_index)
+        if welded:
+            frame_name = "offset_frame_" + name
+            offset_frame = pydrake.multibody.tree.FixedOffsetFrame(
+                frame_name, P=P, X_PF=Xinit_PO
+            )
+            self.plant.AddFrame(offset_frame)
+            self.plant.WeldFrames(
+                offset_frame, main_body.body_frame(), pydrake.math.RigidTransform()
+            )
+        main_body_info = BodyInfo(main_body, main_body_index)
+        object_info = ObjectInfo(name, welded_to_frame=offset_frame, path=path)
+        object_info.body_infos = body_infos  # add all the other body infos
+        object_info.set_main_body_info(main_body_info)
+        self.object_infos[name] = (object_info, Xinit_WO)
+
+    def DEPRECIATED_add_model_from_file(
+        self, path, Xinit_WO, main_body_name=None, name=None
+    ):
         """
         Add a model to this plant from the full path provided in `path`
         at initial world position Xinit_WO
@@ -162,7 +220,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """
         Return the directive used to create the static objects in this plant
         """
-        return self.directive 
+        return self.directive
 
     def get_multibody_plant(self):
         """
@@ -187,7 +245,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         Returns the panda arm ModelInstanceIndex of this station
         """
         return self.panda
-        
+
     def get_hand(self):
         """
         Returns the panda hand ModelInstanceIndex of this station
@@ -199,11 +257,33 @@ class PandaStation(pydrake.systems.framework.Diagram):
 
         assert self.panda is not None, "No panda added, run add_panda_with_hand"
         assert self.hand is not None, "No panda hand model added"
+
+        inspector = self.scene_graph.model_inspector()
+
+        for object_info, _ in self.object_infos.values():
+            for body_info in object_info.body_infos.values():
+                for i, geom_id in enumerate(
+                    self.plant.GetCollisionGeometriesForBody(body_info.get_body())
+                ):
+                    shape = inspector.GetShape(geom_id)
+                    X_BG = inspector.GetPoseInFrame(geom_id)
+                    frame_name = "frame_" + object_info.get_name() + "_" + body_info.get_name() + "_" + str(i)
+                    frame = self.plant.AddFrame(
+                        pydrake.multibody.tree.FixedOffsetFrame(
+                            frame_name, body_info.get_body_frame(), X_BG
+                        )
+                    )
+                    body_info.add_shape_info(ShapeInfo(shape, frame))
+
         self.plant.Finalize()
 
-        for info in self.object_infos.values():
-            body = self.plant.get_body(info.main_body_index)
-            self.plant.SetDefaultFreeBodyPose(body, info.Xinit_WO)
+        for object_info, Xinit_WO in self.object_infos.values():
+            if Xinit_WO is None:
+                # the object is welded
+                continue
+            main_body = object_info.main_body_info.get_body()
+            self.plant.SetDefaultFreeBodyPose(main_body, Xinit_WO)
+
         num_panda_positions = self.plant.num_positions(self.panda)
 
         panda_position = self.builder.AddSystem(
@@ -253,7 +333,6 @@ class PandaStation(pydrake.systems.framework.Diagram):
             self.plant.get_state_output_port(self.panda),
             panda_controller.get_input_port_estimated_state(),
         )
-
         # feedforward torque
         adder = self.builder.AddSystem(
             pydrake.systems.primitives.Adder(2, num_panda_positions)
@@ -343,3 +422,4 @@ class PandaStation(pydrake.systems.framework.Diagram):
         )
 
         self.builder.BuildInto(self)
+
