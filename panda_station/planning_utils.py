@@ -50,7 +50,7 @@ class BodyInfo:
         for info in self.shape_infos:
             res += str(info)
             res += "\n"
-        
+
         return res
 
 
@@ -276,7 +276,9 @@ def create_welded_station(station, station_context, holding_index=None):
     return welded_station, welded_body_infos
 
 
-def update_welded_station(welded_station, pose_fluents):
+def update_welded_station(
+    welded_station, welded_station_context, welded_body_infos, pose_fluents
+):
     """
     Update the poses of the welded objects in the welded
     PandaStation based on the poses in pose_fluents.
@@ -284,6 +286,11 @@ def update_welded_station(welded_station, pose_fluents):
     Args:
         welded_station: the PandaStation will all manipulands welded in place
         (output from `create_welded_station`)
+
+        welded_body_infos: a dictionary from the ouput of create_welded_station
+        in the form:
+            {"model_name": BodyInfo, ...}
+
         pose_fluents: A list of tuples of the form
         [('atpose', <object_name>, <X_WO>), ...]
         where <object_name> is a string with the object name and <X_WO> is a
@@ -294,4 +301,24 @@ def update_welded_station(welded_station, pose_fluents):
     Returns:
         None, but updates the welded station provided in welded_station
     """
-    pass
+
+    infos = welded_body_infos.copy()
+    plant = station.get_multibody_plant()
+    plant_context = station.GetSubsystemContext(plant, station_context)
+
+    for item in pose_fluents:
+        _, name, X_WO = item
+        assert (
+            name in infos.keys()
+        ), "the welded_body_infos and welded_station do not match"
+        info = infos.pop(name)
+        offset_frame = info.offset_frame
+        offset_frame.SetPoseInBodyFrame(plant_context, X_WO)
+
+    offset = 1000
+    for info in infos.values():
+        offset_frame = info.offset_frame
+        offset_frame.SetPoseInBodyFrame(
+            plant_context, RigidTransform(RotationMatrix(), [offset, 0, 0])
+        )
+        offset += 100
