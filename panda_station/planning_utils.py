@@ -8,9 +8,6 @@ BodyInfo and ShapeInfo. Objects are made of bodies which are made of shapes
 import yaml
 import numpy as np
 from pydrake.all import (
-    Cylinder,
-    Sphere,
-    Box,
     RigidTransform,
     RotationMatrix,
     RollPitchYaw,

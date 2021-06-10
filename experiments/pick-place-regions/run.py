@@ -1,12 +1,23 @@
+"""
+The module for running the pick and and place TAMP problem
+"""
+
 import os
-import pydrake.all
-import numpy as np
 import argparse
+import numpy as np
+import pydrake.all
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
-from panda_station import PandaStation, find_resource, ProblemInfo
+from panda_station import (
+    PandaStation,
+    find_resource,
+    ProblemInfo,
+    parse_start_poses,
+    parse_config,
+    parse_tables
+)
 
 ARRAY = tuple
 
@@ -186,83 +197,76 @@ stream_pddl = """(define (stream example)
 )"""
 
 
-def construct_problem_from_sim(simulator):
-
-    
-    """
-    TODO:
-       parse
-
-    """
+def construct_problem_from_sim(simulator, stations):
 
     init = []
-    start_poses = {  # TODO: replace these with SE(3) Poses from the scene
-        "item1": "pose1",
-        "item2": "pose2",
-        "item3": "pose3",
-    }
+    main_station = stations["main"]
+    simulator_context = simulator.get_context()
+    main_station_context = main_station.GetMyContextFromRoot(simulator_context)
+    start_poses = parse_start_poses(main_station, main_station_context)
     for k, v in start_poses.items():
         init += [("item", k), ("pose", k, v), ("atpose", k, v)]
         # TODO : add any "contained" predicates that are true of the initial poses
 
-    arms = {  # TODO: replace these with initial 7DOF conf
-        "arm1": "conf1",
-    }
+    arms = parse_config(main_station, main_station_context)
     for k, v in arms.items():
         init += [("arm", k), ("empty", k), ("conf", v), ("at", k, v)]
 
-    regions = ["table", "red", "green"]
+    regions = parse_tables(main_station.directive)
     for r in regions:
         init += [("region", r)]
 
     goal = (
         "and",
-        ("in", "item1", "red"),
+        ("in", "foam_brick", "round_table"),
     )
-
-    # TODO: construct any models we need for the geometries of the scene, regions and items
-    # so that they can be used by the following streams.
 
     def plan_motion_gen(start, end, fluents=[]):
         """
-        Takes two 7DOF configurations, and yields collision free trajector(ies) between them.
-        Fluents is a list of tuples of the type ('atpose', <item>, <pose>) defining the current pose of all items.
+        Takes two 7DOF configurations, and yields collision free trajector(ies)
+        between them.
+        Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
+        defining the current pose of all items.
         """
-        # TODO: add interal station with ALL object welded at the positions in fluents
-        # TODO: call some collision free planning here
+        print(fluents)
         while True:
             yield (f"free_traj_{start}_to_{end}",)
 
     def plan_motion_holding_gen(item, start, end, fluents=[]):
         """
         Takes an item name, and two 7DOF configurations.
-        Yields collision free trajectories between the 7DOF configurations considering that the named item is grasped.
-        Fluents is a list of tuples of the type ('atpose', <item>, <pose>) defining the current pose of all items.
+        Yields collision free trajectories between the 7DOF configurations
+        considering that the named item is grasped.
+        Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
+        defining the current pose of all items.
         """
-        #TODO: add internal station with ALL objects welded at the positions in fluents, and the object welded to the hand
-        # TODO: update models and call some collision free planning here
-        print("HERE")
+        print(fluents)
         while True:
             yield (f"holding_traj_{item}_{start}_to_{end}",)
 
     def plan_grasp_gen(item, pose):
         """
         Takes an item name and the corresponding SE(3) pose.
-        Yields tuples of the form (<grasppose>, <pregrasp_conf>, <postgrasp_conf>) representing a relative pose of the
-        the item to the hand after the grasp, and two valid robot arm configurations for pre/post grasp stages of a
+        Yields tuples of the form (<grasppose>, <pregrasp_conf>,
+        <postgrasp_conf>) representing a relative pose of the
+        the item to the hand after the grasp, and two valid robot
+        arm configurations for pre/post grasp stages of a
         two stage grasp when the <item> is at <pose>.
         """
-        # TODO: plan a grasp
         while True:
-            yield (f"{item}_grasppose", f"{item}_{pose}_pregrasp_conf", f"{item}_{pose}_postgrasp_conf")
+            yield (
+                f"{item}_grasppose",
+                f"{item}_{pose}_pregrasp_conf",
+                f"{item}_{pose}_postgrasp_conf",
+            )
 
     def plan_place_gen(item, region):
         """
         Takes an item name and a region name.
-        Yields tuples of the form (<place_pose>, <preplace_conf>, <postplace_conf>) representing
-        the pose of <item> after being placed in <region>, and pre/post place robot arm configurations.
+        Yields tuples of the form (<place_pose>, <preplace_conf>,
+        <postplace_conf>) representing the pose of <item> after
+        being placed in <region>, and pre/post place robot arm configurations.
         """
-        # TODO: plan a place
         while True:
             yield (
                 f"{item}_{region}_pose",
@@ -277,48 +281,19 @@ def construct_problem_from_sim(simulator):
         "placement-conf": from_gen_fn(plan_place_gen),
     }
 
-    problem = PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
-    return problem
+    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
 
 
-def make_panda_station(builder):
-    """
-    Takes in a diagram builder, adds a setup panda station to
-    the diagram, and returns the panda station
-    """
-    station = builder.AddSystem(PandaStation())
-    # setup 3 table environment
-    station.setup_from_file("directives/three_tables.yaml")
-    # add panda arm and hand in default config
-    station.add_panda_with_hand()
-    # add a brick, soup can, and meat manipulands
-    station.add_model_from_file(
-        find_resource("models/manipulands/sdf/foam_brick.sdf"),
-        pydrake.math.RigidTransform(pydrake.math.RotationMatrix(), [0.6, 0, 0.2]),
-    )
-    station.add_model_from_file(
-        find_resource("models/manipulands/sdf/meat_can.sdf"),
-        pydrake.math.RigidTransform(
-            pydrake.math.RotationMatrix.MakeXRotation(-np.pi / 2), [0.5, 0.2, 0.2]
-        ),
-    )
-    station.add_model_from_file(
-        find_resource("models/manipulands/sdf/soup_can.sdf"),
-        pydrake.math.RigidTransform(
-            pydrake.math.RotationMatrix.MakeXRotation(-np.pi / 2), [0.5, -0.2, 0.2]
-        ),
-    )
-
-    station.finalize()
-    return station
-
-def make_and_init_simulation(zmq_url):
+def make_and_init_simulation(zmq_url, problem):
     """
     Make the simulation, and let it run for 0.2 s to let all the objects
-    settle into their stating positions 
+    settle into their stating positions
     """
     builder = pydrake.systems.framework.DiagramBuilder()
-    station = make_panda_station(builder)
+    problem_info = ProblemInfo(problem)
+    stations = problem_info.make_all_stations()
+    station = stations["main"]
+    builder.AddSystem(station)
     plant, scene_graph = station.get_plant_and_scene_graph()
 
     if zmq_url is not None:
@@ -340,35 +315,42 @@ def make_and_init_simulation(zmq_url):
     station_context = station.GetMyContextFromRoot(simulator_context)
     plant_context = plant.GetMyContextFromRoot(simulator_context)
     # for now, keep the arm still. TODO(agro): add trajectory system
-    station.GetInputPort("panda_position").FixValue(station_context, plant.GetPositions(plant_context, panda))
+    station.GetInputPort("panda_position").FixValue(
+        station_context, plant.GetPositions(plant_context, panda)
+    )
     station.GetInputPort("hand_position").FixValue(station_context, [0.08])
 
-    if zmq_url is not None: meshcat.start_recording()
+    if zmq_url is not None:
+        meshcat.start_recording()
     simulator.AdvanceTo(0.2)
-    if zmq_url is not None: meshcat.stop_recording()
-    if zmq_url is not None: meshcat.publish_recording()
+    if zmq_url is not None:
+        meshcat.stop_recording()
+    if zmq_url is not None:
+        meshcat.publish_recording()
+    return simulator, stations
 
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="zmq_url for meshcat server")
     parser.add_argument("-u", "--url", nargs="?", default=None)
-    parser.add_argument("-p", "--problem", nargs="?", default="problems/test_problem.yaml")
+    parser.add_argument(
+        "-p", "--problem", nargs="?", default="problems/test_problem.yaml"
+    )
     args = parser.parse_args()
 
-    problem_info = ProblemInfo(args.problem)
-    simulator = make_and_init_simulation(args.url)
+    res = make_and_init_simulation(args.url, args.problem)
 
-    problem = construct_problem_from_sim(simulator)
+    problem = construct_problem_from_sim(res[0], res[1])
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
     for algorithm in [
         "binding",
     ]:
         solution = solve(problem, algorithm=algorithm, verbose=True)
-        #print(f"\n\n{algorithm} solution:")
-        #print_solution(solution)
-        #input("Continue")
+        # print(f"\n\n{algorithm} solution:")
+        # print_solution(solution)
+        # input("Continue")
         plan, _, _ = solution
         for action in plan:
             print(action.name)
