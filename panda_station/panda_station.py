@@ -8,8 +8,6 @@ from .panda_hand_position_controller import (
     PandaHandPositionController,
     make_multibody_state_to_panda_hand_state_system,
 )
-from .planning_utils import ObjectInfo, BodyInfo, ShapeInfo
-
 
 class PandaStation(pydrake.systems.framework.Diagram):
     """
@@ -422,4 +420,195 @@ class PandaStation(pydrake.systems.framework.Diagram):
         )
 
         self.builder.BuildInto(self)
+
+
+class ObjectInfo:
+    """
+    Class for storing all bodies associated with an object
+    """
+
+    def __init__(self, name, welded_to_frame=None, path=None):
+        """
+        Construct an ObjectInfo object
+
+        Args:
+            main_body_info: the BodyInfo of the main body of this object
+            welded_to_frame: the FixedOffsetFrame that the main body is welded
+            to (optional)
+            path: the absolute filepath used to find the model (optional)
+        """
+        self.path = path
+        self.main_body_info = None
+        self.welded_to_frame = welded_to_frame
+        self.body_infos = {}
+        self.name = name
+        # self.body_infos[main_body_info.get_index()] = self.main_body_info
+
+    def set_main_body_info(self, main_body_info):
+        """
+        Set the main body info of this ObjectInfo
+        """
+        self.main_body_info = main_body_info
+        if not main_body_info.get_index() in self.body_infos.keys():
+            self.body_infos[main_body_info.get_index()] = self.main_body_info
+
+    def add_body_info(self, body_info):
+        """
+        Given a BodyInfo, add it to this object
+        """
+        self.body_infos[body_info.get_index()] = body_info
+
+    def get_main_body(self):
+        """
+        Return the BodyInfo of the main body of this object
+        """
+        return self.main_body_info
+
+    def get_frame(self):
+        """
+        Get the welded_to_frame
+        """
+        return self.welded_to_frame
+
+    def get_path(self):
+        """
+        returns the path used to create this object
+        """
+        return self.path
+
+    def get_name(self):
+        """
+        return the name of this ObjectInfo
+        """
+        return self.name
+
+    def get_body_infos(self):
+        """
+        Return the body infos associated with this object
+        """
+        return self.body_infos
+
+    def str_info(self):
+        """
+        get string info about this ObjectInfo
+        """
+        frame_name = None
+        if self.welded_to_frame is not None:
+            frame_name = self.welded_to_frame.name()
+        res = f"""
+        name: {self.name}
+        path: {self.path}
+        main body name: {self.main_body_info.get_name()}
+        welded to frame: {frame_name}
+        BodyInfos: 
+        """
+        for info in self.body_infos.values():
+            str_info = str(info).split("\n")
+            for string in str_info:
+                res += "\t" + string + "\n"
+
+        return res
+
+    def __str__(self):
+        res = f"Object name: {self.name}"
+        return res
+
+
+class BodyInfo:
+    """
+    Class for storing all geometries associated with a body
+    """
+
+    def __init__(self, body, body_index):
+        """
+        Construct a body info instance by providing its
+        pydrake.multibody.tree.BodyIndex
+
+        Args:
+            body_index: the BodyIndex of the main body
+            welded to (if it is welded to one)
+            body: the actual Body associated with this body
+            index
+        """
+        self.body_index = body_index
+        self.body = body
+        self.shape_infos = []
+
+    def add_shape_info(self, shape_info):
+        """
+        Add a ShapeInfo instance to be associated with this body
+        """
+        self.shape_infos.append(shape_info)
+
+    def get_name(self):
+        """
+        Get the name of this body
+        """
+        return self.body.name()
+
+    def get_index(self):
+        """
+        Return the index of this body
+        """
+        return self.body.index()
+
+    def get_body_frame(self):
+        """
+        Return the body frame of this body
+        """
+        return self.body.body_frame()
+
+    def get_body(self):
+        """
+        Returns this body
+        """
+        return self.body
+
+    def get_shape_infos(self):
+        """
+        Return the shape infos associated with this body
+        """
+        return self.shape_infos
+
+    def __str__(self):
+        res = f"""body index: {self.body_index}, body_name: {self.body.name()}
+        ShapeInfos: 
+        """
+
+        for info in self.shape_infos:
+            str_info = str(info).split("\n")
+            for string in str_info:
+                res += "\t" + string + "\n\t"
+
+        return res
+
+
+class ShapeInfo:
+    """
+    Class for storing the information about a shape
+    """
+
+    def __init__(self, shape, offset_frame):
+
+        """
+        Construct a ShapeInfo instance given a
+        pydrake.geometry.GeometryInstance.shape and its
+        associated pydrake.multibody.tree.FixedOffsetFrame
+        """
+        self.shape = shape
+        self.offset_frame = offset_frame
+        self.type = type(shape)
+
+    def __str__(self):
+        """
+        Used when printing out the shape info
+        """
+        res = f"offset_frame: {self.offset_frame.name()}, type:"
+        if self.type == pydrake.geometry.Box:
+            res += "box"
+        if self.type == pydrake.geometry.Cylinder:
+            res += "cylinder"
+        if self.type == pydrake.geometry.Sphere:
+            res += "sphere"
+        return res
 
