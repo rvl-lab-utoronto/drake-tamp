@@ -9,6 +9,7 @@ from .panda_hand_position_controller import (
     make_multibody_state_to_panda_hand_state_system,
 )
 
+
 class PandaStation(pydrake.systems.framework.Diagram):
     """
     The PandaStation class
@@ -65,8 +66,29 @@ class PandaStation(pydrake.systems.framework.Diagram):
             self.plant.GetCollisionGeometriesForBody(panda_hand)
         )
         # exclude collisions
-        self.scene_graph.ExcludeCollisionsBetween(panda_link7, panda_hand)
         self.scene_graph.ExcludeCollisionsBetween(panda_link5, panda_link7)
+        self.scene_graph.ExcludeCollisionsBetween(panda_link7, panda_hand)
+
+    def remove_collisions_with_hand(self, object_info):
+        """
+        Removes collisions between all links of the object in object_info
+        and the panda hand
+        """
+        hand_body_ids = self.plant.GetBodyIndices(self.hand)
+        hand_col_ids = []
+        for body_id in hand_body_ids:
+            hand_col_ids += self.plant.GetCollisionGeometriesForBody(
+                self.plant.get_body(body_id)
+            )
+        hand_geom_set = pydrake.geometry.GeometrySet(hand_col_ids)
+        body_infos = list(object_info.get_body_infos().values())
+        body_col_ids = []
+        for body_info in body_infos:
+            body_col_ids += self.plant.GetCollisionGeometriesForBody(
+                body_info.get_body()
+            )
+        body_geom_set = pydrake.geometry.GeometrySet(body_col_ids)
+        self.scene_graph.ExcludeCollisionsBetween(hand_geom_set, body_geom_set)
 
     def add_panda_with_hand(
         self, weld_fingers=False, q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0])
@@ -178,6 +200,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         object_info.body_infos = body_infos  # add all the other body infos
         object_info.set_main_body_info(main_body_info)
         self.object_infos[name] = (object_info, Xinit_WO)
+        return object_info
 
     def DEPRECIATED_add_model_from_file(
         self, path, Xinit_WO, main_body_name=None, name=None
@@ -250,6 +273,25 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """
         return self.hand
 
+    def get_panda_joint_limits(self):
+        """
+        Get the joint limits for the panda in the form:
+        [
+        (lower, upper),
+        ...
+        ]
+        in radians
+        """
+        num_q = self.plant.num_positions(self.panda)
+        joint_inds = self.plant.GetJointIndices(self.panda)[:num_q]
+        joint_limits = []
+        for i in joint_inds:
+            joint = self.plant.get_joint(i)
+            joint_limits.append(
+                (joint.position_lower_limits()[0], joint.position_upper_limits()[0])
+            )
+        return joint_limits
+
     def finalize(self):
         """finalize the panda station"""
 
@@ -265,7 +307,14 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 ):
                     shape = inspector.GetShape(geom_id)
                     X_BG = inspector.GetPoseInFrame(geom_id)
-                    frame_name = "frame_" + object_info.get_name() + "_" + body_info.get_name() + "_" + str(i)
+                    frame_name = (
+                        "frame_"
+                        + object_info.get_name()
+                        + "_"
+                        + body_info.get_name()
+                        + "_"
+                        + str(i)
+                    )
                     frame = self.plant.AddFrame(
                         pydrake.multibody.tree.FixedOffsetFrame(
                             frame_name, body_info.get_body_frame(), X_BG
@@ -611,4 +660,3 @@ class ShapeInfo:
         if self.type == pydrake.geometry.Sphere:
             res += "sphere"
         return res
-

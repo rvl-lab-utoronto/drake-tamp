@@ -89,8 +89,9 @@ class ProblemInfo:
             if name == weld_to_hand:
                 P = plant.GetFrameByName("panda_hand", station.get_hand())
                 X = RigidTransform()
+                X.set_translation([0, 0, 0.2])
                 welded = True
-            station.add_model_from_file(
+            object_info = station.add_model_from_file(
                 find_resource(self.objects[name]["path"]),
                 X,
                 main_body_name=self.objects[name]["main_link"],
@@ -98,6 +99,7 @@ class ProblemInfo:
                 P=P,
                 name=name,
             )
+            station.remove_collisions_with_hand(object_info)
 
         station.finalize()
         return station
