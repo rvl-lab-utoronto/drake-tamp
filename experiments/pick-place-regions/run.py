@@ -21,7 +21,10 @@ from panda_station import (
     update_station,
     TrajectoryDirector,
     find_traj,
-    find_grasp_q
+    find_grasp_q,
+    q_to_X_HO,
+    backup_on_hand_z,
+    backup_on_world_z,
 )
 
 ARRAY = tuple
@@ -291,16 +294,15 @@ def construct_problem_from_sim(simulator, stations):
                 #TODO(agro): implement find_grasp, pregrasp ...
                 for grasp_q, cost in find_grasp_q(station, station_context, shape_info):
                     if not np.isfinite(cost): continue
-                    #pregrasp_q = backup_on_hand_z(grasp_q, d = ?)
-                    #postgrasp_q = backup_on_world_z(grasp_q, d = ?)
-                    #X_HO = ...
-                    #yield X_HO, pregrasp_q, postgrasp_q
-        while True:
-            yield (
-                RigidTransform(),
-                np.zeros(7),
-                np.zeros(7),
-            )
+                    pregrasp_q, pre_cost = backup_on_hand_z(grasp_q, station, station_context)
+                    postgrasp_q, post_cost = backup_on_world_z(grasp_q, station, station_context)
+                    # relative transform from hand to main_body of object_info
+                    X_HO = q_to_X_HO(
+                        grasp_q, object_info.main_body_info(), station, station_context
+                    )
+                    if not np.isfinite(pre_cost + post_cost):
+                        continue
+                    yield X_HO, pregrasp_q, postgrasp_q
         return
 
     def plan_place_gen(item, region):

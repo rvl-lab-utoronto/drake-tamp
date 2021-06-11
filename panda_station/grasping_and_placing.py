@@ -12,6 +12,8 @@ from pydrake.all import (
     Box,
     Cylinder,
     Sphere,
+    RotationMatrix,
+    RigidTransform
 )
 
 NUM_Q = 7  # DOF of panda arm
@@ -26,6 +28,24 @@ GRASP_MARGIN = 0.006  # margin for grasp planning
 Q_NOMINAL = np.array([0.0, 0.55, 0.0, -1.45, 0.0, 1.58, 0.0])
 HAND_FRAME_NAME = "panda_hand"
 THETA_TOL = np.pi * 0.01
+P_TOL = 0.01
+
+class TargetSurface():
+    """
+    A class for storing information about a target surface 
+    for placement
+    """
+    def __init__(self, shape_info, z, bb_min, bb_max):
+        """
+        Construct a TargetSurface by providing the
+        shape_info of the surface, the direction of it's 
+        normal, and the lower and upper cordners of 
+        its bounding box
+        """
+        self.shape_info = shape_info
+        self.z = z
+        self.bb_min = bb_min
+        self.bb_max = bb_max
 
 
 def check_specs(plant, q_nominal, initial_guess):
@@ -84,6 +104,15 @@ def is_graspable(shape_info):
             return False
     return True
 
+def is_placeable(holding_shape_info):
+    """
+    Returns true iff the shape is suitable for placement
+    """
+    shape = holding_shape_info.shape
+    if isinstance(shape, Sphere):
+        if shape.radius() < GRASP_MARGIN:
+            return False
+    return True
 
 def add_deviation_from_vertical_cost(prog, q, plant, weight=1):
     """
@@ -447,3 +476,174 @@ def sphere_grasp_q(
     if np.isfinite(cost):
         yield result.GetSolution(q), cost
     return
+
+def q_to_X_WH(q, station, station_context):
+    """
+    Given the joint positions of the panda arm `q`, in PandaStation `station`
+    with Context `station_context` return the pose of the hand frame in the
+    world X_WH
+    """
+    assert len(q) == NUM_Q, "This config is the incorrect length"
+    plant = station.get_multibody_plant()
+    plant_context = station.GetSubsystemContext(plant, station_context)
+    panda = station.get_panda()
+    hand = station.get_hand()
+    plant.SetPositions(plant_context, panda, q)
+    body = plant.GetBodyByName(HAND_FRAME_NAME, hand)
+    return plant.EvalBodyPoseInWorld(plant_context, body)
+
+def q_to_X_HO(q, body_info, station, station_context):
+    assert len(q) == NUM_Q, "This config is the incorrect length"
+    plant = station.get_multibody_plant()
+    plant_context = station.GetSubsystemContext(plant, station_context)
+    panda = station.get_panda()
+    hand = station.get_hand()
+    H = plant.GetFrameByName(HAND_FRAME_NAME, hand)
+    plant.SetPositions(plant_context, panda, q)
+    O = body_info.get_body_frame()
+    return plant.CalcRelativeTransform(plant_context, H, O)
+
+def X_WH_to_q(X_WH, station, station_context, q_nominal = Q_NOMINAL, inital_guess = Q_NOMINAL):
+    """
+    Given the desired pose of the hand frame in the world, X_WH, 
+    for the PandaStation station with Context station_context,
+    find the nessecary joint positions `q` to achieve that pose
+
+    Optional Args:
+        q_nominal: comfortable joint positions 
+        intial_guess: the initial guess for the solution
+
+    Returns:
+        q: joint positions (np.array)
+        cost: cost of solution (np.inf if infeasible)
+    """
+    plant = station.get_multibody_plant()
+    plant_context = station.GetSubsystemContext(plant, station_context)
+    panda = station.get_panda()
+    hand = station.get_hand()
+    H = plant.GetFrameByName(HAND_FRAME_NAME, hand)
+    W = plant.world_frame()
+    ik = InverseKinematics(plant, plant_context)
+    ik.AddPositionConstraint(
+        H,
+        np.zeros(3),
+        W,
+        X_WH.translation() - P_TOL*np.ones(3),
+        X_WH.translation() + P_TOL*np.ones(3)
+    )
+    ik.AddOrientationConstraint(
+        H,
+        RotationMatrix(),
+        W,
+        X_WH.rotation(),
+        THETA_TOL
+    )
+    ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
+    q = ik.q()
+    prog = ik.prog()
+    prog.AddQuadraticErrorCost(np.identity(len(q)), q_nominal, q)
+    prog.SetInitialGuess(q, inital_guess)
+    result = Solve(prog)
+    cost = result.get_optimal_cost()
+    if not result.is_success():
+        cost = np.inf
+    return result.GetSolution(), cost
+
+
+def backup_on_hand_z(grasp_q, station, station_context, d = GRASP_HEIGHT):
+    """
+    Find the pregrasp/postplace configuration given
+    the current config `grasp_q` by "backing up" a distance `d`
+    along the negative z axis of the hand
+
+    Returns:
+        q: joint positions
+        cost: cost of solution (np.inf if no solution is found)
+    """
+    X_WH = q_to_X_WH(grasp_q, station, station_context)
+    X_HP = RigidTransform(RotationMatrix(), [0,0, -d])
+    X_WP = X_WH.multiply(X_HP)
+    return X_WH_to_q(X_WP, station, station_context, initial_guess = grasp_q)
+
+def backup_on_world_z(grasp_q, station, station_context, d = GRASP_HEIGHT):
+    """
+    Find the postgrasp/preplace configuration given
+    the current config `grasp_q` by "backing up" a distance `d`
+    along the negative z axis of the world
+
+    Returns:
+        q: joint positions
+        cost: cost of solution (np.inf if no solution is found)
+    """
+    X_WH = q_to_X_WH(grasp_q, station, station_context)
+    X_WP = X_WH
+    p_HP_W = [0, 0, d]
+    p_WH_W = X_WH.translation()
+    X_WP.set_translation(p_WH_W + p_HP_W)
+    return X_WH_to_q(X_WP, station, station_context, inital_guess=grasp_q)
+
+def is_safe_to_place(target_shape_info, station, station_context):
+    """
+    Return a tuple of the form
+    (is_safe, target_surface)
+    where is_safe is a boolean denoting if the surface is safe to 
+    place objects on and target_surface is the resulting 
+    TargetSurface object
+
+    Args:
+        target_shape_info: the shape info of the target surface
+        station: the PandaStation that the target shape is part of
+        station_context: the context of the PandaStation
+    """
+    plant = station.get_multibody_plant()
+    plant_context = station.GetSubsystemContext(plant, station_context)
+    shape = target_shape_info.shape
+    G = target_shape_info.frame
+    X_WG = G.CalcPoseInWorld(plant_context)
+
+    drop_height = 0.05
+    theta_tol = np.pi*0.1
+
+    if isinstance(shape, Sphere):
+        return False, None # don't try to place things on a sphere
+    if isinstance(shape, Cylinder):
+        # the z axis of the cylinder needs to be aligned with the world z axis
+        z_W = np.array([0, 0, 1])
+        z_G = X_WG.rotation().col(2)
+        # acute angle between vectors
+        dot = z_W.dot(z_G)
+        theta = np.arccos(np.clip(dot, -1, 1))
+        if (theta < np.pi - theta_tol) and (theta > theta_tol):
+            return False, None
+        else:
+            z_G = z_G * np.sign(dot) # get upwards pointing vector
+            r_prime = shape.radius()/np.sqrt(2)
+            bb_min = np.array([-r_prime, -r_prime, shape.length()/2])
+            bb_min[2] = bb_min[2]*np.sign(dot)
+            bb_max = np.array([r_prime, r_prime, shape.length()/2])
+            bb_max[2] = bb_min[2]*np.sign(dot)
+            if np.sign(dot) > 0:
+                bb_max[2] = bb_max[2] + drop_height
+            else:
+                bb_min[2] = bb_min[2] - drop_height
+            return True, TargetSurface(target_shape_info, z_G, bb_min, bb_max)
+    if isinstance(shape, Box):
+        # check if any of the axes are aligned with the world z axis
+        z_W = np.array([0, 0, 1])
+        for a in range(3):
+            z_cand = X_WG.rotation().col(a)
+            dot = z_W.dot(z_cand)
+            theta = np.arccos(np.clip(dot, -1, 1))
+            if (theta < np.pi - theta_tol) and (theta > theta_tol):
+                continue 
+            z_G = z_cand * np.sign(dot) # get upwards pointing vector
+            bb_min = np.array([-shape.width()/2, -shape.depth()/2, -shape.height()/2])
+            bb_max = np.array([shape.width()/2, shape.depth()/2, shape.height()/2])
+            bb_min[a] = bb_min[a]*(-1)*np.sign(dot)
+            bb_max[a] = bb_max[a]*np.sign(dot)
+            if np.sign(dot) > 0:
+                bb_max[a] = bb_max[a] + drop_height
+            else:
+                bb_min[a] = bb_min[a] - drop_height
+            return True, TargetSurface(target_shape_info, z_G, bb_min, bb_max)
+        return False, None

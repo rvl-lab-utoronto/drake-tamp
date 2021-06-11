@@ -9,6 +9,8 @@ from .panda_hand_position_controller import (
     make_multibody_state_to_panda_hand_state_system,
 )
 
+HAND_FRAME_NAME = "panda_hand"
+ARM_LINK_PREFIX = "panda_link"
 
 class PandaStation(pydrake.systems.framework.Diagram):
     """
@@ -57,9 +59,9 @@ class PandaStation(pydrake.systems.framework.Diagram):
         assert self.hand is not None, "No panda hand has been added"
         # get geometry indices and create geometry sets
 
-        link5 = self.plant.GetBodyByName("panda_link5", self.panda)
-        link7 = self.plant.GetBodyByName("panda_link7", self.panda)
-        hand = self.plant.GetBodyByName("panda_hand", self.hand)
+        link5 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "5", self.panda)
+        link7 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "7", self.panda)
+        hand = self.plant.GetBodyByName(HAND_FRAME_NAME, self.hand)
 
         l57_set = self.plant.CollectRegisteredGeometries([link5, link7])
         self.scene_graph.ExcludeCollisionsWithin(l57_set)
@@ -67,7 +69,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.scene_graph.ExcludeCollisionsWithin(lh7_set)
 
         for frame in self.frame_groups:
-            if frame.name() == "panda_hand":
+            if frame.name() == HAND_FRAME_NAME:
                 for obj_id in self.frame_groups[frame]:
                     self.remove_collisions_with_hand(obj_id)
 
