@@ -10,10 +10,11 @@ from .grasping_and_placing import (
     cylinder_grasp_q,
     box_grasp_q,
     sphere_grasp_q,
-    is_graspable
-) 
+    is_graspable,
+)
 
 NUM_Q = 7
+
 
 def state_to_q(state):
     """
@@ -83,26 +84,39 @@ def find_traj(station, station_context, q_start, q_goal):
     return res
 
 
-
 def find_grasp_q(station, station_context, shape_info):
     """
-    Find a grasp configuration for the panda arm grasping 
-    shape_info
+    Find a grasp configuration for the panda arm grasping
+    shape_info. This generator will yield the first
+    non-infinite cost grasp it can find
 
     Args:
         station: a PandaStation with welded fingers
         station_context: the Context for the station
-        shape_info: the ShapeInfo instance to try and grasp. 
-    
-    Returns:
+        shape_info: the ShapeInfo instance to try and grasp.
+
+    Yields:
         A tuple of the form
         (grasp_q, cost)
+
+    Returns:
+        If there are no valid grasps to be found
     """
     if not is_graspable(shape_info):
         return None, np.inf
     if isinstance(shape_info.shape, Sphere):
-        return sphere_grasp_q(station, station_context, shape_info)
+        for grasp_q, cost in sphere_grasp_q(station, station_context, shape_info):
+            if not np.isfinite(cost):
+                continue
+            yield grasp_q
     if isinstance(shape_info.shape, Box):
-        return box_grasp_q(station, station_context, shape_info)
+        for grasp_q, cost in box_grasp_q(station, station_context, shape_info):
+            if not np.isfinite(cost):
+                continue
+            yield grasp_q
     if isinstance(shape_info.shape, Cylinder):
-        return cylinder_grasp_q(station, station_context, shape_info)
+        for grasp_q, cost in cylinder_grasp_q(station, station_context, shape_info):
+            if not np.isfinite(cost):
+                continue
+            yield grasp_q
+    return None, np.inf
