@@ -20,6 +20,8 @@ from panda_station import (
     parse_tables,
     update_station,
     TrajectoryDirector,
+    find_traj,
+    find_grasp_q
 )
 
 ARRAY = tuple
@@ -240,7 +242,12 @@ def construct_problem_from_sim(simulator, stations):
         # udate poses in station
         update_station(station, station_context, fluents)
         while True:
-            yield (f"free_traj_{start}_to_{end}",)
+            # find traj will return a np.array of configurations, but no time informatino
+            # The actual peicewise polynominal traj will be reconstructed after planning
+            traj = find_traj(station, station_context, start, end)
+            if traj is None: # if a trajectory could not be found (invalid)
+                return
+            yield traj
 
     def plan_motion_holding_gen(item, start, end, fluents=[]):
         """
@@ -256,7 +263,12 @@ def construct_problem_from_sim(simulator, stations):
         # udate poses in station
         update_station(station, station_context, fluents)
         while True:
-            yield (f"holding_traj_{item}_{start}_to_{end}",)
+            # find traj will return a np.array of configurations, but no time informatino
+            # The actual peicewise polynominal traj will be reconstructed after planning
+            traj = find_traj(station, station_context, start, end)
+            if traj is None: # if a trajectory could not be found (invalid)
+                return
+            yield traj
 
     def plan_grasp_gen(item, pose):
         """
@@ -267,16 +279,29 @@ def construct_problem_from_sim(simulator, stations):
         arm configurations for pre/post grasp stages of a
         two stage grasp when the <item> is at <pose>.
         """
-        print("\nHERE\n")
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
         # udate poses in station
+        mock_fluent = ("atpose", item, pose)
+        update_station(station, station_context, [mock_fluent], set_others_to_inf= True)
+        object_info = station.object_infos[item][0]
+        body_infos = list(object_info.get_body_infos().values())
+        for body_info in body_infos:
+            for shape_info in body_info.get_shape_info():
+                #TODO(agro): implement find_grasp, pregrasp ...
+                grasp_q, cost = find_grasp_q(station, station_context, shape_info)
+                if not np.isfinite(cost): continue
+                #pregrasp_q = backup_on_hand_z(grasp_q, d = ?)
+                #postgrasp_q = backup_on_world_z(grasp_q, d = ?)
+                #X_HO = ...
+                #yield X_HO, pregrasp_q, postgrasp_q
         while True:
             yield (
                 RigidTransform(),
                 np.zeros(7),
                 np.zeros(7),
             )
+        return
 
     def plan_place_gen(item, region):
         """
@@ -285,7 +310,10 @@ def construct_problem_from_sim(simulator, stations):
         <postplace_conf>) representing the pose of <item> after
         being placed in <region>, and pre/post place robot arm configurations.
         """
-        print("\nHERE\n")
+        station = stations[item]
+        station_context = station_contexts[item]
+        # udate poses in station
+        update_station(station, station_context, [], set_others_to_inf= True)
         while True:
             yield (
                 RigidTransform(),

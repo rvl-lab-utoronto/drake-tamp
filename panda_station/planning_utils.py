@@ -63,7 +63,7 @@ class ProblemInfo:
             (name, "base_link") for name in parse_tables(find_resource(self.directive))
         ]
 
-    def make_station(self, weld_to_world, weld_to_hand=None):
+    def make_station(self, weld_to_world, weld_to_hand=None, weld_fingers = False):
         """
         Makes a PandaStation based on this problem instance.
         see `make_all_stations`
@@ -77,7 +77,7 @@ class ProblemInfo:
         """
         station = PandaStation()
         station.setup_from_file(self.directive, names_and_links=self.names_and_links)
-        station.add_panda_with_hand()
+        station.add_panda_with_hand(weld_fingers= weld_fingers)
         plant = station.get_multibody_plant()
 
         for name in self.objects:
@@ -121,11 +121,11 @@ class ProblemInfo:
         """
         res = {}
         res["main"] = self.make_station([])
-        res["move_free"] = self.make_station(list(self.objects.keys()))
+        res["move_free"] = self.make_station(list(self.objects.keys()), weld_fingers = True)
         for name in self.objects:
             weld_to_world = list(self.objects.keys())
             weld_to_world.remove(name)
-            res[name] = self.make_station(weld_to_world, weld_to_hand = name)
+            res[name] = self.make_station(weld_to_world, weld_to_hand = name, weld_fingers = True)
         return res
 
     @staticmethod
@@ -245,7 +245,7 @@ def parse_tables(directive):
     return res
 
 
-def update_station(station, station_context, pose_fluents):
+def update_station(station, station_context, pose_fluents, set_others_to_inf = False):
     """
     Update the poses of the welded objects in the
     PandaStation based on the poses in pose_fluents.
@@ -258,6 +258,9 @@ def update_station(station, station_context, pose_fluents):
 
         pose_fluents: A list of tuples of the form
         [('atpose', object_info_name, X_WO), ..., ('atgraspose', object_info_name, X_WH)]
+
+        set_others_to_inf: if True, the poses of any unspecified objects will be set to 
+        infinity (far away) so they are not considerd in planning
     Returns:
         None, but updates the welded station provided in welded_station
     """
@@ -270,3 +273,14 @@ def update_station(station, station_context, pose_fluents):
             offset_frame is not None
         ), "you are trying to set the pose of a free object"
         offset_frame.SetPoseInBodyFrame(plant_context, X_PO)
+
+    X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
+    if set_others_to_inf:
+        for object_info, Xinit_WO in list(station.object_infos.values()):
+            if Xinit_WO is None: # it is not a manipuland
+                continue
+            offset_frame = object_info.get_frame()
+            offset_frame.SetPoseInBodyFrame(plant_context, X_WO)
+            # spacing of 5 m should be far enough
+            X_WO.set_translation(X_WO.translation() + np.array([5, 0, 0]))
+

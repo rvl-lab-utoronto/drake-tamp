@@ -43,38 +43,57 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.set_name("panda_station")
         self.panda = None
         self.hand = None
+        self.frame_groups = {}
 
     def fix_collisions(self):
         """
         fix collisions for the hand and arm in this plant
         by removing collisions between panda_link5<->panda_link7 and
         panda_link7<->panda_hand
+
+        Then remove collisions within each frame group
         """
         assert self.panda is not None, "No panda has been added"
         assert self.hand is not None, "No panda hand has been added"
         # get geometry indices and create geometry sets
-        panda_link5 = self.plant.GetFrameByName("panda_link5", self.panda).body()
-        panda_link5 = pydrake.geometry.GeometrySet(
-            self.plant.GetCollisionGeometriesForBody(panda_link5)
-        )
-        panda_link7 = self.plant.GetFrameByName("panda_link7", self.panda).body()
-        panda_link7 = pydrake.geometry.GeometrySet(
-            self.plant.GetCollisionGeometriesForBody(panda_link7)
-        )
-        panda_hand = self.plant.GetFrameByName("panda_hand", self.hand).body()
-        panda_hand = pydrake.geometry.GeometrySet(
-            self.plant.GetCollisionGeometriesForBody(panda_hand)
-        )
-        # exclude collisions
-        self.scene_graph.ExcludeCollisionsBetween(panda_link5, panda_link7)
-        self.scene_graph.ExcludeCollisionsBetween(panda_link7, panda_hand)
+
+        link5 = self.plant.GetBodyByName("panda_link5", self.panda)
+        link7 = self.plant.GetBodyByName("panda_link7", self.panda)
+        hand = self.plant.GetBodyByName("panda_hand", self.hand)
+
+        l57_set = self.plant.CollectRegisteredGeometries([link5, link7])
+        self.scene_graph.ExcludeCollisionsWithin(l57_set)
+        lh7_set = self.plant.CollectRegisteredGeometries([hand, link7])
+        self.scene_graph.ExcludeCollisionsWithin(lh7_set)
+
+        for frame in self.frame_groups:
+            if frame.name() == "panda_hand":
+                for obj_id in self.frame_groups[frame]:
+                    self.remove_collisions_with_hand(obj_id)
+
+            bodies = []
+            for object_info in self.frame_groups[frame]:
+                body_infos = list(object_info.get_body_infos().values())
+                for body_info in body_infos:
+                    bodies.append(body_info.get_body())
+            geom_set = self.plant.CollectRegisteredGeometries(bodies)
+            self.scene_graph.ExcludeCollisionsWithin(geom_set)
 
     def remove_collisions_with_hand(self, object_info):
         """
         Removes collisions between all links of the object in object_info
         and the panda hand
         """
+
         hand_body_ids = self.plant.GetBodyIndices(self.hand)
+        bodies = [self.plant.get_body(id) for id in hand_body_ids]
+        body_infos = list(object_info.get_body_infos().values())
+        for body_info in body_infos:
+            bodies.append(body_info.get_body())
+        geom_set = self.plant.CollectRegisteredGeometries(bodies)
+        self.scene_graph.ExcludeCollisionsWithin(geom_set)
+
+        """
         hand_col_ids = []
         for body_id in hand_body_ids:
             hand_col_ids += self.plant.GetCollisionGeometriesForBody(
@@ -89,6 +108,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
             )
         body_geom_set = pydrake.geometry.GeometrySet(body_col_ids)
         self.scene_graph.ExcludeCollisionsBetween(hand_geom_set, body_geom_set)
+        """
 
     def add_panda_with_hand(
         self, weld_fingers=False, q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0])
@@ -105,7 +125,6 @@ class PandaStation(pydrake.systems.framework.Diagram):
             self.plant, panda_model_instance_index=self.panda, weld_fingers=weld_fingers
         )
         self.weld_fingers = weld_fingers
-        self.fix_collisions()
 
     def setup_from_file(self, filename, names_and_links=None):
         """
@@ -200,42 +219,13 @@ class PandaStation(pydrake.systems.framework.Diagram):
         object_info.body_infos = body_infos  # add all the other body infos
         object_info.set_main_body_info(main_body_info)
         self.object_infos[name] = (object_info, Xinit_WO)
+        if welded:
+            if P not in self.frame_groups:
+                self.frame_groups[P] = [object_info]
+            else:
+                self.frame_groups[P].append(object_info)
         return object_info
 
-    def DEPRECIATED_add_model_from_file(
-        self, path, Xinit_WO, main_body_name=None, name=None
-    ):
-        """
-        Add a model to this plant from the full path provided in `path`
-        at initial world position Xinit_WO
-
-        Args:
-            path: [string] full path to model file (eg. from FindResourceOrThrow or
-            find_resource)
-            Xinit_WO: the initial world pose of the object
-            main_body_name: [string] provide the name of the body link to set the
-            position of the model, if there is more than one link in the model.
-            name: [string] optional name for the model.
-        Returns:
-            the model instance index of the added model
-        """
-        parser = pydrake.multibody.parsing.Parser(self.plant)
-        if name is None:
-            num = str(len(self.object_infos))
-            name = "added_model_" + num
-        model = parser.AddModelFromFile(path, name)
-        indices = self.plant.GetBodyIndices(model)
-        assert (len(indices) == 1) or (
-            main_body_name is not None
-        ), "You must specify the main link name"
-        index = indices[0]
-        if main_body_name is not None:
-            for i in indices:
-                test_name = self.plant.get_body(i).name()
-                if test_name == main_body_name:
-                    index = i
-        self.object_infos[name] = ObjectInfo(path, index, Xinit_WO, name)
-        return model
 
     def get_directive(self):
         """
@@ -295,6 +285,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
     def finalize(self):
         """finalize the panda station"""
 
+
         assert self.panda is not None, "No panda added, run add_panda_with_hand"
         assert self.hand is not None, "No panda hand model added"
 
@@ -323,6 +314,8 @@ class PandaStation(pydrake.systems.framework.Diagram):
                     body_info.add_shape_info(ShapeInfo(shape, frame))
 
         self.plant.Finalize()
+
+        self.fix_collisions()
 
         for object_info, Xinit_WO in self.object_infos.values():
             if Xinit_WO is None:
