@@ -266,7 +266,9 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf = F
     """
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
+    set_pose = []
     for _, name, X_PO in pose_fluents:
+        set_pose.append(name)
         object_info = station.object_infos[name][0]
         offset_frame = object_info.get_frame()
         assert (
@@ -277,6 +279,8 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf = F
     X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
     if set_others_to_inf:
         for object_info, Xinit_WO in list(station.object_infos.values()):
+            if object_info.get_name() in set_pose: # its pose has been set
+                continue
             if Xinit_WO is None: # it is not a manipuland
                 continue
             offset_frame = object_info.get_frame()

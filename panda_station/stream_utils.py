@@ -103,20 +103,14 @@ def find_grasp_q(station, station_context, shape_info):
         If there are no valid grasps to be found
     """
     if not is_graspable(shape_info):
-        return None, np.inf
+        return 
     if isinstance(shape_info.shape, Sphere):
         for grasp_q, cost in sphere_grasp_q(station, station_context, shape_info):
-            if not np.isfinite(cost):
-                continue
-            yield grasp_q
+            yield grasp_q, cost
     if isinstance(shape_info.shape, Box):
         for grasp_q, cost in box_grasp_q(station, station_context, shape_info):
-            if not np.isfinite(cost):
-                continue
-            yield grasp_q
+            yield grasp_q, cost
     if isinstance(shape_info.shape, Cylinder):
         for grasp_q, cost in cylinder_grasp_q(station, station_context, shape_info):
-            if not np.isfinite(cost):
-                continue
-            yield grasp_q
-    return None, np.inf
+            yield grasp_q, cost
+    return 

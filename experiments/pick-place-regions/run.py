@@ -287,10 +287,9 @@ def construct_problem_from_sim(simulator, stations):
         object_info = station.object_infos[item][0]
         body_infos = list(object_info.get_body_infos().values())
         for body_info in body_infos:
-            for shape_info in body_info.get_shape_info():
+            for shape_info in body_info.get_shape_infos():
                 #TODO(agro): implement find_grasp, pregrasp ...
                 for grasp_q, cost in find_grasp_q(station, station_context, shape_info):
-                    grasp_q, cost = 
                     if not np.isfinite(cost): continue
                     #pregrasp_q = backup_on_hand_z(grasp_q, d = ?)
                     #postgrasp_q = backup_on_world_z(grasp_q, d = ?)

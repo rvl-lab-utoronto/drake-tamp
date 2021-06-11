@@ -195,9 +195,9 @@ def box_grasp_q(
     plant = station.get_multibody_plant()
     check_specs(plant, q_nominal, initial_guess)
     plant_context = station.GetSubsystemContext(plant, station_context)
-    hand = station.GetHand()
+    hand = station.get_hand()
     H = plant.GetFrameByName(HAND_FRAME_NAME, hand)  # hand frame
-    G = shape_info.frame  # geometry frame
+    G = shape_info.offset_frame  # geometry frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
     for sign in range(-1, 2, 2):
@@ -213,26 +213,26 @@ def box_grasp_q(
             # Qu: upper corner of bounding box
             # Ql: lower corner of bounding box
             # G: geometry frame
-            p_GQu_G, p_GQl_G = get_bounding_box(shape_info.shape)
+            p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
             p_GQu_G[axis] += margin
             p_GQl_G[axis] *= -1
             ik.AddPositionConstraint(
                 H, [0, sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
             )
-            p_GQu_G, p_GQl_G = get_bounding_box(shape_info.shape)
+            p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
             p_GQu_G[axis] *= -1
             p_GQl_G[axis] -= margin
             ik.AddPositionConstraint(
                 H, [0, -sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
             )
             ik.AddAngleBetweenVectorsConstraint(
+                H,
                 [0, sign, 0],
                 plant.world_frame(),
                 X_WG.rotation().col(axis),
                 0.0,
                 THETA_TOL,
             )
-
             prog = ik.prog()
             q = ik.q()
             prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
@@ -245,10 +245,9 @@ def box_grasp_q(
             cost = result.get_optimal_cost()
             if not result.is_success():
                 continue
-
             yield result.GetSolution(q), cost
     # if we get here, there are no solutions left
-    return None, np.inf
+    return
 
 
 def cylinder_grasp_q(
@@ -288,11 +287,11 @@ def cylinder_grasp_q(
     plant = station.get_multibody_plant()
     check_specs(plant, q_nominal, initial_guess)
     plant_context = station.GetSubsystemContext(plant, station_context)
-    hand = station.GetHand()
+    hand = station.get_hand()
     H = plant.GetFrameByName(HAND_FRAME_NAME, hand)
 
     cylinder = shape_info.shape
-    G = shape_info.frame
+    G = shape_info.offset_frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
     if cylinder.radius() < 0.04:
@@ -370,7 +369,7 @@ def cylinder_grasp_q(
             if result.is_success():
                 yield result.GetSolution(q), cost
 
-    return None, np.inf
+    return 
 
 
 def sphere_grasp_q(
@@ -409,11 +408,11 @@ def sphere_grasp_q(
     plant = station.get_multibody_plant()
     check_specs(plant, q_nominal, initial_guess)
     plant_context = station.GetSubsystemContext(plant, station_context)
-    hand = station.GetHand()
+    hand = station.get_hand()
     H = plant.GetFrameByName(HAND_FRAME_NAME, hand)
 
     sphere = shape_info.shape
-    G = shape_info.frame
+    G = shape_info.offset_frame
 
     margin = GRASP_WIDTH - sphere.radius() - COL_MARGIN
     p_tol = min(
@@ -445,4 +444,6 @@ def sphere_grasp_q(
         cost = np.inf
     # TODO(agro): vary vector deviation from normal to we get
     # different results each time
-    return result.GetSolution(q), cost
+    if np.isfinite(cost):
+        yield result.GetSolution(q), cost
+    return
