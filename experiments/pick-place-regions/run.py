@@ -194,6 +194,7 @@ stream_pddl = """(define (stream example)
         (item ?item)
         (region ?region)
     )
+    :fluents (atgrasppose)
     :certified (and
         (pose ?item ?placementpose)
         (conf ?preplaceconf)
@@ -298,14 +299,14 @@ def construct_problem_from_sim(simulator, stations):
                     postgrasp_q, post_cost = backup_on_world_z(grasp_q, station, station_context)
                     # relative transform from hand to main_body of object_info
                     X_HO = q_to_X_HO(
-                        grasp_q, object_info.main_body_info(), station, station_context
+                        grasp_q, object_info.main_body_info, station, station_context
                     )
                     if not np.isfinite(pre_cost + post_cost):
                         continue
                     yield X_HO, pregrasp_q, postgrasp_q
         return
 
-    def plan_place_gen(item, region):
+    def plan_place_gen(item, region, fluents = []):
         """
         Takes an item name and a region name.
         Yields tuples of the form (<place_pose>, <preplace_conf>,
@@ -316,12 +317,6 @@ def construct_problem_from_sim(simulator, stations):
         station_context = station_contexts[item]
         # udate poses in station
         update_station(station, station_context, [], set_others_to_inf= True)
-        while True:
-            yield (
-                RigidTransform(),
-                np.zeros(7),
-                np.zeros(7),
-            )
 
     stream_map = {
         "plan-motion-free": from_gen_fn(plan_motion_gen),

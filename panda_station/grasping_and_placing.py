@@ -28,7 +28,6 @@ GRASP_MARGIN = 0.006  # margin for grasp planning
 Q_NOMINAL = np.array([0.0, 0.55, 0.0, -1.45, 0.0, 1.58, 0.0])
 HAND_FRAME_NAME = "panda_hand"
 THETA_TOL = np.pi * 0.01
-P_TOL = 0.01
 
 class TargetSurface():
     """
@@ -52,7 +51,7 @@ def check_specs(plant, q_nominal, initial_guess):
     """
     Ensures that plant has the correct number of positions,
     q_nominal is the right length,
-    and inital_guess is the right length
+    and initial_guess is the right length
     """
     assert NUM_Q == plant.num_positions(), "Too many positions in the plant"
     assert NUM_Q == len(q_nominal), "incorret length of q_nominal"
@@ -210,7 +209,7 @@ def box_grasp_q(
 
         q_nominal: comfortable joint positions
 
-        q_inital: initial guess for mathematical program
+        q_initial: initial guess for mathematical program
     Returns:
         A tuple of the form
         (grasp_q, cost)
@@ -301,7 +300,7 @@ def cylinder_grasp_q(
 
         q_nominal: comfortable joint positions
 
-        q_inital: initial guess for mathematical program
+        q_initial: initial guess for mathematical program
     Returns:
         A tuple of the form
         (grasp_q, cost)
@@ -423,7 +422,7 @@ def sphere_grasp_q(
 
         q_nominal: comfortable joint positions
 
-        q_inital: initial guess for mathematical program
+        q_initial: initial guess for mathematical program
     Returns:
         A tuple of the form
         (grasp_q, cost)
@@ -503,7 +502,7 @@ def q_to_X_HO(q, body_info, station, station_context):
     O = body_info.get_body_frame()
     return plant.CalcRelativeTransform(plant_context, H, O)
 
-def X_WH_to_q(X_WH, station, station_context, q_nominal = Q_NOMINAL, inital_guess = Q_NOMINAL):
+def X_WH_to_q(X_WH, station, station_context, q_nominal = Q_NOMINAL, initial_guess = Q_NOMINAL):
     """
     Given the desired pose of the hand frame in the world, X_WH, 
     for the PandaStation station with Context station_context,
@@ -528,8 +527,8 @@ def X_WH_to_q(X_WH, station, station_context, q_nominal = Q_NOMINAL, inital_gues
         H,
         np.zeros(3),
         W,
-        X_WH.translation() - P_TOL*np.ones(3),
-        X_WH.translation() + P_TOL*np.ones(3)
+        X_WH.translation() - GRASP_MARGIN*np.ones(3),
+        X_WH.translation() + GRASP_MARGIN*np.ones(3)
     )
     ik.AddOrientationConstraint(
         H,
@@ -542,7 +541,7 @@ def X_WH_to_q(X_WH, station, station_context, q_nominal = Q_NOMINAL, inital_gues
     q = ik.q()
     prog = ik.prog()
     prog.AddQuadraticErrorCost(np.identity(len(q)), q_nominal, q)
-    prog.SetInitialGuess(q, inital_guess)
+    prog.SetInitialGuess(q, initial_guess)
     result = Solve(prog)
     cost = result.get_optimal_cost()
     if not result.is_success():
@@ -580,7 +579,7 @@ def backup_on_world_z(grasp_q, station, station_context, d = GRASP_HEIGHT):
     p_HP_W = [0, 0, d]
     p_WH_W = X_WH.translation()
     X_WP.set_translation(p_WH_W + p_HP_W)
-    return X_WH_to_q(X_WP, station, station_context, inital_guess=grasp_q)
+    return X_WH_to_q(X_WP, station, station_context, initial_guess=grasp_q)
 
 def is_safe_to_place(target_shape_info, station, station_context):
     """
