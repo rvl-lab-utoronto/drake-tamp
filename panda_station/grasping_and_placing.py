@@ -615,7 +615,7 @@ def is_safe_to_place(target_shape_info, station, station_context):
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
     shape = target_shape_info.shape
-    G = target_shape_info.frame
+    G = target_shape_info.offset_frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
     if isinstance(shape, Sphere):
@@ -890,7 +890,7 @@ def box_place_q(
     weights = weights / norm
 
     plant = station.get_multibody_plant()
-    check_specs(plant, station, station_context)
+    check_specs(plant, q_nominal, initial_guess)
     plant_context = station.GetSubsystemContext(plant, station_context)
     H = holding_shape_info.offset_frame
     box = holding_shape_info.shape

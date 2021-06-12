@@ -193,11 +193,11 @@ stream_pddl = """(define (stream example)
   (:stream placement-conf
     :inputs (?item ?region)
     :outputs (?placementpose ?preplaceconf ?postplaceconf)
+    :fluents (atgrasppose)
     :domain (and
         (item ?item)
         (region ?region)
     )
-    :fluents (atgrasppose)
     :certified (and
         (pose ?item ?placementpose)
         (conf ?preplaceconf)
