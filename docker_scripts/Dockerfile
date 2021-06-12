@@ -76,6 +76,8 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/"
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream/"
 
 WORKDIR /home/$user/drake-tamp
 COPY .tmux.conf /home/$user/.tmux.conf

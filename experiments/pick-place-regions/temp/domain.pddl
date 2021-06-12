@@ -11,8 +11,8 @@
         (conf ?conf) ; robot configuration
         (contained ?item ?region ?pose) ; if ?item were at ?pose, it would be inside ?region
 
-        (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
-        (place ?item ?region ?placementpose ?preplaceconf ?postplaceconf)
+        (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
+        (place ?item ?region ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
         (mftraj ?traj ?start ?end)
         (mhtraj ?item ?startconf ?endconf ?traj)
 
@@ -40,14 +40,15 @@
             (not (at ?arm ?start)) (at ?arm ?end))
     )
     (:action pick
-        :parameters (?arm ?item ?pose ?grasppose ?pregraspconf ?postgraspconf) ; grasppose is X_Hand_Item
+        :parameters (?arm ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf) ; grasppose is X_Hand_Item
         :precondition (and
             (arm ?arm)
             (item ?item)
             (conf ?pregraspconf)
             (conf ?postgraspconf)
+            (conf ?graspconf)
             (pose ?item ?pose)
-            (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
+            (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
 
             (empty ?arm)
             (atpose ?item ?pose)
@@ -80,7 +81,7 @@
         )
     )
     (:action place
-        :parameters (?arm ?item ?region ?grasppose ?placepose ?preplaceconf ?postplaceconf)
+        :parameters (?arm ?item ?region ?grasppose ?placepose ?placeconf ?preplaceconf ?postplaceconf)
         :precondition (and
             (arm ?arm)
             (item ?item)
@@ -88,7 +89,8 @@
             (pose ?item ?placepose)
             (conf ?preplaceconf)
             (conf ?postplaceconf)
-            (place ?item ?region ?placepose ?preplaceconf ?postplaceconf)
+            (conf ?placeconf)
+            (place ?item ?region ?placepose ?placeconf ?preplaceconf ?postplaceconf)
             
 
             (at ?arm ?preplaceconf)

@@ -32,6 +32,18 @@ class TrajectoryDirector(LeafSystem):
         self.panda_traj = None
         self.hand_traj = None
 
+    def get_end_time(self):
+        """
+        Return when this director has no more trajectories
+        """
+        p_time = 0
+        if self.panda_traj is not None:
+            p_time = self.panda_traj.end_time()
+        h_time = 0
+        if self.hand_traj is not None:
+            h_time = self.hand_traj.end_time()
+        return max(p_time, h_time)
+
     def add_panda_traj(self, panda_traj):
         """
         Adds a trajectory (in time) to the existing panda trajectory

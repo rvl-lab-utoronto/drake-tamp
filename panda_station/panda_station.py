@@ -69,6 +69,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.scene_graph.ExcludeCollisionsWithin(lh7_set)
 
         for frame in self.frame_groups:
+            print(frame.name())
             if frame.name() == HAND_FRAME_NAME:
                 for obj_id in self.frame_groups[frame]:
                     self.remove_collisions_with_hand(obj_id)
@@ -78,6 +79,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 body_infos = list(object_info.get_body_infos().values())
                 for body_info in body_infos:
                     bodies.append(body_info.get_body())
+                    print(body_info.get_name())
             geom_set = self.plant.CollectRegisteredGeometries(bodies)
             self.scene_graph.ExcludeCollisionsWithin(geom_set)
 

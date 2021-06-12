@@ -2,19 +2,15 @@
 The module for running the pick and and place TAMP problem
 """
 
-import os
 import argparse
-from panda_station.grasping_and_placing import is_placeable
+from panda_station.plan_to_trajectory import plan_to_trajectory
 import numpy as np
 import pydrake.all
-from pydrake.all import RigidTransform
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
 from panda_station import (
-    PandaStation,
-    find_resource,
     ProblemInfo,
     parse_start_poses,
     parse_config,
@@ -28,9 +24,12 @@ from panda_station import (
     backup_on_world_z,
     find_place_q,
     q_to_X_PF,
+    is_placeable,
+    plan_to_trajectory
 )
 
 ARRAY = tuple
+SIM_INIT_TIME = 0.2
 
 domain_pddl = """(define (domain pickplaceregions)
     (:requirements :strips)
@@ -45,8 +44,8 @@ domain_pddl = """(define (domain pickplaceregions)
         (conf ?conf) ; robot configuration
         (contained ?item ?region ?pose) ; if ?item were at ?pose, it would be inside ?region
 
-        (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
-        (place ?item ?region ?placementpose ?preplaceconf ?postplaceconf)
+        (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
+        (place ?item ?region ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
         (mftraj ?traj ?start ?end)
         (mhtraj ?item ?startconf ?endconf ?traj)
 
@@ -74,14 +73,15 @@ domain_pddl = """(define (domain pickplaceregions)
             (not (at ?arm ?start)) (at ?arm ?end))
     )
     (:action pick
-        :parameters (?arm ?item ?pose ?grasppose ?pregraspconf ?postgraspconf) ; grasppose is X_Hand_Item
+        :parameters (?arm ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf) ; grasppose is X_Hand_Item
         :precondition (and
             (arm ?arm)
             (item ?item)
             (conf ?pregraspconf)
             (conf ?postgraspconf)
+            (conf ?graspconf)
             (pose ?item ?pose)
-            (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
+            (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
 
             (empty ?arm)
             (atpose ?item ?pose)
@@ -114,7 +114,7 @@ domain_pddl = """(define (domain pickplaceregions)
         )
     )
     (:action place
-        :parameters (?arm ?item ?region ?grasppose ?placepose ?preplaceconf ?postplaceconf)
+        :parameters (?arm ?item ?region ?grasppose ?placepose ?placeconf ?preplaceconf ?postplaceconf)
         :precondition (and
             (arm ?arm)
             (item ?item)
@@ -122,7 +122,8 @@ domain_pddl = """(define (domain pickplaceregions)
             (pose ?item ?placepose)
             (conf ?preplaceconf)
             (conf ?postplaceconf)
-            (place ?item ?region ?placepose ?preplaceconf ?postplaceconf)
+            (conf ?placeconf)
+            (place ?item ?region ?placepose ?placeconf ?preplaceconf ?postplaceconf)
             
 
             (at ?arm ?preplaceconf)
@@ -179,7 +180,7 @@ stream_pddl = """(define (stream example)
   )
   (:stream grasp-conf
     :inputs (?item ?pose)
-    :outputs (?grasppose ?pregraspconf ?postgraspconf)
+    :outputs (?grasppose ?graspconf ?pregraspconf ?postgraspconf)
     :domain (and
         (item ?item)
         (pose ?item ?pose)
@@ -187,13 +188,14 @@ stream_pddl = """(define (stream example)
     :certified (and
         (conf ?pregraspconf)
         (conf ?postgraspconf)
-        (grasp ?item ?pose ?grasppose ?pregraspconf ?postgraspconf)
+        (conf ?graspconf)
+        (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
     )
   )
   (:stream placement-conf
     :inputs (?item ?region)
-    :outputs (?placementpose ?preplaceconf ?postplaceconf)
-    :fluents (atgrasppose)
+    :outputs (?placementpose ?placeconf ?preplaceconf ?postplaceconf)
+    ;:fluents (atgrasppose)
     :domain (and
         (item ?item)
         (region ?region)
@@ -202,8 +204,9 @@ stream_pddl = """(define (stream example)
         (pose ?item ?placementpose)
         (conf ?preplaceconf)
         (conf ?postplaceconf)
+        (conf ?placeconf)
         (contained ?item ?region ?placementpose)
-        (place ?item ?region ?placementpose ?preplaceconf ?postplaceconf)
+        (place ?item ?region ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
     )
   )
 )"""
@@ -254,7 +257,7 @@ def construct_problem_from_sim(simulator, stations):
             traj = find_traj(station, station_context, start, end)
             if traj is None:  # if a trajectory could not be found (invalid)
                 return
-            yield traj
+            yield (traj,)
 
     def plan_motion_holding_gen(item, start, end, fluents=[]):
         """
@@ -262,12 +265,14 @@ def construct_problem_from_sim(simulator, stations):
         Yields collision free trajectories between the 7DOF configurations
         considering that the named item is grasped.
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
+        and ('atgrasppose', <item>, <pose>)
         defining the current pose of all items.
         """
         print("\nHERE\n")
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
+        #TODO(agro): stop cheating and fix this
         update_station(station, station_context, fluents)
         while True:
             # find traj will return a np.array of configurations, but no time informatino
@@ -275,7 +280,7 @@ def construct_problem_from_sim(simulator, stations):
             traj = find_traj(station, station_context, start, end)
             if traj is None:  # if a trajectory could not be found (invalid)
                 return
-            yield traj
+            yield (traj,)
 
     def plan_grasp_gen(item, pose):
         """
@@ -311,8 +316,8 @@ def construct_problem_from_sim(simulator, stations):
                     )
                     if not np.isfinite(pre_cost + post_cost):
                         continue
-                    yield X_HO, pregrasp_q, postgrasp_q
-        return
+                    yield X_HO, grasp_q, pregrasp_q, postgrasp_q
+
 
     def plan_place_gen(item, region, fluents=[]):
         """
@@ -362,7 +367,7 @@ def construct_problem_from_sim(simulator, stations):
                             )
                             if not np.isfinite(pre_cost + post_cost):
                                 continue
-                            yield X_WO, preplace_q, postplace_q
+                            yield X_WO, place_q, preplace_q, postplace_q
 
     stream_map = {
         "plan-motion-free": from_gen_fn(plan_motion_gen),
@@ -374,13 +379,13 @@ def construct_problem_from_sim(simulator, stations):
     return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
 
 
-def make_and_init_simulation(zmq_url, problem):
+def make_and_init_simulation(zmq_url, prob):
     """
     Make the simulation, and let it run for 0.2 s to let all the objects
     settle into their stating positions
     """
     builder = pydrake.systems.framework.DiagramBuilder()
-    problem_info = ProblemInfo(problem)
+    problem_info = ProblemInfo(prob)
     stations = problem_info.make_all_stations()
     station = stations["main"]
     builder.AddSystem(station)
@@ -419,11 +424,11 @@ def make_and_init_simulation(zmq_url, problem):
 
     diagram = builder.Build()
     simulator = pydrake.systems.analysis.Simulator(diagram)
-    simulator_context = simulator.get_context()
 
+    # let objects fall for a bit in the simulation
     if meshcat is not None:
         meshcat.start_recording()
-    simulator.AdvanceTo(0.2)
+    simulator.AdvanceTo(SIM_INIT_TIME)
     return simulator, stations, director, meshcat
 
 
@@ -435,26 +440,31 @@ if __name__ == "__main__":
         "-p", "--problem", nargs="?", default="problems/test_problem.yaml"
     )
     args = parser.parse_args()
+    sim, station_dict, traj_director, meshcat_vis = make_and_init_simulation(args.url, args.problem)
+    problem = construct_problem_from_sim(sim, station_dict)
 
-    res = make_and_init_simulation(args.url, args.problem)
-    director = res[2]
-    meshcat = res[3]
-
-    problem = construct_problem_from_sim(res[0], res[1])
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
     for algorithm in [
         "binding",
     ]:
         solution = solve(problem, algorithm=algorithm, verbose=True)
-        # print(f"\n\n{algorithm} solution:")
-        # print_solution(solution)
-        # input("Continue")
+        print(f"\n\n{algorithm} solution:")
+        print_solution(solution)
+
         plan, _, _ = solution
+        """
         for action in plan:
             print(action.name)
             print(action.args)
+        """
 
-        if meshcat is not None:
-            meshcat.stop_recording()
-            meshcat.publish_recording()
+        plan_to_trajectory(plan, traj_director, SIM_INIT_TIME)
+
+        sim.AdvanceTo(traj_director.get_end_time())
+        if meshcat_vis is not None:
+            meshcat_vis.stop_recording()
+            meshcat_vis.publish_recording()
+
+        input("Continue")
+

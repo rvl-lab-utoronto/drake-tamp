@@ -120,9 +120,12 @@ class ProblemInfo:
             ...}
         """
         res = {}
+        print("Building Main Station")
         res["main"] = self.make_station([])
+        print("Building Move Free Station")
         res["move_free"] = self.make_station(list(self.objects.keys()), weld_fingers = True)
         for name in self.objects:
+            print("Building ", name, " Station")
             weld_to_world = list(self.objects.keys())
             weld_to_world.remove(name)
             res[name] = self.make_station(weld_to_world, weld_to_hand = name, weld_fingers = True)
