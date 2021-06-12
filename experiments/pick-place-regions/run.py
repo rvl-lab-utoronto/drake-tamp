@@ -41,11 +41,12 @@ domain_pddl = """(define (domain pickplaceregions)
 
         ; continuous types
         (pose ?item ?pose) ; a valid pose of an item
+        (relpose ?item ?grasppose); a pose relative to the hand
         (conf ?conf) ; robot configuration
         (contained ?item ?region ?pose) ; if ?item were at ?pose, it would be inside ?region
 
         (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
-        (place ?item ?region ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
+        (place ?item ?region ?grasppose ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
         (mftraj ?traj ?start ?end)
         (mhtraj ?item ?startconf ?endconf ?traj)
 
@@ -123,7 +124,7 @@ domain_pddl = """(define (domain pickplaceregions)
             (conf ?preplaceconf)
             (conf ?postplaceconf)
             (conf ?placeconf)
-            (place ?item ?region ?placepose ?placeconf ?preplaceconf ?postplaceconf)
+            (place ?item ?region ?grasppose ?placepose ?placeconf ?preplaceconf ?postplaceconf)
             
 
             (at ?arm ?preplaceconf)
@@ -189,16 +190,17 @@ stream_pddl = """(define (stream example)
         (conf ?pregraspconf)
         (conf ?postgraspconf)
         (conf ?graspconf)
+        (relpose ?item ?grasppose)
         (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
     )
   )
   (:stream placement-conf
-    :inputs (?item ?region)
+    :inputs (?item ?region ?grasppose)
     :outputs (?placementpose ?placeconf ?preplaceconf ?postplaceconf)
-    ;:fluents (atgrasppose)
     :domain (and
         (item ?item)
         (region ?region)
+        (relpose ?item ?grasppose)
     )
     :certified (and
         (pose ?item ?placementpose)
@@ -206,7 +208,7 @@ stream_pddl = """(define (stream example)
         (conf ?postplaceconf)
         (conf ?placeconf)
         (contained ?item ?region ?placementpose)
-        (place ?item ?region ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
+        (place ?item ?region ?grasppose ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
     )
   )
 )"""
@@ -319,7 +321,7 @@ def construct_problem_from_sim(simulator, stations):
                     yield X_HO, grasp_q, pregrasp_q, postgrasp_q
 
 
-    def plan_place_gen(item, region, fluents=[]):
+    def plan_place_gen(item, region, X_HO):
         """
         Takes an item name and a region name.
         Yields tuples of the form (<X_WO>, <preplace_conf>,
@@ -332,7 +334,7 @@ def construct_problem_from_sim(simulator, stations):
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
-        update_station(station, station_context, fluents, set_others_to_inf=True)
+        update_station(station, station_context, [('atgrasppose', item, X_HO)], set_others_to_inf=True)
         target_object_info = station.object_infos[region][0]
         holding_object_info = station.object_infos[item][0]
         W = station.get_multibody_plant().world_frame()
