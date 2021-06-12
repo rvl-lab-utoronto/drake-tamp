@@ -4,6 +4,7 @@ The module for running the pick and and place TAMP problem
 
 import os
 import argparse
+from panda_station.grasping_and_placing import is_placeable
 import numpy as np
 import pydrake.all
 from pydrake.all import RigidTransform
@@ -25,6 +26,8 @@ from panda_station import (
     q_to_X_HO,
     backup_on_hand_z,
     backup_on_world_z,
+    find_place_q,
+    q_to_X_PF,
 )
 
 ARRAY = tuple
@@ -249,7 +252,7 @@ def construct_problem_from_sim(simulator, stations):
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning
             traj = find_traj(station, station_context, start, end)
-            if traj is None: # if a trajectory could not be found (invalid)
+            if traj is None:  # if a trajectory could not be found (invalid)
                 return
             yield traj
 
@@ -270,7 +273,7 @@ def construct_problem_from_sim(simulator, stations):
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning
             traj = find_traj(station, station_context, start, end)
-            if traj is None: # if a trajectory could not be found (invalid)
+            if traj is None:  # if a trajectory could not be found (invalid)
                 return
             yield traj
 
@@ -287,16 +290,21 @@ def construct_problem_from_sim(simulator, stations):
         station_context = station_contexts["move_free"]
         # udate poses in station
         mock_fluent = ("atpose", item, pose)
-        update_station(station, station_context, [mock_fluent], set_others_to_inf= True)
+        update_station(station, station_context, [mock_fluent], set_others_to_inf=True)
         object_info = station.object_infos[item][0]
         body_infos = list(object_info.get_body_infos().values())
         for body_info in body_infos:
             for shape_info in body_info.get_shape_infos():
-                #TODO(agro): implement find_grasp, pregrasp ...
+                # TODO(agro): implement find_grasp, pregrasp ...
                 for grasp_q, cost in find_grasp_q(station, station_context, shape_info):
-                    if not np.isfinite(cost): continue
-                    pregrasp_q, pre_cost = backup_on_hand_z(grasp_q, station, station_context)
-                    postgrasp_q, post_cost = backup_on_world_z(grasp_q, station, station_context)
+                    if not np.isfinite(cost):
+                        continue
+                    pregrasp_q, pre_cost = backup_on_hand_z(
+                        grasp_q, station, station_context
+                    )
+                    postgrasp_q, post_cost = backup_on_world_z(
+                        grasp_q, station, station_context
+                    )
                     # relative transform from hand to main_body of object_info
                     X_HO = q_to_X_HO(
                         grasp_q, object_info.main_body_info, station, station_context
@@ -306,17 +314,55 @@ def construct_problem_from_sim(simulator, stations):
                     yield X_HO, pregrasp_q, postgrasp_q
         return
 
-    def plan_place_gen(item, region, fluents = []):
+    def plan_place_gen(item, region, fluents=[]):
         """
         Takes an item name and a region name.
-        Yields tuples of the form (<place_pose>, <preplace_conf>,
+        Yields tuples of the form (<X_WO>, <preplace_conf>,
         <postplace_conf>) representing the pose of <item> after
         being placed in <region>, and pre/post place robot arm configurations.
+        fluents contains a tuple [(atgrasppose, item, X_HO)]  where item is
+        the name of the item, and X_HO is the relative transfomation between
+        the hand and the object it is holding
         """
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
-        update_station(station, station_context, [], set_others_to_inf= True)
+        update_station(station, station_context, fluents, set_others_to_inf=True)
+        target_object_info = station.object_infos[region][0]
+        holding_object_info = station.object_infos[item][0]
+        W = station.get_multibody_plant().world_frame()
+
+        for holding_body_info in holding_object_info.get_body_infos().values():
+            for holding_shape_info in holding_body_info.get_shape_infos():
+                if not is_placeable(holding_shape_info):
+                    continue
+                for target_body_info in target_object_info.get_body_infos().values():
+                    for target_shape_info in target_body_info.get_shape_infos():
+                        for place_q, cost in find_place_q(
+                            station,
+                            station_context,
+                            holding_shape_info,
+                            target_shape_info,
+                        ):
+                            if not np.isfinite(cost):
+                                continue
+                            postplace_q, pre_cost = backup_on_hand_z(
+                                place_q, station, station_context
+                            )
+                            preplace_q, post_cost = backup_on_world_z(
+                                place_q, station, station_context
+                            )
+                            # relative transform from hand to main_body of object_info
+                            X_WO = q_to_X_PF(
+                                place_q,
+                                W,
+                                holding_object_info.main_body_info.get_body_frame(),
+                                station,
+                                station_context,
+                            )
+                            if not np.isfinite(pre_cost + post_cost):
+                                continue
+                            yield X_WO, preplace_q, postplace_q
 
     stream_map = {
         "plan-motion-free": from_gen_fn(plan_motion_gen),

@@ -9,8 +9,13 @@ from pydrake.all import Box, Cylinder, Sphere
 from .grasping_and_placing import (
     cylinder_grasp_q,
     box_grasp_q,
+    is_placeable,
+    is_safe_to_place,
     sphere_grasp_q,
     is_graspable,
+    sphere_place_q,
+    box_place_q,
+    cylinder_place_q
 )
 
 NUM_Q = 7
@@ -103,7 +108,7 @@ def find_grasp_q(station, station_context, shape_info):
         If there are no valid grasps to be found
     """
     if not is_graspable(shape_info):
-        return 
+        return
     if isinstance(shape_info.shape, Sphere):
         for grasp_q, cost in sphere_grasp_q(station, station_context, shape_info):
             yield grasp_q, cost
@@ -113,4 +118,41 @@ def find_grasp_q(station, station_context, shape_info):
     if isinstance(shape_info.shape, Cylinder):
         for grasp_q, cost in cylinder_grasp_q(station, station_context, shape_info):
             yield grasp_q, cost
-    return 
+    return
+
+
+def find_place_q(station, station_context, holding_shape_info, target_shape_info):
+    """
+    Return the joint config to place shape holding_shape_info on target_shape_info
+
+    Args:
+        station: PandaStation with the arm (must has only 7 DOF)
+        station_context: Context of station
+        holding_shape_info: the info of the shape that the robot is holding
+        target_shape_info: the info of the shape that we want to place on
+    
+    Returns:
+        q: (np.array) the 7dof joint config
+        cost: the cost of the solution (is np.inf if no solution can be found)
+    """
+    if not is_placeable(holding_shape_info):
+        return
+    is_safe, surface = is_safe_to_place(target_shape_info, station, station_context)
+    if not is_safe:
+        return
+    if isinstance(holding_shape_info.shape, Sphere):
+        for place_q, cost in sphere_place_q(
+            station, station_context, holding_shape_info, surface
+        ):
+            yield place_q, cost
+    if isinstance(holding_shape_info.shape, Box):
+        for place_q, cost in box_place_q(
+            station, station_context, holding_shape_info, surface
+        ):
+            yield place_q, cost
+    if isinstance(holding_shape_info.shape, Cylinder):
+        for place_q, cost in cylinder_place_q(
+            station, station_context, holding_shape_info, surface
+        ):
+            yield place_q, cost
+    return
