@@ -63,7 +63,7 @@ class ProblemInfo:
             (name, "base_link") for name in parse_tables(find_resource(self.directive))
         ]
 
-    def make_station(self, weld_to_world, weld_to_hand=None, weld_fingers = False):
+    def make_station(self, weld_to_world, weld_to_hand=None, weld_fingers = False, name = "panda_station"):
         """
         Makes a PandaStation based on this problem instance.
         see `make_all_stations`
@@ -75,7 +75,7 @@ class ProblemInfo:
         Returns:
             the newly created PandaStation
         """
-        station = PandaStation()
+        station = PandaStation(name = name)
         station.setup_from_file(self.directive, names_and_links=self.names_and_links)
         station.add_panda_with_hand(weld_fingers= weld_fingers)
         plant = station.get_multibody_plant()
@@ -99,7 +99,6 @@ class ProblemInfo:
                 P=P,
                 name=name,
             )
-            station.remove_collisions_with_hand(object_info)
 
         station.finalize()
         return station
@@ -121,14 +120,14 @@ class ProblemInfo:
         """
         res = {}
         print("Building Main Station")
-        res["main"] = self.make_station([])
+        res["main"] = self.make_station([], name = "main")
         print("Building Move Free Station")
-        res["move_free"] = self.make_station(list(self.objects.keys()), weld_fingers = True)
+        res["move_free"] = self.make_station(list(self.objects.keys()), weld_fingers = True, name = "move_free")
         for name in self.objects:
             print("Building ", name, " Station")
             weld_to_world = list(self.objects.keys())
             weld_to_world.remove(name)
-            res[name] = self.make_station(weld_to_world, weld_to_hand = name, weld_fingers = True)
+            res[name] = self.make_station(weld_to_world, weld_to_hand = name, weld_fingers = True, name = name)
         return res
 
     @staticmethod

@@ -18,7 +18,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
     TODO(agro): add cameras if nessecary
     """
 
-    def __init__(self, time_step=0.001):
+    def __init__(self, time_step=0.001, name = "panda_station"):
         """
         Construct a panda station
 
@@ -42,7 +42,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.weld_fingers = False  # is the hand welded open in this plant
         self.directive = None  # the directive used to setup the environment
         self.plant.set_name("plant")
-        self.set_name("panda_station")
+        self.set_name(name)
         self.panda = None
         self.hand = None
         self.frame_groups = {}
@@ -69,7 +69,6 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.scene_graph.ExcludeCollisionsWithin(lh7_set)
 
         for frame in self.frame_groups:
-            print(frame.name())
             if frame.name() == HAND_FRAME_NAME:
                 for obj_id in self.frame_groups[frame]:
                     self.remove_collisions_with_hand(obj_id)
@@ -79,7 +78,6 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 body_infos = list(object_info.get_body_infos().values())
                 for body_info in body_infos:
                     bodies.append(body_info.get_body())
-                    print(body_info.get_name())
             geom_set = self.plant.CollectRegisteredGeometries(bodies)
             self.scene_graph.ExcludeCollisionsWithin(geom_set)
 
