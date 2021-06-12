@@ -233,7 +233,7 @@ def box_grasp_q(
     G = shape_info.offset_frame  # geometry frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
-    for sign in range(-1, 2, 2):
+    for sign in [-1, 1]:
         for axis in range(0, 3):
             unit_v = np.zeros(3)
             unit_v[axis] += 1
@@ -355,7 +355,7 @@ def cylinder_grasp_q(
             yield result.GetSolution(q), cost
 
     if cylinder.length() < GRASP_WIDTH:
-        for sign in range(-1, 1, 2):
+        for sign in [-1, 1]:
             margin = GRASP_MARGIN - cylinder.length()
             radius = cylinder.radius()
             lower_xy_bound = min(-radius + FINGER_WIDTH / 2, -GRASP_MARGIN)
@@ -808,7 +808,10 @@ def cylinder_place_q(
     cylinder = holding_shape_info.shape
     P = surface.shape_info.offset_frame
 
-    for sign in range(-1, 1, 2):
+    qs = []
+    costs = []
+
+    for sign in [-1,1]:
 
         ik = InverseKinematics(plant, plant_context)
         ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
@@ -827,8 +830,16 @@ def cylinder_place_q(
         prog.SetInitialGuess(q, initial_guess)
         result = Solve(prog)
         cost = result.get_optimal_cost()
-        if result.is_success():
-            yield result.GetSolution(q), cost
+        if not result.is_success():
+            cost = np.inf
+        #if result.is_success():
+            #yield result.GetSolution(q), cost
+        qs.append(result.GetSolution(q))
+        costs.append(cost)
+
+    indices = np.argsort(costs)
+    for i in indices:
+        yield qs[i], costs[i]
 
     # try and place the cylinder lengthwise
     for i in range(len(surface.bb_min)):
@@ -896,7 +907,10 @@ def box_place_q(
     box = holding_shape_info.shape
     P = surface.shape_info.offset_frame
 
-    for sign in range(-1, 1, 2):
+    costs = []
+    qs = []
+
+    for sign in [-1, 1]:
         for axis in range(0, 3):
             ik = InverseKinematics(plant, plant_context)
             ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
@@ -917,9 +931,13 @@ def box_place_q(
             prog.SetInitialGuess(q, initial_guess)
             result = Solve(prog)
             cost = result.get_optimal_cost()
-            if not result.is_success():
-                continue
-            yield result.GetSolution(q), cost
             # TODO(agro): deviation from placement surface center
-
-    return
+            if not result.is_success():
+                cost = np.inf
+            #yield result.GetSolution(q), cost
+            costs.append(cost)
+            qs.append(result.GetSolution(q))
+    
+    indices = np.argsort(costs)
+    for i in indices:
+        yield qs[i], costs[i]

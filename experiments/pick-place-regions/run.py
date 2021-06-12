@@ -1,7 +1,7 @@
 """
 The module for running the pick and and place TAMP problem
 """
-
+import os
 import argparse
 from panda_station.plan_to_trajectory import plan_to_trajectory
 import numpy as np
@@ -238,7 +238,9 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "foam_brick", "table_round"),
+        ("in", "soup_can", "table_round"),
+        ("in", "foam_brick", "table_square"),
+        ("in", "meat_can", "table"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -353,10 +355,10 @@ def construct_problem_from_sim(simulator, stations):
                         ):
                             if not np.isfinite(cost):
                                 continue
-                            postplace_q, pre_cost = backup_on_hand_z(
+                            postplace_q, post_cost = backup_on_hand_z(
                                 place_q, station, station_context
                             )
-                            preplace_q, post_cost = backup_on_world_z(
+                            preplace_q, pre_cost = backup_on_world_z(
                                 place_q, station, station_context
                             )
                             # relative transform from hand to main_body of object_info
@@ -468,5 +470,19 @@ if __name__ == "__main__":
             meshcat_vis.stop_recording()
             meshcat_vis.publish_recording()
 
-        input("Continue")
+        save = input(
+        """
+        Type ENTER to exit without saving. 
+        To save the video to the file
+        media/<filename.html>, input <filename>\n
+        """
+        )
+        if save != "":
+            if not os.path.isdir("media"):
+                os.mkdir("media")
+            file = open("media/" + save + ".html", "w")
+            file.write(meshcat_vis.vis.static_html())
+            file.close()
+            
+
 

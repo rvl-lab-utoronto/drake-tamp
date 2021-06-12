@@ -5,7 +5,7 @@ two PiecewisePolynominal's that the panda and its hand can follow
 import numpy as np
 from pydrake.all import PiecewisePolynomial
 
-JOINTSPACE_SPEED = np.pi/3 # rad/s
+JOINTSPACE_SPEED = np.pi*0.2 # rad/s
 MAX_OPEN = 0.08
 MAX_CLOSE = 0.0
 GRASP_TIME = 2.0
@@ -124,7 +124,7 @@ def place_traj(args, start_time):
     # up
     up_traj = np.array([place_q, postplace_q])
     panda_traj_up, times = make_panda_traj(up_traj, times[-1])
-    hand_traj_up = np.array([[MAX_CLOSE] for i in range(len(times))])
+    hand_traj_up = np.array([[MAX_OPEN] for i in range(len(times))])
     hand_traj_up = PiecewisePolynomial.FirstOrderHold(times, hand_traj_up.T)
     # concatenate
     panda_traj = panda_traj_down
