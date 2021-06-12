@@ -8,11 +8,12 @@
 
         ; continuous types
         (pose ?item ?pose) ; a valid pose of an item
+        (relpose ?item ?grasppose); a pose relative to the hand
         (conf ?conf) ; robot configuration
         (contained ?item ?region ?pose) ; if ?item were at ?pose, it would be inside ?region
 
         (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
-        (place ?item ?region ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
+        (place ?item ?region ?grasppose ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
         (mftraj ?traj ?start ?end)
         (mhtraj ?item ?startconf ?endconf ?traj)
 
@@ -90,7 +91,7 @@
             (conf ?preplaceconf)
             (conf ?postplaceconf)
             (conf ?placeconf)
-            (place ?item ?region ?placepose ?placeconf ?preplaceconf ?postplaceconf)
+            (place ?item ?region ?grasppose ?placepose ?placeconf ?preplaceconf ?postplaceconf)
             
 
             (at ?arm ?preplaceconf)
