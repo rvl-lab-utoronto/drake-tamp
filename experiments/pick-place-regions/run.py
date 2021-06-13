@@ -238,8 +238,7 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "mustard", "table_square"),
-        ("in", "soup_can", "table_round"),
+        ("in", "mustard", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):

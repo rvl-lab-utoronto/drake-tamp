@@ -14,6 +14,7 @@ from pydrake.all import (
 )
 from .panda_station import PandaStation
 from .construction_utils import find_resource
+from .utils import *
 
 
 class ProblemInfo:
@@ -49,7 +50,7 @@ class ProblemInfo:
             try:
                 info = yaml.safe_load(stream)
             except yaml.YAMLError as exc:
-                print(exc)
+                print(f"{Colors.RED}exc{Colors.RESET}")
         assert "directive" in info, "Problem specification missing directive"
         assert "objects" in info, "Problem specification missing objects"
         self.directive = info["directive"]
@@ -119,12 +120,12 @@ class ProblemInfo:
             ...}
         """
         res = {}
-        print("Building Main Station")
+        print(f"{Colors.BLUE}Building main station{Colors.RESET}")
         res["main"] = self.make_station([], name = "main")
-        print("Building Move Free Station")
+        print(f"{Colors.BLUE}Building move free station{Colors.RESET}")
         res["move_free"] = self.make_station(list(self.objects.keys()), weld_fingers = True, name = "move_free")
         for name in self.objects:
-            print("Building ", name, " Station")
+            print(f"{Colors.BLUE}Building {name} station{Colors.RESET}")
             weld_to_world = list(self.objects.keys())
             weld_to_world.remove(name)
             res[name] = self.make_station(weld_to_world, weld_to_hand = name, weld_fingers = True, name = name)

@@ -61,13 +61,8 @@ class TestPlanningUtils(unittest.TestCase):
             )
         )
 
-    def test_parse_initial_config(self):
-        res = parse_initial_config(self.station, self.station_context)
-        self.assertIn("panda", list(res.keys()))
-        self.assertTrue(np.all(np.isclose(res["panda"], self.q0)))
-
     def test_parse_tables(self):
-        res = parse_tables(self.station)
+        res = parse_tables(self.station.directive)
         self.assertTrue(np.all(res == ["table", "table_square", "table_round"]))
 
 

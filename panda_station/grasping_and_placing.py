@@ -16,6 +16,7 @@ from pydrake.all import (
     RotationMatrix,
     RigidTransform,
 )
+from .utils import *
 
 NUM_Q = 7  # DOF of panda arm
 GRASP_WIDTH = 0.08  # distance between fingers at max extension
@@ -123,6 +124,8 @@ def add_deviation_from_point_cost(prog, q, shape_info, p_WB, plant, weight = 1):
     """
     Add a cost for the deviation of the base li of the placed object
     (shape_info) from the point p_WB 
+
+    Note if p_WB is of length 2, it is treated as a 2D point (x,y)
     """
     plant_ad = plant.ToAutoDiffXd()
     plant_context_ad = plant_ad.CreateDefaultContext()
@@ -131,7 +134,7 @@ def add_deviation_from_point_cost(prog, q, shape_info, p_WB, plant, weight = 1):
         plant_ad.SetPositions(plant_context_ad, q)
         G = plant_ad.GetFrameByName(shape_info.offset_frame.name())
         X_WG = G.CalcPoseInWorld(plant_context_ad)
-        p_WG = X_WG.translation()
+        p_WG = X_WG.translation()[:len(p_WB)]
         return (p_WB - p_WG).dot(p_WB - p_WG)
 
     cost = lambda q: weight * deviation_from_point_cost(q)
@@ -273,6 +276,7 @@ def box_grasp_q(
     G = shape_info.offset_frame  # geometry frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
+    print(f"{Colors.CYAN}Finding box grasp q{Colors.RESET}")
     for sign in [-1, 1]:
         for axis in range(0, 3):
             unit_v = np.zeros(3)
@@ -318,6 +322,7 @@ def box_grasp_q(
             cost = result.get_optimal_cost()
             if not result.is_success():
                 continue
+            print(f"{Colors.CYAN}Yielding box grasp q{Colors.RESET}")
             yield result.GetSolution(q), cost
 
 
@@ -365,6 +370,7 @@ def cylinder_grasp_q(
     G = shape_info.offset_frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
+    print(f"{Colors.CYAN}Finding cylinder grasp q{Colors.RESET}")
     if cylinder.radius() < 0.04:
         lower_z_bound = min(GRASP_MARGIN, -cylinder.length() / 2 + FINGER_WIDTH / 2)
         upper_z_bound = max(GRASP_MARGIN, cylinder.length() / 2 - FINGER_WIDTH / 2)
@@ -392,6 +398,7 @@ def cylinder_grasp_q(
         cost = result.get_optimal_cost()
 
         if result.is_success():
+            print(f"{Colors.CYAN}Yielding cylinder grasp q{Colors.RESET}")
             yield result.GetSolution(q), cost
 
     if cylinder.length() < GRASP_WIDTH:
@@ -437,6 +444,7 @@ def cylinder_grasp_q(
 
             if result.is_success():
                 yield result.GetSolution(q), cost
+                print(f"{Colors.CYAN}Yielding cylinder grasp q{Colors.RESET}")
 
 
 def sphere_grasp_q(
@@ -480,6 +488,7 @@ def sphere_grasp_q(
 
     sphere = shape_info.shape
     G = shape_info.offset_frame
+    print(f"{Colors.CYAN}Finding sphere grasp q{Colors.RESET}")
 
     margin = GRASP_WIDTH - sphere.radius() - COL_MARGIN
     p_tol = min(
@@ -511,6 +520,7 @@ def sphere_grasp_q(
         return
     # TODO(agro): vary vector deviation from normal to we get
     # different results each time
+    print(f"{Colors.CYAN}Yielding sphere grasp q{Colors.RESET}")
     yield result.GetSolution(q), cost
 
 
@@ -793,6 +803,7 @@ def sphere_place_q(
         max_iter = 1
 
     tries = 0
+    print(f"{Colors.GREEN}Finding sphere placement q{Colors.RESET}")
     while iter < max_iter:
         p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
         p_WB[2] = surface.bb_min[2]
@@ -813,14 +824,16 @@ def sphere_place_q(
         q = ik.q()
         add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
         if randomize_position:
-            add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB, plant)
+            add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB[:2], plant)
         prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
         prog.SetInitialGuess(q, initial_guess)
         result = Solve(prog)
         cost = result.get_optimal_cost()
-        tries +=1
+        tries += 1
+        print("TRIES:", tries)
         if not result.is_success():
             continue
+        print(f"{Colors.GREEN}Yielding sphere placement q{Colors.RESET}")
         yield result.GetSolution(q), cost
 
 
@@ -868,9 +881,10 @@ def cylinder_place_q(
     if not randomize_position:
         max_iter = 1
 
+    print(f"{Colors.GREEN}Finding cylinder placement q{Colors.RESET}")
     while tries < max_iter:
         p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
-        p_WB[2] = surface.bb_min[2]
+        #p_WB[2] = surface.bb_min[2]
         for sign in [-1,1]:
             ik = InverseKinematics(plant, plant_context)
             ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
@@ -886,7 +900,7 @@ def cylinder_place_q(
             q = ik.q()
             add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
             if randomize_position:
-                add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB, plant)
+                add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB[:2], plant)
             prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
             prog.SetInitialGuess(q, initial_guess)
             result = Solve(prog)
@@ -900,10 +914,12 @@ def cylinder_place_q(
             costs.append(cost)
 
         tries += 1
+        print("TRIES:", tries)
         if len(costs) == 0:
             continue
         indices = np.argsort(costs)
         for i in indices:
+            print(f"{Colors.GREEN}Yielding cylinder placement q{Colors.RESET}")
             yield qs[i], costs[i]
 
     """
@@ -979,11 +995,12 @@ def box_place_q(
 
     tries = 0
     max_iter = MAX_ITER
+    print(f"{Colors.GREEN}Finding box placement q{Colors.RESET}")
     if not (randomize_position or randomize_theta):
         max_iter = 1
     while tries < max_iter:
         p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
-        p_WB[2] = surface.bb_min[2]
+        #p_WB[2] = surface.bb_min[2]
         theta = np.random.uniform(0, 2*np.pi)
         for sign in [-1, 1]:
             for axis in range(0, 3):
@@ -1003,7 +1020,7 @@ def box_place_q(
                 q = ik.q()
                 add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
                 if randomize_position:
-                    add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB, plant)
+                    add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB[:2], plant)
                 if randomize_theta:
                     v = np.zeros(3)
                     v[axis-1] = 1 # perpendicular to n (ie. along the surface)
@@ -1028,9 +1045,10 @@ def box_place_q(
                 qs.append(result.GetSolution(q))
         
         tries += 1
+        print("TRIES:", tries)
         if len(costs) == 0:
             continue
         indices = np.argsort(costs)
-        print("TRIES:", tries)
         for i in indices:
+            print(f"{Colors.GREEN}Yielding box placement q{Colors.RESET}")
             yield qs[i], costs[i]

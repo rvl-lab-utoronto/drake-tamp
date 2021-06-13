@@ -23,7 +23,7 @@ class TestPandaStation(unittest.TestCase):
         q_initial = np.zeros(7)
         station.add_panda_with_hand(q_initial=q_initial)
         brick = station.add_model_from_file(
-            find_resource("models/manipulands/sdf/061_foam_brick.sdf"),
+            find_resource("models/manipulands/sdf/foam_brick.sdf"),
             RigidTransform(RotationMatrix(), [0.6, 0, 0.2]),
             main_body_name="base_link",
             name="brick",
@@ -41,14 +41,13 @@ class TestPandaStation(unittest.TestCase):
         plant_context = plant.GetMyContextFromRoot(diagram_context)
         q_init = plant.GetPositions(plant_context, panda)
         self.assertTrue(np.all(q_init == q_initial))
-        brick_body = plant.GetBodyByName("base_link", brick)
 
         builder = DiagramBuilder()
         station = builder.AddSystem(PandaStation())
         station.setup_from_file("directives/three_tables.yaml")
         station.add_panda_with_hand()
-        brick = station.add_model_from_file(
-            find_resource("models/manipulands/sdf/010_potted_meat_can.sdf"),
+        station.add_model_from_file(
+            find_resource("models/manipulands/sdf/meat_can.sdf"),
             RigidTransform(RotationMatrix(), [0.6, 0, 0.2]),
         )
         station.finalize()

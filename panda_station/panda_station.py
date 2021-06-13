@@ -649,7 +649,7 @@ class ShapeInfo:
         """
         Used when printing out the shape info
         """
-        res = f"offset_frame: {self.offset_frame.name()}, type:"
+        res = f"Offset_frame: {self.offset_frame.name()}, type:"
         if self.type == pydrake.geometry.Box:
             res += "box"
         if self.type == pydrake.geometry.Cylinder:
