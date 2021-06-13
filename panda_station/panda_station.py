@@ -292,6 +292,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         assert self.hand is not None, "No panda hand model added"
 
         inspector = self.scene_graph.model_inspector()
+        counter = 0
 
         for object_info, _ in self.object_infos.values():
             for body_info in object_info.body_infos.values():
@@ -306,8 +307,9 @@ class PandaStation(pydrake.systems.framework.Diagram):
                         + "_"
                         + body_info.get_name()
                         + "_"
-                        + str(i)
+                        + str(counter)
                     )
+                    counter += 1 # to ensure unique names
                     frame = self.plant.AddFrame(
                         pydrake.multibody.tree.FixedOffsetFrame(
                             frame_name, body_info.get_body_frame(), X_BG

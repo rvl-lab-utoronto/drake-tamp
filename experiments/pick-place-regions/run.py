@@ -238,7 +238,7 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "foam_brick", "table_square"),
+        ("in", "mustard", "table_square"),
         ("in", "soup_can", "table_round"),
     )
 
@@ -249,7 +249,6 @@ def construct_problem_from_sim(simulator, stations):
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
         defining the current pose of all items.
         """
-        print("\nHERE\n")
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
         # udate poses in station
@@ -271,7 +270,6 @@ def construct_problem_from_sim(simulator, stations):
         and ('atgrasppose', <item>, <pose>)
         defining the current pose of all items.
         """
-        print("\nHERE\n")
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
