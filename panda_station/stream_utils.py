@@ -17,6 +17,7 @@ from .grasping_and_placing import (
     box_place_q,
     cylinder_place_q
 )
+from .utils import *
 
 NUM_Q = 7
 
@@ -54,6 +55,8 @@ def find_traj(station, station_context, q_start, q_goal):
     query_output_port = scene_graph.GetOutputPort("query")
 
     def is_colliding(q):
+        if np.all(q == q_start) or np.all(q == q_goal):
+            return False
         plant.SetPositions(plant_context, panda, q)
         query_object = query_output_port.Eval(scene_graph_context)
         return query_object.HasCollisions()
@@ -74,11 +77,11 @@ def find_traj(station, station_context, q_start, q_goal):
     ss.setStateValidityChecker(ob.StateValidityCheckerFn(isStateValid))
     start = q_to_state(space, q_start)
     if not isStateValid(start):
-        print("INVALID OMPL START STATE")
+        print(f"{Colors.RED}INVALID OMPL START STATE {Colors.RESET}")
         return None
     goal = q_to_state(space, q_goal)
     if not isStateValid(goal):
-        print("INVALID OMPL GOAL STATE")
+        print(f"{Colors.RED}INVALID OMPL GOAL STATE{Colors.RESET}")
         return None
     ss.setStartAndGoalStates(start, goal)
     solved = ss.solve()

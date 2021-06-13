@@ -277,53 +277,65 @@ def box_grasp_q(
     X_WG = G.CalcPoseInWorld(plant_context)
 
     print(f"{Colors.CYAN}Finding box grasp q{Colors.RESET}")
-    for sign in [-1, 1]:
-        for axis in range(0, 3):
-            unit_v = np.zeros(3)
-            unit_v[axis] += 1
-            ik = InverseKinematics(plant, plant_context)
-            ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-            dim = box_dim_from_axis(axis, shape_info.shape)
-            margin = GRASP_WIDTH - dim
-            if margin < GRASP_MARGIN + COL_MARGIN:
-                continue  # don't try to grasp
-            # Qu: upper corner of bounding box
-            # Ql: lower corner of bounding box
-            # G: geometry frame
-            p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
-            p_GQu_G[axis] += margin
-            p_GQl_G[axis] *= -1
-            ik.AddPositionConstraint(
-                H, [0, sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
-            )
-            p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
-            p_GQu_G[axis] *= -1
-            p_GQl_G[axis] -= margin
-            ik.AddPositionConstraint(
-                H, [0, -sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
-            )
-            ik.AddAngleBetweenVectorsConstraint(
-                H,
-                [0, sign, 0],
-                plant.world_frame(),
-                X_WG.rotation().col(axis),
-                0.0,
-                THETA_TOL,
-            )
-            prog = ik.prog()
-            q = ik.q()
-            prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
-            add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
-            add_deviation_from_box_center_cost(
-                prog, q, plant, X_WG.translation(), weight=weights[2]
-            )
-            prog.SetInitialGuess(q, initial_guess)
-            result = Solve(prog)
-            cost = result.get_optimal_cost()
-            if not result.is_success():
-                continue
-            print(f"{Colors.CYAN}Yielding box grasp q{Colors.RESET}")
-            yield result.GetSolution(q), cost
+    tries = 0
+    while tries < MAX_ITER:
+        qs = []
+        costs = []
+        for sign in [-1, 1]:
+            for axis in range(0, 3):
+                unit_v = np.zeros(3)
+                unit_v[axis] += 1
+                ik = InverseKinematics(plant, plant_context)
+                ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
+                dim = box_dim_from_axis(axis, shape_info.shape)
+                margin = GRASP_WIDTH - dim
+                if margin < GRASP_MARGIN + COL_MARGIN:
+                    continue  # don't try to grasp
+                # Qu: upper corner of bounding box
+                # Ql: lower corner of bounding box
+                # G: geometry frame
+                p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
+                p_GQu_G[axis] += margin
+                p_GQl_G[axis] *= -1
+                ik.AddPositionConstraint(
+                    H, [0, sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
+                )
+                p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
+                p_GQu_G[axis] *= -1
+                p_GQl_G[axis] -= margin
+                ik.AddPositionConstraint(
+                    H, [0, -sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
+                )
+                ik.AddAngleBetweenVectorsConstraint(
+                    H,
+                    [0, sign, 0],
+                    plant.world_frame(),
+                    X_WG.rotation().col(axis),
+                    0.0,
+                    THETA_TOL,
+                )
+                prog = ik.prog()
+                q = ik.q()
+                prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
+                add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
+                add_deviation_from_box_center_cost(
+                    prog, q, plant, X_WG.translation(), weight=weights[2]
+                )
+                prog.SetInitialGuess(q, initial_guess)
+                result = Solve(prog)
+                cost = result.get_optimal_cost()
+                if not result.is_success():
+                    continue
+                qs.append(result.GetSolution(q),)
+                costs.append(cost)
+        tries += 1
+        print(f"TRIES: {tries}")
+        if len(costs) == 0:
+            # initial_guess = 
+            continue
+        indices = np.argsort(costs)
+        print(f"{Colors.CYAN}Yielding box grasp q{Colors.RESET}")
+        yield qs[indices[0]], costs[indices[0]]
 
 
 def cylinder_grasp_q(

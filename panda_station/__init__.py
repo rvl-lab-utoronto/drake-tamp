@@ -6,3 +6,4 @@ from .trajectory_director import *
 from .stream_utils import *
 from .grasping_and_placing import *
 from .plan_to_trajectory import *
+from .utils import *

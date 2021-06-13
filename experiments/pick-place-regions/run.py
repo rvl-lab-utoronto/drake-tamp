@@ -2,6 +2,7 @@
 The module for running the pick and and place TAMP problem
 """
 import os
+import sys
 import argparse
 from panda_station.plan_to_trajectory import plan_to_trajectory
 import numpy as np
@@ -25,7 +26,9 @@ from panda_station import (
     find_place_q,
     q_to_X_PF,
     is_placeable,
-    plan_to_trajectory
+    plan_to_trajectory,
+    Colors,
+    RigidTransformWrapper,
 )
 
 ARRAY = tuple
@@ -225,7 +228,12 @@ def construct_problem_from_sim(simulator, stations):
         station_contexts[name] = stations[name].CreateDefaultContext()
     start_poses = parse_start_poses(main_station, main_station_context)
     for k, v in start_poses.items():
-        init += [("item", k), ("pose", k, v), ("atpose", k, v)]
+        X_wrapper = RigidTransformWrapper(v)
+        init += [
+            ("item", k),
+            ("pose", k, X_wrapper),
+            ("atpose", k, X_wrapper),
+        ]
         # TODO : add any "contained" predicates that are true of the initial poses
 
     arms = parse_config(main_station, main_station_context)
@@ -238,7 +246,9 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "mustard", "table_round"),
+        ("in", "foam_brick", "table_square"),
+        ("in", "mustard", "table"),
+        ("in", "soup_can", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -272,7 +282,7 @@ def construct_problem_from_sim(simulator, stations):
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
-        #TODO(agro): stop cheating and fix this
+        # TODO(agro): stop cheating and fix this
         update_station(station, station_context, fluents)
         while True:
             # find traj will return a np.array of configurations, but no time informatino
@@ -284,40 +294,52 @@ def construct_problem_from_sim(simulator, stations):
 
     def plan_grasp_gen(item, pose):
         """
-        Takes an item name and the corresponding SE(3) pose.
-        Yields tuples of the form (<grasppose>, <pregrasp_conf>,
+        Takes an item name and the corresponding SE(3) pose. (RigidTransformWrapper)
+        Yields tuples of the form (<grasppose>, <grasp_conf>, <pregrasp_conf>,
         <postgrasp_conf>) representing a relative pose of the
-        the item to the hand after the grasp, and two valid robot
-        arm configurations for pre/post grasp stages of a
+        the item to the hand after the grasp, the grasping configuration,
+        and two valid robot arm configurations for pre/post grasp stages of a
         two stage grasp when the <item> is at <pose>.
         """
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
         # udate poses in station
-        mock_fluent = ("atpose", item, pose)
-        update_station(station, station_context, [mock_fluent], set_others_to_inf=True)
+        update_station(
+            station, station_context, [("atpose", item, pose)], set_others_to_inf=True
+        )
+        # TODO(agro): clean this crap up
         object_info = station.object_infos[item][0]
         body_infos = list(object_info.get_body_infos().values())
         for body_info in body_infos:
             for shape_info in body_info.get_shape_infos():
-                # TODO(agro): implement find_grasp, pregrasp ...
                 for grasp_q, cost in find_grasp_q(station, station_context, shape_info):
-                    if not np.isfinite(cost):
-                        continue
-                    pregrasp_q, pre_cost = backup_on_hand_z(
-                        grasp_q, station, station_context
-                    )
-                    postgrasp_q, post_cost = backup_on_world_z(
-                        grasp_q, station, station_context
-                    )
+                    postgrasp_q, pregrasp_q = grasp_q.copy(), grasp_q.copy()
+                    grasp_height = 0.05
+                    while grasp_height > 0 and (
+                        np.all(pregrasp_q == grasp_q) or np.all(postgrasp_q == grasp_q)
+                    ):
+                        test_pregrasp_q, pre_cost = backup_on_hand_z(
+                            grasp_q, station, station_context, d=grasp_height
+                        )
+                        test_postgrasp_q, post_cost = backup_on_world_z(
+                            grasp_q, station, station_context, d=grasp_height
+                        )
+                        if np.isfinite(pre_cost) and np.all(pregrasp_q == grasp_q):
+                            pregrasp_q = test_pregrasp_q
+                            print(
+                                f"{Colors.REVERSE}pregrasp distance: {grasp_height}{Colors.RESET}"
+                            )
+                        if np.isfinite(post_cost) and np.all(postgrasp_q == grasp_q):
+                            postgrasp_q = test_postgrasp_q
+                            print(
+                                f"{Colors.REVERSE}postgrasp distance: {grasp_height}{Colors.RESET}"
+                            )
+                        grasp_height -= 0.01
                     # relative transform from hand to main_body of object_info
                     X_HO = q_to_X_HO(
                         grasp_q, object_info.main_body_info, station, station_context
                     )
-                    if not np.isfinite(pre_cost + post_cost):
-                        continue
-                    yield X_HO, grasp_q, pregrasp_q, postgrasp_q
-
+                    yield RigidTransformWrapper(X_HO), grasp_q, pregrasp_q, postgrasp_q
 
     def plan_place_gen(item, region, X_HO):
         """
@@ -332,7 +354,12 @@ def construct_problem_from_sim(simulator, stations):
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
-        update_station(station, station_context, [('atgrasppose', item, X_HO)], set_others_to_inf=True)
+        update_station(
+            station,
+            station_context,
+            [("atgrasppose", item, X_HO)],
+            set_others_to_inf=True,
+        )
         target_object_info = station.object_infos[region][0]
         holding_object_info = station.object_infos[item][0]
         W = station.get_multibody_plant().world_frame()
@@ -349,14 +376,33 @@ def construct_problem_from_sim(simulator, stations):
                             holding_shape_info,
                             target_shape_info,
                         ):
-                            if not np.isfinite(cost):
-                                continue
-                            postplace_q, post_cost = backup_on_hand_z(
-                                place_q, station, station_context
-                            )
-                            preplace_q, pre_cost = backup_on_world_z(
-                                place_q, station, station_context
-                            )
+                            postplace_q, preplace_q = place_q.copy(), place_q.copy()
+                            grasp_height = 0.05
+                            while grasp_height > 0 and (
+                                np.all(preplace_q == place_q)
+                                or np.all(postplace_q == place_q)
+                            ):
+                                test_postplace_q, post_cost = backup_on_hand_z(
+                                    place_q, station, station_context, d=grasp_height
+                                )
+                                test_preplace_q, pre_cost = backup_on_world_z(
+                                    place_q, station, station_context, d=grasp_height
+                                )
+                                if np.isfinite(pre_cost) and np.all(
+                                    preplace_q == place_q
+                                ):
+                                    preplace_q = test_preplace_q
+                                    print(
+                                        f"{Colors.REVERSE}pregrasp distance: {grasp_height}{Colors.RESET}"
+                                    )
+                                if np.isfinite(post_cost) and np.all(
+                                    postplace_q == place_q
+                                ):
+                                    postplace_q = test_postplace_q
+                                    print(
+                                        f"{Colors.REVERSE}postgrasp distance: {grasp_height}{Colors.RESET}"
+                                    )
+                            grasp_height -= 0.01
                             # relative transform from hand to main_body of object_info
                             X_WO = q_to_X_PF(
                                 place_q,
@@ -365,9 +411,9 @@ def construct_problem_from_sim(simulator, stations):
                                 station,
                                 station_context,
                             )
-                            if not np.isfinite(pre_cost + post_cost):
-                                continue
-                            yield X_WO, place_q, preplace_q, postplace_q
+                            yield RigidTransformWrapper(
+                                X_WO
+                            ), place_q, preplace_q, postplace_q
 
     stream_map = {
         "plan-motion-free": from_gen_fn(plan_motion_gen),
@@ -440,7 +486,9 @@ if __name__ == "__main__":
         "-p", "--problem", nargs="?", default="problems/test_problem.yaml"
     )
     args = parser.parse_args()
-    sim, station_dict, traj_director, meshcat_vis = make_and_init_simulation(args.url, args.problem)
+    sim, station_dict, traj_director, meshcat_vis = make_and_init_simulation(
+        args.url, args.problem
+    )
     problem = construct_problem_from_sim(sim, station_dict)
 
     print("Initial:", str_from_object(problem.init))
@@ -453,6 +501,9 @@ if __name__ == "__main__":
         print_solution(solution)
 
         plan, _, _ = solution
+        if plan is None:
+            print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
+            sys.exit(0)
         """
         for action in plan:
             print(action.name)
@@ -467,7 +518,7 @@ if __name__ == "__main__":
             meshcat_vis.publish_recording()
 
         save = input(
-        """
+            """
         Type ENTER to exit without saving. 
         To save the video to the file
         media/<filename.html>, input <filename>\n
@@ -479,6 +530,3 @@ if __name__ == "__main__":
             file = open("media/" + save + ".html", "w")
             file.write(meshcat_vis.vis.static_html())
             file.close()
-            
-
-

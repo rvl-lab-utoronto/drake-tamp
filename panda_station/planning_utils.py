@@ -261,6 +261,7 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf = F
 
         pose_fluents: A list of tuples of the form
         [('atpose', object_info_name, X_WO), ..., ('atgraspose', object_info_name, X_WH)]
+        X* can be either Drake's RigidTransform or a RigidTransformWrapper
 
         set_others_to_inf: if True, the poses of any unspecified objects will be set to 
         infinity (far away) so they are not considerd in planning
@@ -271,6 +272,8 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf = F
     plant_context = station.GetSubsystemContext(plant, station_context)
     set_pose = []
     for _, name, X_PO in pose_fluents:
+        if isinstance(X_PO, RigidTransformWrapper):
+            X_PO = X_PO.get_rt()
         set_pose.append(name)
         object_info = station.object_infos[name][0]
         offset_frame = object_info.get_frame()
