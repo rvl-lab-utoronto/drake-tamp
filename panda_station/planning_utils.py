@@ -15,6 +15,13 @@ from pydrake.all import (
 from .panda_station import PandaStation
 from .construction_utils import find_resource
 from .utils import *
+from .grasping_and_placing import (
+    backup_on_hand_z, 
+    backup_on_world_z,
+    is_placeable, 
+    is_graspable, 
+    is_safe_to_place
+)
 
 
 class ProblemInfo:
@@ -64,7 +71,9 @@ class ProblemInfo:
             (name, "base_link") for name in parse_tables(find_resource(self.directive))
         ]
 
-    def make_station(self, weld_to_world, weld_to_hand=None, weld_fingers = False, name = "panda_station"):
+    def make_station(
+        self, weld_to_world, weld_to_hand=None, weld_fingers=False, name="panda_station"
+    ):
         """
         Makes a PandaStation based on this problem instance.
         see `make_all_stations`
@@ -76,9 +85,9 @@ class ProblemInfo:
         Returns:
             the newly created PandaStation
         """
-        station = PandaStation(name = name)
+        station = PandaStation(name=name)
         station.setup_from_file(self.directive, names_and_links=self.names_and_links)
-        station.add_panda_with_hand(weld_fingers= weld_fingers)
+        station.add_panda_with_hand(weld_fingers=weld_fingers)
         plant = station.get_multibody_plant()
 
         for name in self.objects:
@@ -121,14 +130,18 @@ class ProblemInfo:
         """
         res = {}
         print(f"{Colors.BLUE}Building main station{Colors.RESET}")
-        res["main"] = self.make_station([], name = "main")
+        res["main"] = self.make_station([], name="main")
         print(f"{Colors.BLUE}Building move free station{Colors.RESET}")
-        res["move_free"] = self.make_station(list(self.objects.keys()), weld_fingers = True, name = "move_free")
+        res["move_free"] = self.make_station(
+            list(self.objects.keys()), weld_fingers=True, name="move_free"
+        )
         for name in self.objects:
             print(f"{Colors.BLUE}Building {name} station{Colors.RESET}")
             weld_to_world = list(self.objects.keys())
             weld_to_world.remove(name)
-            res[name] = self.make_station(weld_to_world, weld_to_hand = name, weld_fingers = True, name = name)
+            res[name] = self.make_station(
+                weld_to_world, weld_to_hand=name, weld_fingers=True, name=name
+            )
         return res
 
     @staticmethod
@@ -189,10 +202,10 @@ def parse_start_poses(station, station_context):
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
     for object_info, _ in station.object_infos.values():
-        #TODO(agro) generalize this
+        # TODO(agro) generalize this
         if "table" in object_info.get_name():
             # exclude tables
-            continue 
+            continue
         X_WO = object_info.get_main_body().get_body().EvalPoseInWorld(plant_context)
         start_poses[object_info.get_name()] = X_WO
     return start_poses
@@ -248,7 +261,7 @@ def parse_tables(directive):
     return res
 
 
-def update_station(station, station_context, pose_fluents, set_others_to_inf = False):
+def update_station(station, station_context, pose_fluents, set_others_to_inf=False):
     """
     Update the poses of the welded objects in the
     PandaStation based on the poses in pose_fluents.
@@ -263,7 +276,7 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf = F
         [('atpose', object_info_name, X_WO), ..., ('atgraspose', object_info_name, X_WH)]
         X* can be either Drake's RigidTransform or a RigidTransformWrapper
 
-        set_others_to_inf: if True, the poses of any unspecified objects will be set to 
+        set_others_to_inf: if True, the poses of any unspecified objects will be set to
         infinity (far away) so they are not considerd in planning
     Returns:
         None, but updates the welded station provided in welded_station
@@ -285,12 +298,102 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf = F
     X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
     if set_others_to_inf:
         for object_info, Xinit_WO in list(station.object_infos.values()):
-            if object_info.get_name() in set_pose: # its pose has been set
+            if object_info.get_name() in set_pose:  # its pose has been set
                 continue
-            if Xinit_WO is None: # it is not a manipuland
+            if Xinit_WO is None:  # it is not a manipuland
                 continue
             offset_frame = object_info.get_frame()
             offset_frame.SetPoseInBodyFrame(plant_context, X_WO)
             # spacing of 5 m should be far enough
             X_WO.set_translation(X_WO.translation() + np.array([5, 0, 0]))
 
+
+def update_graspable_shapes(object_info):
+    """
+    Updates and returns the internal list graspable_shapes within
+    the object_info instance
+    """
+    if len(object_info.graspable_shapes) > 0:
+        return object_info.graspable_shapes
+    shapes = object_info.query_shape_infos(is_graspable)
+    object_info.graspable_shapes = shapes
+    return shapes
+
+def update_placeable_shapes(object_info):
+    """
+    Updates and returns the internal list graspable_shapes within
+    the object_info instance
+    """
+    if len(object_info.placeable_shapes) > 0:
+        return object_info.placeable_shapes
+    shapes = object_info.query_shape_infos(is_placeable)
+    object_info.placeable_shapes = shapes
+    return shapes
+
+def update_surfaces(object_info, station, station_context):
+    """
+    Updates and return the internal list of surfaces suitable for
+    placement within the object_info instance
+    """
+    for body_info in object_info.get_body_infos().values():
+        for shape_info in body_info.get_shape_infos():
+            is_safe, surface = is_safe_to_place(shape_info, station, station_context)
+            if not is_safe:
+                continue
+            object_info.surfaces.append(surface)
+
+    return object_info.surfaces
+
+def random_q(station):
+    """
+    Given a panda station, find a random joint configuration
+    """
+    lower = station.get_panda_lower_limits()
+    upper = station.get_panda_upper_limits()
+    return np.random.uniform(lower, upper)
+
+def random_normal_q(station, q_nominal):
+    """
+    Given a panda station, find a random joint configuration
+    as a gaussian centered around q_nominal
+    """
+    lower = station.get_panda_lower_limits()
+    upper = station.get_panda_upper_limits()
+    stddev = np.maximum(q_nominal - lower, upper - q_nominal)/2
+    rand_q = np.random.normal(
+        q_nominal, 
+        scale = stddev
+    )
+    return np.clip(rand_q, lower, upper)
+
+def pre_and_post_grasps(station, station_context, grasp_q, dist = 0.07):
+    """
+    Return the pre and post grasp joint configurations for the 
+    PandaStation station given the grasping configuration 
+    grasp_q. `dist` is the optimal distance between the pre/post grasp
+    end effector poses and the grasp end effector pose
+    """
+    pregrasp_q, postgrasp_q = grasp_q.copy(), grasp_q.copy()
+    set_pregrasp = False
+    set_postgrasp = False
+    while (dist > 0) and not (set_pregrasp and set_postgrasp):
+        q, cost = backup_on_hand_z(
+            grasp_q, 
+            station, 
+            station_context, 
+            d = dist
+        )
+        if np.isfinite(cost) and not set_pregrasp:
+            pregrasp_q = q
+            set_pregrasp = True
+        q, cost = backup_on_world_z(
+            grasp_q, 
+            station, 
+            station_context, 
+            d = dist
+        )
+        if np.isfinite(cost) and not set_postgrasp:
+            postgrasp_q = q
+            set_postgrasp = True
+        dist -= 0.01
+    return pregrasp_q, postgrasp_q

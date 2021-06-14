@@ -279,70 +279,60 @@ def box_grasp_q(
     G = shape_info.offset_frame  # geometry frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
-    print(f"{Colors.CYAN}Finding box grasp q{Colors.RESET}")
-    tries = 0
-    while tries < 3:
-        qs = []
-        costs = []
-        for sign in [-1, 1]:
-            for axis in range(0, 3):
-                unit_v = np.zeros(3)
-                unit_v[axis] += 1
-                ik = InverseKinematics(plant, plant_context)
-                ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-                dim = box_dim_from_axis(axis, shape_info.shape)
-                margin = GRASP_WIDTH - dim
-                if margin < GRASP_MARGIN + COL_MARGIN:
-                    continue  # don't try to grasp
-                # Qu: upper corner of bounding box
-                # Ql: lower corner of bounding box
-                # G: geometry frame
-                p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
-                p_GQu_G[axis] += margin
-                p_GQl_G[axis] *= -1
-                ik.AddPositionConstraint(
-                    H, [0, sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
-                )
-                p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
-                p_GQu_G[axis] *= -1
-                p_GQl_G[axis] -= margin
-                ik.AddPositionConstraint(
-                    H, [0, -sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
-                )
-                ik.AddAngleBetweenVectorsConstraint(
-                    H,
-                    [0, sign, 0],
-                    plant.world_frame(),
-                    X_WG.rotation().col(axis),
-                    0.0,
-                    THETA_TOL,
-                )
-                prog = ik.prog()
-                q = ik.q()
-                prog.AddQuadraticErrorCost(
-                    weights[0] * np.identity(len(q)), q_nominal, q
-                )
-                add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
-                add_deviation_from_box_center_cost(
-                    prog, q, plant, X_WG.translation(), weight=weights[2]
-                )
-                prog.SetInitialGuess(q, initial_guess)
-                result = Solve(prog)
-                cost = result.get_optimal_cost()
-                if not result.is_success():
-                    continue
-                qs.append(
-                    result.GetSolution(q),
-                )
-                costs.append(cost)
-        tries += 1
-        print(f"BOX GRASP TRIES: {tries}")
-        #TODO(agro): some randomization
-        if len(costs) == 0:
-            continue
-        indices = np.argsort(costs)
-        print(f"{Colors.CYAN}Yielding box grasp q{Colors.RESET}")
-        yield qs[indices[0]], costs[indices[0]]
+    qs = []
+    costs = []
+    for sign in [-1, 1]:
+        for axis in range(0, 3):
+            unit_v = np.zeros(3)
+            unit_v[axis] += 1
+            ik = InverseKinematics(plant, plant_context)
+            ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
+            dim = box_dim_from_axis(axis, shape_info.shape)
+            margin = GRASP_WIDTH - dim
+            if margin < GRASP_MARGIN + COL_MARGIN:
+                continue  # don't try to grasp
+            # Qu: upper corner of bounding box
+            # Ql: lower corner of bounding box
+            # G: geometry frame
+            p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
+            p_GQu_G[axis] += margin
+            p_GQl_G[axis] *= -1
+            ik.AddPositionConstraint(
+                H, [0, sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
+            )
+            p_GQl_G, p_GQu_G = get_bounding_box(shape_info.shape)
+            p_GQu_G[axis] *= -1
+            p_GQl_G[axis] -= margin
+            ik.AddPositionConstraint(
+                H, [0, -sign * GRASP_WIDTH / 2, HAND_HEIGHT], G, p_GQl_G, p_GQu_G
+            )
+            ik.AddAngleBetweenVectorsConstraint(
+                H,
+                [0, sign, 0],
+                plant.world_frame(),
+                X_WG.rotation().col(axis),
+                0.0,
+                THETA_TOL,
+            )
+            prog = ik.prog()
+            q = ik.q()
+            prog.AddQuadraticErrorCost(
+                weights[0] * np.identity(len(q)), q_nominal, q
+            )
+            add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
+            add_deviation_from_box_center_cost(
+                prog, q, plant, X_WG.translation(), weight=weights[2]
+            )
+            prog.SetInitialGuess(q, initial_guess)
+            result = Solve(prog)
+            cost = result.get_optimal_cost()
+            if not result.is_success():
+                cost = np.inf
+            qs.append(result.GetSolution(q))
+            costs.append(cost)
+    # return best result
+    indices = np.argsort(costs)
+    return qs[indices[0]], costs[indices[0]]
 
 
 def cylinder_grasp_q(
@@ -389,7 +379,6 @@ def cylinder_grasp_q(
     G = shape_info.offset_frame
     X_WG = G.CalcPoseInWorld(plant_context)
 
-    print(f"{Colors.CYAN}Finding cylinder grasp q{Colors.RESET}")
     if cylinder.radius() < 0.04:
         lower_z_bound = min(GRASP_MARGIN, -cylinder.length() / 2 + FINGER_WIDTH / 2)
         upper_z_bound = max(GRASP_MARGIN, cylinder.length() / 2 - FINGER_WIDTH / 2)
@@ -415,10 +404,8 @@ def cylinder_grasp_q(
         prog.SetInitialGuess(q, initial_guess)
         result = Solve(prog)
         cost = result.get_optimal_cost()
-
         if result.is_success():
-            print(f"{Colors.CYAN}Yielding cylinder grasp q{Colors.RESET}")
-            yield result.GetSolution(q), cost
+            return result.GetSolution(q), cost
 
     if cylinder.length() < GRASP_WIDTH:
         for sign in [-1, 1]:
@@ -462,9 +449,9 @@ def cylinder_grasp_q(
             cost = result.get_optimal_cost()
 
             if result.is_success():
-                yield result.GetSolution(q), cost
-                print(f"{Colors.CYAN}Yielding cylinder grasp q{Colors.RESET}")
+                return result.GetSolution(q), cost
 
+    return None, np.inf
 
 def sphere_grasp_q(
     station,
@@ -507,8 +494,6 @@ def sphere_grasp_q(
 
     sphere = shape_info.shape
     G = shape_info.offset_frame
-    print(f"{Colors.CYAN}Finding sphere grasp q{Colors.RESET}")
-
     margin = GRASP_WIDTH - sphere.radius() - COL_MARGIN
     p_tol = min(
         [
@@ -534,13 +519,10 @@ def sphere_grasp_q(
     prog.SetInitialGuess(q, initial_guess)
     result = Solve(prog)
     cost = result.get_optimal_cost()
-
     if not result.is_success():
-        return
-    # TODO(agro): vary vector deviation from normal to we get
-    # different results each time
-    print(f"{Colors.CYAN}Yielding sphere grasp q{Colors.RESET}")
-    yield result.GetSolution(q), cost
+        cost = np.inf
+
+    return result.GetSolution(q), cost
 
 
 def q_to_X_PF(q, P, F, station, station_context):
@@ -821,44 +803,33 @@ def sphere_place_q(
     sphere = holding_shape_info.shape
     P = surface.shape_info.offset_frame
 
-    max_iter = MAX_ITER
-    if not randomize_position:
-        max_iter = 1
+    p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
+    p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
+    for i in range(len(surface.bb_min)):
+        if np.isclose(surface.bb_min[i], surface.bb_max[i] * -1):
+            surface.bb_min[i] = surface.bb_min[i] + sphere.radius()
+            surface.bb_max[i] = surface.bb_max[i] - sphere.radius()
+        else:
+            sign = np.sign(surface.bb_max[i])
+            surface.bb_max[i] = surface.bb_max[i] + sign * sphere.radius()
+            surface.bb_min[i] = surface.bb_min[i] + sign * sphere.radius()
 
-    tries = 0
-    print(f"{Colors.GREEN}Finding sphere placement q{Colors.RESET}")
-    while iter < max_iter:
-        p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
-        p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
-        for i in range(len(surface.bb_min)):
-            if np.isclose(surface.bb_min[i], surface.bb_max[i] * -1):
-                surface.bb_min[i] = surface.bb_min[i] + sphere.radius()
-                surface.bb_max[i] = surface.bb_max[i] - sphere.radius()
-            else:
-                sign = np.sign(surface.bb_max[i])
-                surface.bb_max[i] = surface.bb_max[i] + sign * sphere.radius()
-                surface.bb_min[i] = surface.bb_min[i] + sign * sphere.radius()
+    ik = InverseKinematics(plant, plant_context)
+    ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
+    ik.AddPositionConstraint(H, np.zeros(3), P, surface.bb_min, surface.bb_max)
 
-        ik = InverseKinematics(plant, plant_context)
-        ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-        ik.AddPositionConstraint(H, np.zeros(3), P, surface.bb_min, surface.bb_max)
-
-        prog = ik.prog()
-        q = ik.q()
-        add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
-        if randomize_position:
-            add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB[:2], plant)
-        prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
-        prog.SetInitialGuess(q, initial_guess)
-        result = Solve(prog)
-        cost = result.get_optimal_cost()
-        tries += 1
-        print("CYLINDER PLACE TRIES:", tries)
-        if not result.is_success():
-            continue
-        print(f"{Colors.GREEN}Yielding sphere placement q{Colors.RESET}")
-        yield result.GetSolution(q), cost
-
+    prog = ik.prog()
+    q = ik.q()
+    add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
+    if randomize_position:
+        add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB[:2], plant)
+    prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
+    prog.SetInitialGuess(q, initial_guess)
+    result = Solve(prog)
+    cost = result.get_optimal_cost()
+    if not result.is_success():
+        cost = np.inf
+    return result.GetSolution(q), cost
 
 def cylinder_place_q(
     station,
@@ -899,53 +870,37 @@ def cylinder_place_q(
 
     qs = []
     costs = []
-    tries = 0
-    max_iter = MAX_ITER
-    if not randomize_position:
-        max_iter = 1
+    p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
+    p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
+    for sign in [-1, 1]:
+        ik = InverseKinematics(plant, plant_context)
+        ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
+        corners = extract_cylinder_corners(cylinder, sign)
+        for corner in corners:
+            ik.AddPositionConstraint(H, corner, P, surface.bb_min, surface.bb_max)
 
-    print(f"{Colors.GREEN}Finding cylinder placement q{Colors.RESET}")
-    while tries < max_iter:
-        p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
-        p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
-        for sign in [-1, 1]:
-            ik = InverseKinematics(plant, plant_context)
-            ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-            corners = extract_cylinder_corners(cylinder, sign)
-            for corner in corners:
-                ik.AddPositionConstraint(H, corner, P, surface.bb_min, surface.bb_max)
-
-            n = np.array([0, 0, -1]) * sign
-            ik.AddAngleBetweenVectorsConstraint(
-                H, n, plant.world_frame(), surface.z, 0, THETA_TOL
+        n = np.array([0, 0, -1]) * sign
+        ik.AddAngleBetweenVectorsConstraint(
+            H, n, plant.world_frame(), surface.z, 0, THETA_TOL
+        )
+        prog = ik.prog()
+        q = ik.q()
+        add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
+        if randomize_position:
+            add_deviation_from_point_cost(
+                prog, q, holding_shape_info, p_WB[:2], plant
             )
-            prog = ik.prog()
-            q = ik.q()
-            add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
-            if randomize_position:
-                add_deviation_from_point_cost(
-                    prog, q, holding_shape_info, p_WB[:2], plant
-                )
-            prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
-            prog.SetInitialGuess(q, initial_guess)
-            result = Solve(prog)
-            cost = result.get_optimal_cost()
-            if not result.is_success():
-                continue
-                # cost = np.inf
-            # if result.is_success():
-            # yield result.GetSolution(q), cost
-            qs.append(result.GetSolution(q))
-            costs.append(cost)
+        prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
+        prog.SetInitialGuess(q, initial_guess)
+        result = Solve(prog)
+        cost = result.get_optimal_cost()
+        if not result.is_success():
+            cost = np.inf
+        qs.append(result.GetSolution(q))
+        costs.append(cost)
 
-        tries += 1
-        print("CYLINDER PLACE TRIES:", tries)
-        if len(costs) == 0:
-            continue
-        indices = np.argsort(costs)
-        for i in indices:
-            print(f"{Colors.GREEN}Yielding cylinder placement q{Colors.RESET}")
-            yield qs[i], costs[i]
+    indices = np.argsort(costs)
+    return qs[indices[0]], costs[indices[0]]
 
     """
     # try and place the cylinder lengthwise
@@ -972,7 +927,7 @@ def cylinder_place_q(
     result = Solve(prog)
     cost = result.get_optimal_cost()
     if result.is_success():
-        yield result.GetSolution(q), cost
+        return result.GetSolution(q), cost
     """
 
 
@@ -1016,71 +971,56 @@ def box_place_q(
     box = holding_shape_info.shape
     P = surface.shape_info.offset_frame
 
-
-    tries = 0
-    max_iter = MAX_ITER
-    print(f"{Colors.GREEN}Finding box placement q{Colors.RESET}")
-    if not (randomize_position or randomize_theta):
-        max_iter = 1
-    while tries < max_iter:
-        costs = []
-        qs = []
-        p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
-        p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
-        theta = np.random.uniform(0, 2 * np.pi)
-        for sign in [-1, 1]:
-            for axis in range(0, 3):
-                ik = InverseKinematics(plant, plant_context)
-                ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-                # corners of face must lie in bounding box
-                corners = extract_box_corners(box, axis, sign)
-                for corner in corners:
-                    ik.AddPositionConstraint(
-                        H, corner, P, surface.bb_min, surface.bb_max
-                    )
-
-                n = np.zeros(3)
-                n[axis] = -sign
-                ik.AddAngleBetweenVectorsConstraint(
-                    H, n, plant.world_frame(), surface.z, 0, THETA_TOL
+    costs = []
+    qs = []
+    p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
+    p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
+    theta = np.random.uniform(0, 2 * np.pi)
+    for sign in [-1, 1]:
+        for axis in range(0, 3):
+            ik = InverseKinematics(plant, plant_context)
+            ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
+            # corners of face must lie in bounding box
+            corners = extract_box_corners(box, axis, sign)
+            for corner in corners:
+                ik.AddPositionConstraint(
+                    H, corner, P, surface.bb_min, surface.bb_max
                 )
-                prog = ik.prog()
-                q = ik.q()
-                add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
-                if randomize_position:
-                    add_deviation_from_point_cost(
-                        prog, q, holding_shape_info, p_WB[:2], plant
-                    )
-                if randomize_theta:
-                    v = np.zeros(3)
-                    v[axis - 1] = 1  # perpendicular to n (ie. along the surface)
-                    add_theta_cost(
-                        prog,
-                        q,
-                        holding_shape_info,
-                        v,
-                        theta,
-                        plant,
-                    )
-                prog.AddQuadraticErrorCost(
-                    weights[0] * np.identity(len(q)), q_nominal, q
+
+            n = np.zeros(3)
+            n[axis] = -sign
+            ik.AddAngleBetweenVectorsConstraint(
+                H, n, plant.world_frame(), surface.z, 0, THETA_TOL
+            )
+            prog = ik.prog()
+            q = ik.q()
+            add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
+            if randomize_position:
+                add_deviation_from_point_cost(
+                    prog, q, holding_shape_info, p_WB[:2], plant
                 )
-                prog.SetInitialGuess(q, initial_guess)
-                result = Solve(prog)
-                cost = result.get_optimal_cost()
-                # TODO(agro): deviation from placement surface center
-                if not result.is_success():
-                    continue
-                    # cost = np.inf
-                # yield result.GetSolution(q), cost
-                costs.append(cost)
-                qs.append(result.GetSolution(q))
+            if randomize_theta:
+                v = np.zeros(3)
+                v[axis - 1] = 1  # perpendicular to n (ie. along the surface)
+                add_theta_cost(
+                    prog,
+                    q,
+                    holding_shape_info,
+                    v,
+                    theta,
+                    plant,
+                )
+            prog.AddQuadraticErrorCost(
+                weights[0] * np.identity(len(q)), q_nominal, q
+            )
+            prog.SetInitialGuess(q, initial_guess)
+            result = Solve(prog)
+            cost = result.get_optimal_cost()
+            # TODO(agro): deviation from placement surface center
+            if not result.is_success():
+                cost = np.inf
+            costs.append(cost)
+            qs.append(result.GetSolution(q))
 
-        tries += 1
-        print("BOX PLACE TRIES:", tries)
-        if len(costs) == 0:
-            continue
-        indices = np.argsort(costs)
-
-        print(f"{Colors.GREEN}Yielding box placement q{Colors.RESET}")
-        yield qs[indices[0]], costs[indices[0]]
+    indices = np.argsort(costs)
+    return qs[indices[0]], costs[indices[0]]

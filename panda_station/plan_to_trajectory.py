@@ -5,31 +5,34 @@ two PiecewisePolynominal's that the panda and its hand can follow
 import numpy as np
 from pydrake.all import PiecewisePolynomial
 
-JOINTSPACE_SPEED = np.pi*0.2 # rad/s
+JOINTSPACE_SPEED = np.pi*0.1 # rad/s
 MAX_OPEN = 0.08
 MAX_CLOSE = 0.0
 GRASP_TIME = 2.0
 
-def distance(q1, q2):
+def jointspace_distance(q1, q2):
     """
     Returns the distance between two joint configurations, q1 and q2
     (np.arrays)
     """
     return np.sqrt((q2 - q1).dot(q2 - q1))
 
-def make_panda_traj(qs, start_time):
+
+def make_panda_traj(qs, start_time, max_speed = JOINTSPACE_SPEED):
     """
     Given a list of joint configs `qs`, 
     return a trajectory for the panda arm starting at start_time,
     and the times along the trajectory
     """
+    # make the speed slowest at start and end 
     times = [start_time]
-
+    midpoint = (len(qs) - 1)/2.0
     for i in range(len(qs) - 1):
         q_now = qs[i]
         q_next = qs[i+1]
-        dist = distance(q_now, q_next)
-        times.append(times[-1] + dist/JOINTSPACE_SPEED)
+        dist = jointspace_distance(q_now, q_next)
+        speed = max_speed#max_speed*(1 - 0.5*abs(i - midpoint)/midpoint)
+        times.append(times[-1] + dist/speed)
 
     times = np.array(times)
     panda_traj = None
@@ -77,7 +80,7 @@ def pick_traj(args, start_time):
     pregrasp_q = args[5]
     postgrasp_q = args[6]
     down_traj = np.array([pregrasp_q, grasp_q])
-    panda_traj_down, times = make_panda_traj(down_traj, start_time)
+    panda_traj_down, times = make_panda_traj(down_traj, start_time, max_speed = JOINTSPACE_SPEED/2)
     hand_traj_down = np.array([[MAX_OPEN] for i in range(len(times))])
     hand_traj_down = PiecewisePolynomial.FirstOrderHold(times, hand_traj_down.T)
     #closing
@@ -88,7 +91,7 @@ def pick_traj(args, start_time):
     hand_traj_closing = PiecewisePolynomial.FirstOrderHold(times, hand_traj_closing.T)
     # up
     up_traj = np.array([grasp_q, postgrasp_q])
-    panda_traj_up, times = make_panda_traj(up_traj, times[-1])
+    panda_traj_up, times = make_panda_traj(up_traj, times[-1], max_speed = JOINTSPACE_SPEED/2)
     hand_traj_up = np.array([[MAX_CLOSE] for i in range(len(times))])
     hand_traj_up = PiecewisePolynomial.FirstOrderHold(times, hand_traj_up.T)
     # concatenate

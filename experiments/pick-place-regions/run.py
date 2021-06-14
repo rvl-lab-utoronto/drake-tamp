@@ -1,11 +1,11 @@
 """
 The module for running the pick and and place TAMP problem
 """
+import time
 import os
 from re import I
 import sys
 import argparse
-from panda_station.plan_to_trajectory import plan_to_trajectory
 import numpy as np
 import pydrake.all
 from pddlstream.language.generator import from_gen_fn, from_test
@@ -20,16 +20,20 @@ from panda_station import (
     update_station,
     TrajectoryDirector,
     find_traj,
-    find_grasp_q,
     q_to_X_HO,
-    backup_on_hand_z,
-    backup_on_world_z,
-    find_place_q,
+    best_place_shapes_surfaces,
     q_to_X_PF,
-    is_placeable,
     plan_to_trajectory,
     Colors,
     RigidTransformWrapper,
+    update_graspable_shapes,
+    update_placeable_shapes,
+    update_surfaces,
+    best_grasp_for_shapes,
+    pre_and_post_grasps,
+    plan_to_trajectory,
+    Q_NOMINAL,
+    random_normal_q
 )
 
 ARRAY = tuple
@@ -247,9 +251,9 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "foam_brick", "table_round"),
-        ("in", "soup_can", "table_square"),
         ("in", "mustard", "table"),
+        ("in", "soup_can", "table_square"),
+        ("in", "foam_brick", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -259,14 +263,15 @@ def construct_problem_from_sim(simulator, stations):
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
         defining the current pose of all items.
         """
+        print(f"{Colors.BLUE}Starting move-free stream{Colors.RESET}")
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
         # udate poses in station
         update_station(station, station_context, fluents)
-        print(f"{Colors.BOLD}Planning free trajectory{Colors.RESET}")
         while True:
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning
+            print(f"{Colors.GREEN}Planning free trajectory{Colors.RESET}")
             traj = find_traj(
                 station, 
                 station_context, 
@@ -275,7 +280,9 @@ def construct_problem_from_sim(simulator, stations):
                 ignore_endpoint_collisions= True
             )
             if traj is None:  # if a trajectory could not be found (invalid)
+                print(f"{Colors.RED}Closing move-free stream{Colors.RESET}")
                 return
+            print(f"{Colors.REVERSE}Yielding free trajectory{Colors.RESET}")
             yield (traj,)
 
     def plan_motion_holding_gen(item, start, end, fluents=[]):
@@ -287,14 +294,15 @@ def construct_problem_from_sim(simulator, stations):
         and ('atgrasppose', <item>, <pose>)
         defining the current pose of all items.
         """
+        print(f"{Colors.BLUE}Starting move-holding stream for {item}{Colors.RESET}")
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
         update_station(station, station_context, fluents)
-        print(f"{Colors.BOLD}Planning trajectory holding {item}{Colors.RESET}")
         while True:
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning
+            print(f"{Colors.GREEN}Planning trajectory holding {item}{Colors.RESET}")
             traj = find_traj(
                 station, 
                 station_context, 
@@ -303,7 +311,9 @@ def construct_problem_from_sim(simulator, stations):
                 ignore_endpoint_collisions= False
             )
             if traj is None:  # if a trajectory could not be found (invalid)
+                print(f"{Colors.RED}Closing move-holding stream for {item}{Colors.RESET}")
                 return
+            print(f"{Colors.REVERSE}Yielding trajectory holding {item}{Colors.RESET}")
             yield (traj,)
 
     def plan_grasp_gen(item, pose):
@@ -315,45 +325,58 @@ def construct_problem_from_sim(simulator, stations):
         and two valid robot arm configurations for pre/post grasp stages of a
         two stage grasp when the <item> is at <pose>.
         """
+        print(f"{Colors.BLUE}Starting grasp stream for {item}{Colors.RESET}")
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
         # udate poses in station
         update_station(
             station, station_context, [("atpose", item, pose)], set_others_to_inf=True
         )
-        # TODO(agro): clean this crap up
         object_info = station.object_infos[item][0]
-        body_infos = list(object_info.get_body_infos().values())
-        for body_info in body_infos:
-            for shape_info in body_info.get_shape_infos():
-                for grasp_q, cost in find_grasp_q(station, station_context, shape_info):
-                    postgrasp_q, pregrasp_q = grasp_q.copy(), grasp_q.copy()
-                    grasp_height = 0.07
-                    while grasp_height > 0 and (
-                        np.all(pregrasp_q == grasp_q) or np.all(postgrasp_q == grasp_q)
-                    ):
-                        test_pregrasp_q, pre_cost = backup_on_hand_z(
-                            grasp_q, station, station_context, d=grasp_height
-                        )
-                        test_postgrasp_q, post_cost = backup_on_world_z(
-                            grasp_q, station, station_context, d=grasp_height
-                        )
-                        if np.isfinite(pre_cost) and np.all(pregrasp_q == grasp_q):
-                            pregrasp_q = test_pregrasp_q
-                            print(
-                                f"{Colors.REVERSE}pregrasp distance: {grasp_height}{Colors.RESET}"
-                            )
-                        if np.isfinite(post_cost) and np.all(postgrasp_q == grasp_q):
-                            postgrasp_q = test_postgrasp_q
-                            print(
-                                f"{Colors.REVERSE}postgrasp distance: {grasp_height}{Colors.RESET}"
-                            )
-                        grasp_height -= 0.01
-                    # relative transform from hand to main_body of object_info
-                    X_HO = q_to_X_HO(
-                        grasp_q, object_info.main_body_info, station, station_context
-                    )
-                    yield RigidTransformWrapper(X_HO), grasp_q, pregrasp_q, postgrasp_q
+        shape_infos = update_graspable_shapes(object_info)
+        while True:
+            print(f"{Colors.GREEN}Finding grasp for {item}{Colors.RESET}")
+            start_time = time.time()
+            grasp_q, cost = None, np.inf
+            #how many times will we try before saying it can't be done
+            max_tries, tries = 5, 0
+            q_initial = Q_NOMINAL
+            q_nominal = Q_NOMINAL
+            while tries < max_tries:
+                tries += 1
+                print(f"{Colors.BOLD}{item} grasp tries: {tries}{Colors.RESET}")
+                grasp_q, cost = best_grasp_for_shapes(
+                    station,
+                    station_context,
+                    shape_infos,
+                    initial_guess = q_initial,
+                    q_nominal = q_nominal
+                )
+                if np.isfinite(cost):
+                    break
+                q_initial = random_normal_q(station, Q_NOMINAL)
+                q_nominal = random_normal_q(station, Q_NOMINAL)
+            if not np.isfinite(cost):
+                print(f"{Colors.RED}Ending grasp stream for{item}{Colors.RESET}")
+                return
+            pregrasp_q, postgrasp_q = pre_and_post_grasps(
+                station, 
+                station_context, 
+                grasp_q,
+                dist = 0.07
+            )
+            X_HO = RigidTransformWrapper(
+                q_to_X_HO(
+                    grasp_q, 
+                    object_info.main_body_info,
+                    station,
+                    station_context
+                )
+            )
+            print(
+                f"{Colors.REVERSE}Yielding grasp for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"
+            )
+            yield X_HO, grasp_q, pregrasp_q, postgrasp_q
 
     def plan_place_gen(item, region, X_HO):
         """
@@ -365,6 +388,7 @@ def construct_problem_from_sim(simulator, stations):
         the name of the item, and X_HO is the relative transfomation between
         the hand and the object it is holding
         """
+        print(f"{Colors.BLUE}Starting place stream for {item}{Colors.RESET}")
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
@@ -377,58 +401,49 @@ def construct_problem_from_sim(simulator, stations):
         target_object_info = station.object_infos[region][0]
         holding_object_info = station.object_infos[item][0]
         W = station.get_multibody_plant().world_frame()
+        shape_infos = update_placeable_shapes(holding_object_info)
+        surfaces = update_surfaces(target_object_info, station, station_context)
 
         while True:
-            for holding_body_info in holding_object_info.get_body_infos().values():
-                for holding_shape_info in holding_body_info.get_shape_infos():
-                    if not is_placeable(holding_shape_info):
-                        continue
-                    for target_body_info in target_object_info.get_body_infos().values():
-                        for target_shape_info in target_body_info.get_shape_infos():
-                            for place_q, cost in find_place_q(
-                                station,
-                                station_context,
-                                holding_shape_info,
-                                target_shape_info,
-                            ):
-                                postplace_q, preplace_q = place_q.copy(), place_q.copy()
-                                grasp_height = 0.07
-                                while grasp_height > 0 and (
-                                    np.all(preplace_q == place_q)
-                                    or np.all(postplace_q == place_q)
-                                ):
-                                    test_postplace_q, post_cost = backup_on_hand_z(
-                                        place_q, station, station_context, d=grasp_height
-                                    )
-                                    test_preplace_q, pre_cost = backup_on_world_z(
-                                        place_q, station, station_context, d=grasp_height
-                                    )
-                                    if np.isfinite(pre_cost) and np.all(
-                                        preplace_q == place_q
-                                    ):
-                                        preplace_q = test_preplace_q
-                                        print(
-                                            f"{Colors.REVERSE}pregrasp distance: {grasp_height}{Colors.RESET}"
-                                        )
-                                    if np.isfinite(post_cost) and np.all(
-                                        postplace_q == place_q
-                                    ):
-                                        postplace_q = test_postplace_q
-                                        print(
-                                            f"{Colors.REVERSE}postgrasp distance: {grasp_height}{Colors.RESET}"
-                                        )
-                                    grasp_height -= 0.01
-                                # relative transform from hand to main_body of object_info
-                                X_WO = q_to_X_PF(
-                                    place_q,
-                                    W,
-                                    holding_object_info.main_body_info.get_body_frame(),
-                                    station,
-                                    station_context,
-                                )
-                                yield RigidTransformWrapper(
-                                    X_WO
-                                ), place_q, preplace_q, postplace_q
+            print(f"{Colors.GREEN}Finding place for {item}{Colors.RESET}")
+            start_time = time.time()
+            place_q, cost = None, np.inf
+            #how many times will we try before saying it can't be done
+            max_tries, tries = 10, 0
+            while tries < max_tries:
+                tries += 1
+                print(f"{Colors.BOLD}{item} place tries: {tries}{Colors.RESET}")
+                place_q, cost = best_place_shapes_surfaces(
+                    station,
+                    station_context,
+                    shape_infos,
+                    surfaces
+                )
+                if np.isfinite(cost):
+                    break
+            if not np.isfinite(cost):
+                print(f"{Colors.RED}Ending place stream for{item}{Colors.RESET}")
+                return
+            # pregrasp_q == postplace_q, postgrasp_q == preplace_q
+            postplace_q, preplace_q = pre_and_post_grasps(
+                station, 
+                station_context, 
+                place_q,
+                dist = 0.07
+            )
+            X_WO = RigidTransformWrapper(
+                q_to_X_PF(
+                    place_q,
+                    W,
+                    holding_object_info.main_body_info.get_body_frame(),
+                    station,
+                    station_context,
+                )
+            )
+            print(
+                f"{Colors.REVERSE}Yielding placement for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"
+            )
+            yield X_WO, place_q, preplace_q, postplace_q
 
     stream_map = {
         "plan-motion-free": from_gen_fn(plan_motion_gen),

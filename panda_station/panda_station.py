@@ -284,6 +284,30 @@ class PandaStation(pydrake.systems.framework.Diagram):
             )
         return joint_limits
 
+    def get_panda_lower_limits(self):
+        """
+        Get the lower limits of the panda in a numpy array
+        """
+        num_q = self.plant.num_positions(self.panda)
+        joint_inds = self.plant.GetJointIndices(self.panda)[:num_q]
+        joint_limits = []
+        for i in joint_inds:
+            joint = self.plant.get_joint(i)
+            joint_limits.append(joint.position_lower_limits()[0])
+        return np.array(joint_limits)
+
+    def get_panda_upper_limits(self):
+        """
+        Get the upper limits of the panda in a numpy array
+        """
+        num_q = self.plant.num_positions(self.panda)
+        joint_inds = self.plant.GetJointIndices(self.panda)[:num_q]
+        joint_limits = []
+        for i in joint_inds:
+            joint = self.plant.get_joint(i)
+            joint_limits.append(joint.position_upper_limits()[0])
+        return np.array(joint_limits)
+
     def finalize(self):
         """finalize the panda station"""
 
@@ -488,7 +512,30 @@ class ObjectInfo:
         self.welded_to_frame = welded_to_frame
         self.body_infos = {}
         self.name = name
-        # self.body_infos[main_body_info.get_index()] = self.main_body_info
+        # which shapes are suitable for grasping
+        self.graspable_shapes = []
+        self.placeable_shapes = []
+        # the Surface instances of the shapes that objects can be placed on
+        self.surfaces = []
+
+    def query_shape_infos(self, criteria_func = None):
+        """
+        Return all ShapeInfos of this ObjectInfo that 
+        satisfy criteria_func, with the signature:
+
+        def criteria_func(shape_info):
+            # returns boolean
+
+        which will specify whether a shape_info is included in the
+        output of this query
+        """
+        shape_infos = []
+        body_infos = list(self.get_body_infos().values())
+        for body_info in body_infos:
+            for shape_info in body_info.get_shape_infos():
+                if (criteria_func is None) or (criteria_func(shape_info)):
+                    shape_infos.append(shape_info)
+        return shape_infos
 
     def set_main_body_info(self, main_body_info):
         """

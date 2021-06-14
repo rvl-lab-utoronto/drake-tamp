@@ -7,6 +7,7 @@ from ompl import base as ob
 from ompl import geometric as og
 from pydrake.all import Box, Cylinder, Sphere
 from .grasping_and_placing import (
+    Q_NOMINAL,
     cylinder_grasp_q,
     box_grasp_q,
     is_placeable,
@@ -19,7 +20,6 @@ from .grasping_and_placing import (
     cylinder_place_q,
 )
 from .utils import *
-
 NUM_Q = 7
 
 
@@ -97,77 +97,105 @@ def find_traj(
         return None
     ss.setStartAndGoalStates(start, goal)
     solved = ss.solve()
-    assert solved
+    if not solved:
+        print(f"{Colors.RED}FAILED TO FIND OMPL SOLUTION{Colors.RESET}")
+        return None
     ss.simplifySolution()
     path = ss.getSolutionPath()
     res = np.array([state_to_q(state) for state in path.getStates()])
     return res
 
-
-def find_grasp_q(station, station_context, shape_info):
+def best_grasp_for_shapes(
+    station,
+    station_context, 
+    shape_infos,
+    q_nominal = Q_NOMINAL,
+    initial_guess = Q_NOMINAL,
+):
     """
-    Find a grasp configuration for the panda arm grasping
-    shape_info. This generator will yield the first
-    non-infinite cost grasp it can find
+    Return the best grasp config, trying to grasp all shapes in 
+    `shape_infos`.
 
     Args:
-        station: a PandaStation with welded fingers
-        station_context: the Context for the station
-        shape_info: the ShapeInfo instance to try and grasp.
+        station: PandaStation
+        station_context: the Context for station
+        shape_infos: the ShapeInfo's for the shapes to try and grab
+        q_nominal: nominal joint positions (np.array)
+        initial_guess: initial guess for joint positions (np.array)
 
-    Yields:
-        A tuple of the form
+    Returns:
+        A tuple
         (grasp_q, cost)
-
-    Returns:
-        If there are no valid grasps to be found
+        represnting the lowest cost grasp configuration `grasp_q`
+        that could be found
     """
-    if not is_graspable(shape_info):
-        return
-    if isinstance(shape_info.shape, Sphere):
-        for grasp_q, cost in sphere_grasp_q(station, station_context, shape_info):
-            yield grasp_q, cost
-    if isinstance(shape_info.shape, Box):
-        for grasp_q, cost in box_grasp_q(station, station_context, shape_info):
-            yield grasp_q, cost
-    if isinstance(shape_info.shape, Cylinder):
-        for grasp_q, cost in cylinder_grasp_q(station, station_context, shape_info):
-            yield grasp_q, cost
-    return
+    grasp_qs, costs = [], []
+    grasp_funcs = [box_grasp_q, cylinder_grasp_q, sphere_grasp_q]
+    for shape_info in shape_infos:
+        func = None
+        if isinstance(shape_info.shape, Box):
+            func = grasp_funcs[0]
+        if isinstance(shape_info.shape, Cylinder):
+            func = grasp_funcs[1]
+        if isinstance(shape_info.shape, Sphere):
+            func = grasp_funcs[2]
+        grasp_q, cost = func(
+            station,
+            station_context,
+            shape_info,
+            initial_guess = initial_guess,
+            q_nominal = q_nominal
+        )
+        grasp_qs.append(grasp_q)
+        costs.append(cost)
+    # return the lowest cost grasp for all ShapeInfo's
+    indices = np.argsort(costs)
+    return grasp_qs[indices[0]], costs[indices[0]]
 
-
-def find_place_q(station, station_context, holding_shape_info, target_shape_info):
+def best_place_shapes_surfaces(
+    station,
+    station_context,
+    holding_shape_infos,
+    target_surfaces,
+):
     """
-    Return the joint config to place shape holding_shape_info on target_shape_info
+    Return the best place config, trying to place all shapes in 
+    holding_shapes on the Surfaces in target_surfaces 
 
     Args:
-        station: PandaStation with the arm (must has only 7 DOF)
-        station_context: Context of station
-        holding_shape_info: the info of the shape that the robot is holding
-        target_shape_info: the info of the shape that we want to place on
+        station: PandaStation
+        station_context: the Context for station
+        holding_shape_infos: the ShapeInfo's for object being held.
+        It is assumed that for all shape_infos in holding_shape_infos,
+        is_placeable(shape_info) -> True
+        target_surfaces: a list of the target surfaces to try. It is 
+        assumed that these surfaces are safe to place on
 
     Returns:
-        q: (np.array) the 7dof joint config
-        cost: the cost of the solution (is np.inf if no solution can be found)
+        A tuple
+        (place_q, cost)
+        representing the lowest cost grasp configuration `grasp_q`
+        that could be found
     """
-    if not is_placeable(holding_shape_info):
-        return
-    is_safe, surface = is_safe_to_place(target_shape_info, station, station_context)
-    if not is_safe:
-        return
-    if isinstance(holding_shape_info.shape, Sphere):
-        for place_q, cost in sphere_place_q(
-            station, station_context, holding_shape_info, surface
-        ):
-            yield place_q, cost
-    if isinstance(holding_shape_info.shape, Box):
-        for place_q, cost in box_place_q(
-            station, station_context, holding_shape_info, surface
-        ):
-            yield place_q, cost
-    if isinstance(holding_shape_info.shape, Cylinder):
-        for place_q, cost in cylinder_place_q(
-            station, station_context, holding_shape_info, surface
-        ):
-            yield place_q, cost
-    return
+
+    place_funcs = [box_place_q, cylinder_place_q, sphere_place_q]
+    place_qs = []
+    costs = []
+    for shape_info in holding_shape_infos:
+        func = None
+        if isinstance(shape_info.shape, Box):
+            func = place_funcs[0]
+        if isinstance(shape_info.shape, Cylinder):
+            func = place_funcs[1]
+        if isinstance(shape_info.shape, Sphere):
+            func = place_funcs[2]
+        for surface in target_surfaces:
+            place_q, cost = func(
+                station, station_context, shape_info, surface
+            )
+            place_qs.append(place_q)
+            costs.append(cost)
+
+    indices = np.argsort(costs) 
+    return place_qs[indices[0]], costs[indices[0]]
+            
