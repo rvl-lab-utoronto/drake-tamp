@@ -247,9 +247,8 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "foam_brick", "table_square"),
+        ("in", "mustard", "table"),
         ("in", "soup_can", "table_square"),
-        ("in", "mustard", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -263,6 +262,7 @@ def construct_problem_from_sim(simulator, stations):
         station_context = station_contexts["move_free"]
         # udate poses in station
         update_station(station, station_context, fluents)
+        print(f"{Colors.BOLD}Planning free trajectory{Colors.RESET}")
         while True:
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning
@@ -290,6 +290,7 @@ def construct_problem_from_sim(simulator, stations):
         station_context = station_contexts[item]
         # udate poses in station
         update_station(station, station_context, fluents)
+        print(f"{Colors.BOLD}Planning trajectory holding {item}{Colors.RESET}")
         while True:
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning

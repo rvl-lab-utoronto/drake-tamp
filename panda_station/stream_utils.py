@@ -62,8 +62,8 @@ def find_traj(
             return False
         plant.SetPositions(plant_context, panda, q)
         query_object = query_output_port.Eval(scene_graph_context)
-        if not query_object.HasCollisions():
-            return False
+        return query_object.HasCollisions()
+        """
         pairs = query_object.ComputePointPairPenetration()
         max_pen = -np.inf
         for p in pairs:
@@ -71,6 +71,7 @@ def find_traj(
         if np.all(q == q_start) or np.all(q == q_goal):
             print("MAX PEN:", max_pen)
         return max_pen > 0.001
+        """
 
     def isStateValid(state):
         q = state_to_q(state)
