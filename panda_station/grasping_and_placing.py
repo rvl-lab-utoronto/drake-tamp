@@ -337,8 +337,8 @@ def box_grasp_q(
                 costs.append(cost)
         tries += 1
         print(f"BOX GRASP TRIES: {tries}")
+        #TODO(agro): some randomization
         if len(costs) == 0:
-            # initial_guess =
             continue
         indices = np.argsort(costs)
         print(f"{Colors.CYAN}Yielding box grasp q{Colors.RESET}")

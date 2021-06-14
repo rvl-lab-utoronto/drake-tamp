@@ -161,5 +161,5 @@ if __name__ == "__main__":
         if target in target_names:
             TARGET = target
         """
-        input("Press ENTER to see next grasp pose")
+        input("Press ENTER to see next placement pose")
         start_time = time.time()
