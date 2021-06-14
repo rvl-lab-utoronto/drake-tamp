@@ -2,6 +2,7 @@
 The module for running the pick and and place TAMP problem
 """
 import os
+from re import I
 import sys
 import argparse
 from panda_station.plan_to_trajectory import plan_to_trajectory
@@ -246,9 +247,9 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
+        ("in", "soup_can", "table_round"),
         ("in", "foam_brick", "table_square"),
         ("in", "mustard", "table"),
-        ("in", "soup_can", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -265,7 +266,13 @@ def construct_problem_from_sim(simulator, stations):
         while True:
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning
-            traj = find_traj(station, station_context, start, end)
+            traj = find_traj(
+                station, 
+                station_context, 
+                start, 
+                end, 
+                ignore_endpoint_collisions= True
+            )
             if traj is None:  # if a trajectory could not be found (invalid)
                 return
             yield (traj,)
@@ -282,12 +289,17 @@ def construct_problem_from_sim(simulator, stations):
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
-        # TODO(agro): stop cheating and fix this
         update_station(station, station_context, fluents)
         while True:
             # find traj will return a np.array of configurations, but no time informatino
             # The actual peicewise polynominal traj will be reconstructed after planning
-            traj = find_traj(station, station_context, start, end)
+            traj = find_traj(
+                station, 
+                station_context, 
+                start, 
+                end, 
+                ignore_endpoint_collisions= False
+            )
             if traj is None:  # if a trajectory could not be found (invalid)
                 return
             yield (traj,)

@@ -278,7 +278,7 @@ def box_grasp_q(
 
     print(f"{Colors.CYAN}Finding box grasp q{Colors.RESET}")
     tries = 0
-    while tries < MAX_ITER:
+    while tries < 3:
         qs = []
         costs = []
         for sign in [-1, 1]:
@@ -329,7 +329,7 @@ def box_grasp_q(
                 qs.append(result.GetSolution(q),)
                 costs.append(cost)
         tries += 1
-        print(f"TRIES: {tries}")
+        print(f"BOX GRASP TRIES: {tries}")
         if len(costs) == 0:
             # initial_guess = 
             continue
@@ -842,7 +842,7 @@ def sphere_place_q(
         result = Solve(prog)
         cost = result.get_optimal_cost()
         tries += 1
-        print("TRIES:", tries)
+        print("CYLINDER PLACE TRIES:", tries)
         if not result.is_success():
             continue
         print(f"{Colors.GREEN}Yielding sphere placement q{Colors.RESET}")
@@ -926,7 +926,7 @@ def cylinder_place_q(
             costs.append(cost)
 
         tries += 1
-        print("TRIES:", tries)
+        print("CYLINDER PLACE TRIES:", tries)
         if len(costs) == 0:
             continue
         indices = np.argsort(costs)
@@ -1057,7 +1057,7 @@ def box_place_q(
                 qs.append(result.GetSolution(q))
         
         tries += 1
-        print("TRIES:", tries)
+        print("BOX PLACE TRIES:", tries)
         if len(costs) == 0:
             continue
         indices = np.argsort(costs)

@@ -11,11 +11,12 @@ from .grasping_and_placing import (
     box_grasp_q,
     is_placeable,
     is_safe_to_place,
+    q_to_X_WH,
     sphere_grasp_q,
     is_graspable,
     sphere_place_q,
     box_place_q,
-    cylinder_place_q
+    cylinder_place_q,
 )
 from .utils import *
 
@@ -42,7 +43,9 @@ def q_to_state(space, q):
     return state
 
 
-def find_traj(station, station_context, q_start, q_goal):
+def find_traj(
+    station, station_context, q_start, q_goal, ignore_endpoint_collisions=True
+):
     """
     Find a collision free trajectory from the configurations
     q_start to q_end (np.array) for the panda arm in
@@ -55,11 +58,19 @@ def find_traj(station, station_context, q_start, q_goal):
     query_output_port = scene_graph.GetOutputPort("query")
 
     def is_colliding(q):
-        if np.all(q == q_start) or np.all(q == q_goal):
+        if np.all(q == q_start) or (np.all(q == q_goal) and ignore_endpoint_collisions):
             return False
         plant.SetPositions(plant_context, panda, q)
         query_object = query_output_port.Eval(scene_graph_context)
-        return query_object.HasCollisions()
+        if not query_object.HasCollisions():
+            return False
+        pairs = query_object.ComputePointPairPenetration()
+        max_pen = -np.inf
+        for p in pairs:
+            max_pen = max(max_pen, p.depth)
+        if np.all(q == q_start) or np.all(q == q_goal):
+            print("MAX PEN:", max_pen)
+        return max_pen > 0.001
 
     def isStateValid(state):
         q = state_to_q(state)
@@ -133,7 +144,7 @@ def find_place_q(station, station_context, holding_shape_info, target_shape_info
         station_context: Context of station
         holding_shape_info: the info of the shape that the robot is holding
         target_shape_info: the info of the shape that we want to place on
-    
+
     Returns:
         q: (np.array) the 7dof joint config
         cost: the cost of the solution (is np.inf if no solution can be found)
