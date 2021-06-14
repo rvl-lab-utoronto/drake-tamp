@@ -828,8 +828,8 @@ def sphere_place_q(
     tries = 0
     print(f"{Colors.GREEN}Finding sphere placement q{Colors.RESET}")
     while iter < max_iter:
-        p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
-        p_WB[2] = surface.bb_min[2]
+        p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
+        p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
         for i in range(len(surface.bb_min)):
             if np.isclose(surface.bb_min[i], surface.bb_max[i] * -1):
                 surface.bb_min[i] = surface.bb_min[i] + sphere.radius()
@@ -906,8 +906,8 @@ def cylinder_place_q(
 
     print(f"{Colors.GREEN}Finding cylinder placement q{Colors.RESET}")
     while tries < max_iter:
-        p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
-        # p_WB[2] = surface.bb_min[2]
+        p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
+        p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
         for sign in [-1, 1]:
             ik = InverseKinematics(plant, plant_context)
             ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
@@ -1016,8 +1016,6 @@ def box_place_q(
     box = holding_shape_info.shape
     P = surface.shape_info.offset_frame
 
-    costs = []
-    qs = []
 
     tries = 0
     max_iter = MAX_ITER
@@ -1025,8 +1023,10 @@ def box_place_q(
     if not (randomize_position or randomize_theta):
         max_iter = 1
     while tries < max_iter:
-        p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
-        # p_WB[2] = surface.bb_min[2]
+        costs = []
+        qs = []
+        p_SB = np.random.uniform(surface.bb_min, surface.bb_max)
+        p_WB = p_SB + surface.shape_info.offset_frame.CalcPoseInWorld(plant_context).translation()
         theta = np.random.uniform(0, 2 * np.pi)
         for sign in [-1, 1]:
             for axis in range(0, 3):
@@ -1081,6 +1081,6 @@ def box_place_q(
         if len(costs) == 0:
             continue
         indices = np.argsort(costs)
-        for i in indices:
-            print(f"{Colors.GREEN}Yielding box placement q{Colors.RESET}")
-            yield qs[i], costs[i]
+
+        print(f"{Colors.GREEN}Yielding box placement q{Colors.RESET}")
+        yield qs[indices[0]], costs[indices[0]]

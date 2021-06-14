@@ -495,7 +495,9 @@ def make_and_init_simulation(zmq_url, prob):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="zmq_url for meshcat server")
+    parser = argparse.ArgumentParser(
+        description="Use --url to specify the zmq_url for a meshcat server\nuse --problem to specify a .yaml problem file"
+    )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     parser.add_argument(
         "-p", "--problem", nargs="?", default="problems/test_problem.yaml"
