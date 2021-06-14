@@ -120,10 +120,11 @@ def is_placeable(holding_shape_info):
             return False
     return True
 
-def add_deviation_from_point_cost(prog, q, shape_info, p_WB, plant, weight = 1):
+
+def add_deviation_from_point_cost(prog, q, shape_info, p_WB, plant, weight=1):
     """
     Add a cost for the deviation of the base li of the placed object
-    (shape_info) from the point p_WB 
+    (shape_info) from the point p_WB
 
     Note if p_WB is of length 2, it is treated as a 2D point (x,y)
     """
@@ -134,7 +135,7 @@ def add_deviation_from_point_cost(prog, q, shape_info, p_WB, plant, weight = 1):
         plant_ad.SetPositions(plant_context_ad, q)
         G = plant_ad.GetFrameByName(shape_info.offset_frame.name())
         X_WG = G.CalcPoseInWorld(plant_context_ad)
-        p_WG = X_WG.translation()[:len(p_WB)]
+        p_WG = X_WG.translation()[: len(p_WB)]
         return (p_WB - p_WG).dot(p_WB - p_WG)
 
     cost = lambda q: weight * deviation_from_point_cost(q)
@@ -160,11 +161,12 @@ def add_deviation_from_vertical_cost(prog, q, plant, weight=1):
     cost = lambda q: weight * deviation_from_vertical_cost(q)
     prog.AddCost(cost, q)
 
+
 def add_theta_cost(prog, q, shape_info, v, theta, plant, weight=1):
     """
     Add a cost for the angular deviation of the vector `v`
     in the shape of the frame from the vector given by
-    x_hat * cos(theta) + y_hat *sin(theta) in the world 
+    x_hat * cos(theta) + y_hat *sin(theta) in the world
     frame
     """
     plant_ad = plant.ToAutoDiffXd()
@@ -180,6 +182,7 @@ def add_theta_cost(prog, q, shape_info, v, theta, plant, weight=1):
 
     cost = lambda q: weight * theta_cost(q)
     prog.AddCost(cost, q)
+
 
 # TODO(ben): geometric center -> mass center
 def add_deviation_from_box_center_cost(prog, q, plant, p_WC, weight=1):
@@ -316,7 +319,9 @@ def box_grasp_q(
                 )
                 prog = ik.prog()
                 q = ik.q()
-                prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
+                prog.AddQuadraticErrorCost(
+                    weights[0] * np.identity(len(q)), q_nominal, q
+                )
                 add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
                 add_deviation_from_box_center_cost(
                     prog, q, plant, X_WG.translation(), weight=weights[2]
@@ -326,12 +331,14 @@ def box_grasp_q(
                 cost = result.get_optimal_cost()
                 if not result.is_success():
                     continue
-                qs.append(result.GetSolution(q),)
+                qs.append(
+                    result.GetSolution(q),
+                )
                 costs.append(cost)
         tries += 1
         print(f"BOX GRASP TRIES: {tries}")
         if len(costs) == 0:
-            # initial_guess = 
+            # initial_guess =
             continue
         indices = np.argsort(costs)
         print(f"{Colors.CYAN}Yielding box grasp q{Colors.RESET}")
@@ -571,7 +578,7 @@ def q_to_X_WH(q, station, station_context):
 def q_to_X_HO(q, body_info, station, station_context):
     """
     Given the joint positions of the panda arm `q`, in PandaStation `station`
-    with Context `station_context` return the pose of the body in 
+    with Context `station_context` return the pose of the body in
     body_info wrt to the panda hand
     """
     plant = station.get_multibody_plant()
@@ -640,7 +647,9 @@ def backup_on_hand_z(grasp_q, station, station_context, d=GRASP_HEIGHT):
     X_WH = q_to_X_WH(grasp_q, station, station_context)
     X_HP = RigidTransform(RotationMatrix(), [0, 0, -d])
     X_WP = X_WH.multiply(X_HP)
-    return X_WH_to_q(X_WP, station, station_context, initial_guess=grasp_q)
+    return X_WH_to_q(
+        X_WP, station, station_context, initial_guess=grasp_q, q_nominal=grasp_q
+    )
 
 
 def backup_on_world_z(grasp_q, station, station_context, d=GRASP_HEIGHT):
@@ -658,7 +667,9 @@ def backup_on_world_z(grasp_q, station, station_context, d=GRASP_HEIGHT):
     p_HP_W = [0, 0, d]
     p_WH_W = X_WH.translation()
     X_WP.set_translation(p_WH_W + p_HP_W)
-    return X_WH_to_q(X_WP, station, station_context, initial_guess=grasp_q)
+    return X_WH_to_q(
+        X_WP, station, station_context, initial_guess=grasp_q, q_nominal=grasp_q
+    )
 
 
 def is_safe_to_place(target_shape_info, station, station_context):
@@ -780,7 +791,7 @@ def sphere_place_q(
     surface,
     q_nominal=Q_NOMINAL,
     initial_guess=Q_NOMINAL,
-    randomize_position = True
+    randomize_position=True,
 ):
     """
     Return the joint config to place shape holding_shape_info on target_shape_info,
@@ -856,7 +867,7 @@ def cylinder_place_q(
     surface,
     q_nominal=Q_NOMINAL,
     initial_guess=Q_NOMINAL,
-    randomize_position = True
+    randomize_position=True,
 ):
     """
     Return the joint config to place shape holding_shape_info on target_shape_info,
@@ -896,8 +907,8 @@ def cylinder_place_q(
     print(f"{Colors.GREEN}Finding cylinder placement q{Colors.RESET}")
     while tries < max_iter:
         p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
-        #p_WB[2] = surface.bb_min[2]
-        for sign in [-1,1]:
+        # p_WB[2] = surface.bb_min[2]
+        for sign in [-1, 1]:
             ik = InverseKinematics(plant, plant_context)
             ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
             corners = extract_cylinder_corners(cylinder, sign)
@@ -912,16 +923,18 @@ def cylinder_place_q(
             q = ik.q()
             add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
             if randomize_position:
-                add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB[:2], plant)
+                add_deviation_from_point_cost(
+                    prog, q, holding_shape_info, p_WB[:2], plant
+                )
             prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
             prog.SetInitialGuess(q, initial_guess)
             result = Solve(prog)
             cost = result.get_optimal_cost()
             if not result.is_success():
                 continue
-                #cost = np.inf
-            #if result.is_success():
-                #yield result.GetSolution(q), cost
+                # cost = np.inf
+            # if result.is_success():
+            # yield result.GetSolution(q), cost
             qs.append(result.GetSolution(q))
             costs.append(cost)
 
@@ -962,6 +975,7 @@ def cylinder_place_q(
         yield result.GetSolution(q), cost
     """
 
+
 def box_place_q(
     station,
     station_context,
@@ -969,8 +983,8 @@ def box_place_q(
     surface,
     q_nominal=Q_NOMINAL,
     initial_guess=Q_NOMINAL,
-    randomize_position = True,
-    randomize_theta = True
+    randomize_position=True,
+    randomize_theta=True,
 ):
     """
     Return the joint config to place shape holding_shape_info on target_shape_info,
@@ -1012,8 +1026,8 @@ def box_place_q(
         max_iter = 1
     while tries < max_iter:
         p_WB = np.random.uniform(surface.bb_min, surface.bb_max)
-        #p_WB[2] = surface.bb_min[2]
-        theta = np.random.uniform(0, 2*np.pi)
+        # p_WB[2] = surface.bb_min[2]
+        theta = np.random.uniform(0, 2 * np.pi)
         for sign in [-1, 1]:
             for axis in range(0, 3):
                 ik = InverseKinematics(plant, plant_context)
@@ -1021,7 +1035,9 @@ def box_place_q(
                 # corners of face must lie in bounding box
                 corners = extract_box_corners(box, axis, sign)
                 for corner in corners:
-                    ik.AddPositionConstraint(H, corner, P, surface.bb_min, surface.bb_max)
+                    ik.AddPositionConstraint(
+                        H, corner, P, surface.bb_min, surface.bb_max
+                    )
 
                 n = np.zeros(3)
                 n[axis] = -sign
@@ -1032,30 +1048,34 @@ def box_place_q(
                 q = ik.q()
                 add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
                 if randomize_position:
-                    add_deviation_from_point_cost(prog, q, holding_shape_info, p_WB[:2], plant)
+                    add_deviation_from_point_cost(
+                        prog, q, holding_shape_info, p_WB[:2], plant
+                    )
                 if randomize_theta:
                     v = np.zeros(3)
-                    v[axis-1] = 1 # perpendicular to n (ie. along the surface)
+                    v[axis - 1] = 1  # perpendicular to n (ie. along the surface)
                     add_theta_cost(
                         prog,
-                        q, 
+                        q,
                         holding_shape_info,
                         v,
                         theta,
                         plant,
                     )
-                prog.AddQuadraticErrorCost(weights[0] * np.identity(len(q)), q_nominal, q)
+                prog.AddQuadraticErrorCost(
+                    weights[0] * np.identity(len(q)), q_nominal, q
+                )
                 prog.SetInitialGuess(q, initial_guess)
                 result = Solve(prog)
                 cost = result.get_optimal_cost()
                 # TODO(agro): deviation from placement surface center
                 if not result.is_success():
                     continue
-                    #cost = np.inf
-                #yield result.GetSolution(q), cost
+                    # cost = np.inf
+                # yield result.GetSolution(q), cost
                 costs.append(cost)
                 qs.append(result.GetSolution(q))
-        
+
         tries += 1
         print("BOX PLACE TRIES:", tries)
         if len(costs) == 0:
