@@ -247,9 +247,9 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "soup_can", "table_round"),
         ("in", "foam_brick", "table_square"),
-        ("in", "mustard", "table"),
+        ("in", "soup_can", "table_square"),
+        ("in", "mustard", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -376,56 +376,57 @@ def construct_problem_from_sim(simulator, stations):
         holding_object_info = station.object_infos[item][0]
         W = station.get_multibody_plant().world_frame()
 
-        for holding_body_info in holding_object_info.get_body_infos().values():
-            for holding_shape_info in holding_body_info.get_shape_infos():
-                if not is_placeable(holding_shape_info):
-                    continue
-                for target_body_info in target_object_info.get_body_infos().values():
-                    for target_shape_info in target_body_info.get_shape_infos():
-                        for place_q, cost in find_place_q(
-                            station,
-                            station_context,
-                            holding_shape_info,
-                            target_shape_info,
-                        ):
-                            postplace_q, preplace_q = place_q.copy(), place_q.copy()
-                            grasp_height = 0.05
-                            while grasp_height > 0 and (
-                                np.all(preplace_q == place_q)
-                                or np.all(postplace_q == place_q)
-                            ):
-                                test_postplace_q, post_cost = backup_on_hand_z(
-                                    place_q, station, station_context, d=grasp_height
-                                )
-                                test_preplace_q, pre_cost = backup_on_world_z(
-                                    place_q, station, station_context, d=grasp_height
-                                )
-                                if np.isfinite(pre_cost) and np.all(
-                                    preplace_q == place_q
-                                ):
-                                    preplace_q = test_preplace_q
-                                    print(
-                                        f"{Colors.REVERSE}pregrasp distance: {grasp_height}{Colors.RESET}"
-                                    )
-                                if np.isfinite(post_cost) and np.all(
-                                    postplace_q == place_q
-                                ):
-                                    postplace_q = test_postplace_q
-                                    print(
-                                        f"{Colors.REVERSE}postgrasp distance: {grasp_height}{Colors.RESET}"
-                                    )
-                            grasp_height -= 0.01
-                            # relative transform from hand to main_body of object_info
-                            X_WO = q_to_X_PF(
-                                place_q,
-                                W,
-                                holding_object_info.main_body_info.get_body_frame(),
+        while True:
+            for holding_body_info in holding_object_info.get_body_infos().values():
+                for holding_shape_info in holding_body_info.get_shape_infos():
+                    if not is_placeable(holding_shape_info):
+                        continue
+                    for target_body_info in target_object_info.get_body_infos().values():
+                        for target_shape_info in target_body_info.get_shape_infos():
+                            for place_q, cost in find_place_q(
                                 station,
                                 station_context,
-                            )
-                            yield RigidTransformWrapper(
-                                X_WO
-                            ), place_q, preplace_q, postplace_q
+                                holding_shape_info,
+                                target_shape_info,
+                            ):
+                                postplace_q, preplace_q = place_q.copy(), place_q.copy()
+                                grasp_height = 0.05
+                                while grasp_height > 0 and (
+                                    np.all(preplace_q == place_q)
+                                    or np.all(postplace_q == place_q)
+                                ):
+                                    test_postplace_q, post_cost = backup_on_hand_z(
+                                        place_q, station, station_context, d=grasp_height
+                                    )
+                                    test_preplace_q, pre_cost = backup_on_world_z(
+                                        place_q, station, station_context, d=grasp_height
+                                    )
+                                    if np.isfinite(pre_cost) and np.all(
+                                        preplace_q == place_q
+                                    ):
+                                        preplace_q = test_preplace_q
+                                        print(
+                                            f"{Colors.REVERSE}pregrasp distance: {grasp_height}{Colors.RESET}"
+                                        )
+                                    if np.isfinite(post_cost) and np.all(
+                                        postplace_q == place_q
+                                    ):
+                                        postplace_q = test_postplace_q
+                                        print(
+                                            f"{Colors.REVERSE}postgrasp distance: {grasp_height}{Colors.RESET}"
+                                        )
+                                    grasp_height -= 0.01
+                                # relative transform from hand to main_body of object_info
+                                X_WO = q_to_X_PF(
+                                    place_q,
+                                    W,
+                                    holding_object_info.main_body_info.get_body_frame(),
+                                    station,
+                                    station_context,
+                                )
+                                yield RigidTransformWrapper(
+                                    X_WO
+                                ), place_q, preplace_q, postplace_q
 
     stream_map = {
         "plan-motion-free": from_gen_fn(plan_motion_gen),
@@ -506,7 +507,7 @@ if __name__ == "__main__":
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
     for algorithm in [
-        "binding",
+        "adaptive",
     ]:
         solution = solve(problem, algorithm=algorithm, verbose=True)
         print(f"\n\n{algorithm} solution:")
