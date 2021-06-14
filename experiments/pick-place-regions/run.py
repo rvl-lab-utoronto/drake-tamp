@@ -247,6 +247,7 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
+        ("in", "foam_brick", "table_round"),
         ("in", "soup_can", "table_square"),
         ("in", "mustard", "table"),
     )
@@ -327,7 +328,7 @@ def construct_problem_from_sim(simulator, stations):
             for shape_info in body_info.get_shape_infos():
                 for grasp_q, cost in find_grasp_q(station, station_context, shape_info):
                     postgrasp_q, pregrasp_q = grasp_q.copy(), grasp_q.copy()
-                    grasp_height = 0.05
+                    grasp_height = 0.07
                     while grasp_height > 0 and (
                         np.all(pregrasp_q == grasp_q) or np.all(postgrasp_q == grasp_q)
                     ):
@@ -391,7 +392,7 @@ def construct_problem_from_sim(simulator, stations):
                                 target_shape_info,
                             ):
                                 postplace_q, preplace_q = place_q.copy(), place_q.copy()
-                                grasp_height = 0.05
+                                grasp_height = 0.07
                                 while grasp_height > 0 and (
                                     np.all(preplace_q == place_q)
                                     or np.all(postplace_q == place_q)
