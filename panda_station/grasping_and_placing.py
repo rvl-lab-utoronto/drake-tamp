@@ -32,6 +32,7 @@ HAND_FRAME_NAME = "panda_hand"
 THETA_TOL = np.pi * 0.01
 DROP_HEIGHT = 0.05
 MAX_ITER = 100
+np.random.seed(0)
 
 
 class TargetSurface:
@@ -319,6 +320,7 @@ def box_grasp_q(
             prog.AddQuadraticErrorCost(
                 weights[0] * np.identity(len(q)), q_nominal, q
             )
+            # these constraints are the slowest
             add_deviation_from_vertical_cost(prog, q, plant, weight=weights[1])
             add_deviation_from_box_center_cost(
                 prog, q, plant, X_WG.translation(), weight=weights[2]

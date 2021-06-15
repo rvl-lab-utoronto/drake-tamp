@@ -105,6 +105,13 @@ def grasp_gen(station, station_context):
         if not np.isfinite(cost):
             print(f"{Colors.RED}Ending grasp stream for{Colors.RESET}")
             return
+        X_HO = q_to_X_HO(
+                grasp_q, 
+                object_info.main_body_info,
+                station,
+                station_context
+            )
+        print(f"X_HO:\n{X_HO}")
         print(
             f"{Colors.REVERSE}Yielding grasp in {(time.time() - start_time):.4f} s{Colors.RESET}"
         )

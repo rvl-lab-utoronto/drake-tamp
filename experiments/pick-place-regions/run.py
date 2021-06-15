@@ -36,6 +36,8 @@ from panda_station import (
     random_normal_q
 )
 
+np.set_printoptions(precision=4, suppress=True)
+np.random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
 
@@ -232,27 +234,27 @@ def construct_problem_from_sim(simulator, stations):
     for name in stations:
         station_contexts[name] = stations[name].CreateDefaultContext()
     start_poses = parse_start_poses(main_station, main_station_context)
-    for k, v in start_poses.items():
-        X_wrapper = RigidTransformWrapper(v)
+    for item, pose in start_poses.items():
+        X_wrapper = RigidTransformWrapper(pose, name = f"X_W{item}")
         init += [
-            ("item", k),
-            ("pose", k, X_wrapper),
-            ("atpose", k, X_wrapper),
+            ("item", item),
+            ("pose", item, X_wrapper),
+            ("atpose", item, X_wrapper),
         ]
         # TODO : add any "contained" predicates that are true of the initial poses
 
     arms = parse_config(main_station, main_station_context)
-    for k, v in arms.items():
-        init += [("arm", k), ("empty", k), ("conf", v), ("at", k, v)]
+    for arm, conf in arms.items():
+        init += [("arm", arm), ("empty", arm), ("conf", conf), ("at", arm, conf)]
 
     regions = parse_tables(main_station.directive)
-    for r in regions:
-        init += [("region", r)]
+    for region in regions:
+        init += [("region", region)]
 
     goal = (
         "and",
         ("in", "foam_brick", "table_square"),
-        ("in", "soup_can", "table_square"),
+        ("in", "mustard", "table"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -268,8 +270,6 @@ def construct_problem_from_sim(simulator, stations):
         # udate poses in station
         update_station(station, station_context, fluents)
         while True:
-            # find traj will return a np.array of configurations, but no time informatino
-            # The actual peicewise polynominal traj will be reconstructed after planning
             print(f"{Colors.GREEN}Planning free trajectory{Colors.RESET}")
             traj = find_traj(
                 station, 
@@ -375,7 +375,8 @@ def construct_problem_from_sim(simulator, stations):
                     object_info.main_body_info,
                     station,
                     station_context
-                )
+                ),
+                name = f"X_H{item}"
             )
             print(
                 f"{Colors.REVERSE}Yielding grasp for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"
@@ -405,7 +406,6 @@ def construct_problem_from_sim(simulator, stations):
         )
         target_object_info = station.object_infos[region][0]
         holding_object_info = station.object_infos[item][0]
-        W = station.get_multibody_plant().world_frame()
         shape_infos = update_placeable_shapes(holding_object_info)
         surfaces = update_surfaces(target_object_info, station, station_context)
 
@@ -439,11 +439,12 @@ def construct_problem_from_sim(simulator, stations):
             X_WO = RigidTransformWrapper(
                 q_to_X_PF(
                     place_q,
-                    W,
+                    station.get_multibody_plant().world_frame(),
                     holding_object_info.main_body_info.get_body_frame(),
                     station,
                     station_context,
-                )
+                ),
+                name = f"X_W{item}"
             )
             print(
                 f"{Colors.REVERSE}Yielding placement for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"

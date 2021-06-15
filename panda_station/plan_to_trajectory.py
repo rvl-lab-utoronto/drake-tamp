@@ -30,7 +30,7 @@ def make_panda_traj(qs, start_time, max_speed = JOINTSPACE_SPEED):
     for i in range(len(qs) - 1):
         q_now = qs[i]
         q_next = qs[i+1]
-        dist = jointspace_distance(q_now, q_next)
+        dist = max(jointspace_distance(q_now, q_next), 1e-2)
         speed = max_speed#max_speed*(1 - 0.5*abs(i - midpoint)/midpoint)
         times.append(times[-1] + dist/speed)
 

@@ -36,17 +36,21 @@ class RigidTransformWrapper:
     RigidTransform class to augment the __str__ method
     """
 
-    def __init__(self, rigid_transform):
+    def __init__(self, rigid_transform, name = ""):
         """
         Construct a RigidTransformWrapper from a 
         RigidTransform
         """
         self.rigid_transform = rigid_transform
+        self.name = name
 
 
     def __str__(self):
         xyzrpy = rt_to_xyzrpy(self.rigid_transform)
-        return str(xyzrpy)
+        if self.name == "":
+            return f"\n[x,y,z] = {xyzrpy[0:3]}\n[r,p,y]: {xyzrpy[3:]}\n"
+        else:
+            return f"\n{self.name}: \n\t[x,y,z] = {xyzrpy[0:3]}\n\t[r,p,y] = {xyzrpy[3:]}\n"
 
     def get_rt(self):
         """

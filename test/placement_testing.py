@@ -14,6 +14,7 @@ from pydrake.all import (
 )
 from panda_station import *
 
+np.set_printoptions(precision=3, suppress=True)
 # directive to setup world
 DIRECTIVE = "directives/three_tables.yaml"
 # model file the hand is holding
@@ -99,6 +100,16 @@ def placement_gen(station, station_context):
         if not np.isfinite(cost):
             print(f"{Colors.RED}Ending place stream{Colors.RESET}")
             return
+        X_WO = RigidTransformWrapper(
+            q_to_X_PF(
+                place_q,
+                station.get_multibody_plant().world_frame(),
+                holding_object_info.main_body_info.get_body_frame(),
+                station,
+                station_context,
+            )
+        )
+        print(f"X_WO:\n{X_WO}")
         print(
             f"{Colors.REVERSE}Yielding placement in {(time.time() - start_time):.4f} s{Colors.RESET}"
         )
