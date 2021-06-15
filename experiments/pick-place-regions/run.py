@@ -251,9 +251,8 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "mustard", "table"),
+        ("in", "foam_brick", "table_square"),
         ("in", "soup_can", "table_square"),
-        ("in", "foam_brick", "table_round"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -334,14 +333,19 @@ def construct_problem_from_sim(simulator, stations):
         )
         object_info = station.object_infos[item][0]
         shape_infos = update_graspable_shapes(object_info)
+        iter = 1
         while True:
-            print(f"{Colors.GREEN}Finding grasp for {item}{Colors.RESET}")
+            print(f"{Colors.GREEN}Finding grasp for {item}, iteration {iter}{Colors.RESET}")
             start_time = time.time()
             grasp_q, cost = None, np.inf
             #how many times will we try before saying it can't be done
             max_tries, tries = 5, 0
-            q_initial = Q_NOMINAL
-            q_nominal = Q_NOMINAL
+            if iter == 1:
+                q_initial = Q_NOMINAL
+                q_nominal = Q_NOMINAL
+            else:
+                q_initial = random_normal_q(station, Q_NOMINAL)
+                q_nominal = random_normal_q(station, Q_NOMINAL)
             while tries < max_tries:
                 tries += 1
                 print(f"{Colors.BOLD}{item} grasp tries: {tries}{Colors.RESET}")
@@ -376,6 +380,7 @@ def construct_problem_from_sim(simulator, stations):
             print(
                 f"{Colors.REVERSE}Yielding grasp for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"
             )
+            iter += 1 
             yield X_HO, grasp_q, pregrasp_q, postgrasp_q
 
     def plan_place_gen(item, region, X_HO):

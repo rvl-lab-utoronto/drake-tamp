@@ -77,58 +77,33 @@ def placement_gen(station, station_context):
     holding_object_info = station.object_infos["holding_object"][0]
     W = station.get_multibody_plant().world_frame()
     target_object_info = station.object_infos[TARGET][0]
-
+    shape_infos = update_placeable_shapes(holding_object_info)
+    surfaces = update_surfaces(target_object_info, station, station_context)
     while True:
-        for holding_body_info in holding_object_info.get_body_infos().values():
-            for holding_shape_info in holding_body_info.get_shape_infos():
-                if not is_placeable(holding_shape_info):
-                    continue
-                for target_body_info in target_object_info.get_body_infos().values():
-                    for target_shape_info in target_body_info.get_shape_infos():
-                        for place_q, cost in find_place_q(
-                            station,
-                            station_context,
-                            holding_shape_info,
-                            target_shape_info,
-                        ):
-                            """
-                            postplace_q, preplace_q = place_q.copy(), place_q.copy()
-                            grasp_height = 0.07
-                            while grasp_height > 0 and (
-                                np.all(preplace_q == place_q)
-                                or np.all(postplace_q == place_q)
-                            ):
-                                test_postplace_q, post_cost = backup_on_hand_z(
-                                    place_q, station, station_context, d=grasp_height
-                                )
-                                test_preplace_q, pre_cost = backup_on_world_z(
-                                    place_q, station, station_context, d=grasp_height
-                                )
-                                if np.isfinite(pre_cost) and np.all(
-                                    preplace_q == place_q
-                                ):
-                                    preplace_q = test_preplace_q
-                                    print(
-                                        f"{Colors.REVERSE}pregrasp distance: {grasp_height}{Colors.RESET}"
-                                    )
-                                if np.isfinite(post_cost) and np.all(
-                                    postplace_q == place_q
-                                ):
-                                    postplace_q = test_postplace_q
-                                    print(
-                                        f"{Colors.REVERSE}postgrasp distance: {grasp_height}{Colors.RESET}"
-                                    )
-                                grasp_height -= 0.01
-                            # relative transform from hand to main_body of object_info
-                            X_WO = q_to_X_PF(
-                                place_q,
-                                W,
-                                holding_object_info.main_body_info.get_body_frame(),
-                                station,
-                                station_context,
-                            )
-                            """
-                            yield place_q, cost
+        print(f"{Colors.GREEN}Finding place{Colors.RESET}")
+        start_time = time.time()
+        place_q, cost = None, np.inf
+        #how many times will we try before saying it can't be done
+        max_tries, tries = 10, 0
+        while tries < max_tries:
+            tries += 1
+            print(f"{Colors.BOLD}place tries: {tries}{Colors.RESET}")
+            place_q, cost = best_place_shapes_surfaces(
+                station,
+                station_context,
+                shape_infos,
+                surfaces
+            )
+            if np.isfinite(cost):
+                break
+        if not np.isfinite(cost):
+            print(f"{Colors.RED}Ending place stream{Colors.RESET}")
+            return
+        print(
+            f"{Colors.REVERSE}Yielding placement in {(time.time() - start_time):.4f} s{Colors.RESET}"
+        )
+        yield place_q, cost
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -144,22 +119,8 @@ if __name__ == "__main__":
     target_names = []
     for tup in NAMES_AND_LINKS:
         target_names.append(tup[0])
-    start_time = time.time()
     for place_q, cost in placement_gen(station, station_context):
-        # set positions 
-        end_time = time.time()
-        print(f"{Colors.BOLD}Evaluation time: {end_time - start_time}{Colors.RESET}")
-        print(f"{Colors.BLUE}place_q: {place_q}{Colors.RESET}")
-        print(f"{Colors.CYAN}cost: {cost}{Colors.RESET}")
         plant.SetPositions(plant_context, station.get_panda(), place_q)
         diagram.Publish(diagram_context)
-        """
-        print("Available target names:")
-        for name in target_names:
-            print(name)
-        target = input(f"Type a new target name, or press ENTER to use the current target {TARGET}\n")
-        if target in target_names:
-            TARGET = target
-        """
         input("Press ENTER to see next placement pose")
         start_time = time.time()
