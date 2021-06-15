@@ -256,8 +256,9 @@ def construct_problem_from_sim(simulator, stations):
 
     goal = (
         "and",
-        ("in", "foam_brick", "table_square"),
+        ("in", "foam_brick", "table"),
         ("in", "mustard", "table"),
+        ("in", "soup_can", "table"),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -405,7 +406,7 @@ def construct_problem_from_sim(simulator, stations):
         <postplace_conf>) representing the pose of <item> after
         being placed in <region>, and pre/post place robot arm configurations.
         """
-        print(f"{Colors.BLUE}Starting place stream for {item}{Colors.RESET}")
+        print(f"{Colors.BLUE}Starting place stream for {item} on region {region}{Colors.RESET}")
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
@@ -438,7 +439,7 @@ def construct_problem_from_sim(simulator, stations):
                 if np.isfinite(cost):
                     break
             if not np.isfinite(cost):
-                print(f"{Colors.RED}Ending place stream for{item}{Colors.RESET}")
+                print(f"{Colors.RED}Ending place stream for{item} on region {region}{Colors.RESET}")
                 return
             # pregrasp_q == postplace_q, postgrasp_q == preplace_q
             postplace_q, preplace_q = pre_and_post_grasps(
