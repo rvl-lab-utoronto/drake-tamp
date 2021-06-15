@@ -432,12 +432,10 @@ def construct_problem_from_sim(simulator, stations):
                     station,
                     station_context,
                     shape_infos,
-                    surfaces,
-                    initial_guess = q_initial
+                    surfaces
                 )
                 if np.isfinite(cost):
                     break
-                q_initial = random_normal_q(station, Q_NOMINAL)
             if not np.isfinite(cost):
                 print(f"{Colors.RED}Ending place stream for{item} on region {region}{Colors.RESET}")
                 return
@@ -462,7 +460,6 @@ def construct_problem_from_sim(simulator, stations):
                 f"{Colors.REVERSE}Yielding placement for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"
             )
             yield X_WO, place_q, preplace_q, postplace_q
-            q_initial = place_q
             update_station(
                 station,
                 station_context,
