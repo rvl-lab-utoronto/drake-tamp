@@ -3,10 +3,12 @@ The module for running the pick and and place TAMP problem
 """
 import time
 import os
+import copy
 from re import I
 import sys
 import argparse
 import numpy as np
+import random
 import pydrake.all
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
@@ -37,7 +39,8 @@ from panda_station import (
 )
 
 np.set_printoptions(precision=4, suppress=True)
-np.random.seed(0)
+np.random.seed(seed = 0)
+random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
 
@@ -264,6 +267,9 @@ def construct_problem_from_sim(simulator, stations):
         Fluents is a list of tuples of the type ('atpose', <item>, <pose>)
         defining the current pose of all items.
         """
+        start = start.copy()
+        end = end.copy()
+        fluents = copy.deepcopy(fluents)
         print(f"{Colors.BLUE}Starting move-free stream{Colors.RESET}")
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
@@ -283,6 +289,7 @@ def construct_problem_from_sim(simulator, stations):
                 return
             print(f"{Colors.REVERSE}Yielding free trajectory{Colors.RESET}")
             yield (traj,)
+            update_station(station, station_context, fluents)
 
     def plan_motion_holding_gen(item, start, end, fluents=[]):
         """
@@ -293,6 +300,9 @@ def construct_problem_from_sim(simulator, stations):
         and ('atgrasppose', <item>, <pose>)
         defining the current pose of all items.
         """
+        start = start.copy()
+        end = end.copy()
+        fluents = copy.deepcopy(fluents)
         print(f"{Colors.BLUE}Starting move-holding stream for {item}{Colors.RESET}")
         station = stations[item]
         station_context = station_contexts[item]
@@ -314,6 +324,7 @@ def construct_problem_from_sim(simulator, stations):
                 return
             print(f"{Colors.REVERSE}Yielding trajectory holding {item}{Colors.RESET}")
             yield (traj,)
+            update_station(station, station_context, fluents)
 
     def plan_grasp_gen(item, pose):
         """
@@ -383,6 +394,9 @@ def construct_problem_from_sim(simulator, stations):
             )
             iter += 1 
             yield X_HO, grasp_q, pregrasp_q, postgrasp_q
+            update_station(
+                station, station_context, [("atpose", item, pose)], set_others_to_inf=True
+            )
 
     def plan_place_gen(item, region, X_HO):
         """
@@ -390,9 +404,6 @@ def construct_problem_from_sim(simulator, stations):
         Yields tuples of the form (<X_WO>, <preplace_conf>,
         <postplace_conf>) representing the pose of <item> after
         being placed in <region>, and pre/post place robot arm configurations.
-        fluents contains a tuple [(atgrasppose, item, X_HO)]  where item is
-        the name of the item, and X_HO is the relative transfomation between
-        the hand and the object it is holding
         """
         print(f"{Colors.BLUE}Starting place stream for {item}{Colors.RESET}")
         station = stations[item]
@@ -450,6 +461,12 @@ def construct_problem_from_sim(simulator, stations):
                 f"{Colors.REVERSE}Yielding placement for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"
             )
             yield X_WO, place_q, preplace_q, postplace_q
+            update_station(
+                station,
+                station_context,
+                [("atgrasppose", item, X_HO)],
+                set_others_to_inf=True,
+            )
 
     stream_map = {
         "plan-motion-free": from_gen_fn(plan_motion_gen),
