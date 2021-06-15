@@ -157,6 +157,7 @@ def best_place_shapes_surfaces(
     station_context,
     holding_shape_infos,
     target_surfaces,
+    initial_guess = Q_NOMINAL
 ):
     """
     Return the best place config, trying to place all shapes in 
@@ -191,7 +192,11 @@ def best_place_shapes_surfaces(
             func = place_funcs[2]
         for surface in target_surfaces:
             place_q, cost = func(
-                station, station_context, shape_info, surface
+                station,
+                station_context,
+                shape_info,
+                surface,
+                initial_guess = initial_guess
             )
             place_qs.append(place_q)
             costs.append(cost)

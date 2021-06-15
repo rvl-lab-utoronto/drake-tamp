@@ -86,8 +86,8 @@ def grasp_gen(station, station_context):
             q_initial = Q_NOMINAL
             q_nominal = Q_NOMINAL
         else:
-            q_initial = random_normal_q(station, Q_NOMINAL)
             q_nominal = random_normal_q(station, Q_NOMINAL)
+            q_initial = random_normal_q(station, Q_NOMINAL)
         while tries < max_tries:
             tries += 1
             print(f"{Colors.BOLD}grasp tries: {tries}{Colors.RESET}")

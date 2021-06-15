@@ -80,6 +80,7 @@ def placement_gen(station, station_context):
     target_object_info = station.object_infos[TARGET][0]
     shape_infos = update_placeable_shapes(holding_object_info)
     surfaces = update_surfaces(target_object_info, station, station_context)
+    initial_guess = Q_NOMINAL
     while True:
         print(f"{Colors.GREEN}Finding place{Colors.RESET}")
         start_time = time.time()
@@ -93,7 +94,8 @@ def placement_gen(station, station_context):
                 station,
                 station_context,
                 shape_infos,
-                surfaces
+                surfaces,
+                initial_guess = initial_guess
             )
             if np.isfinite(cost):
                 break
@@ -114,6 +116,7 @@ def placement_gen(station, station_context):
             f"{Colors.REVERSE}Yielding placement in {(time.time() - start_time):.4f} s{Colors.RESET}"
         )
         yield place_q, cost
+        initial_guess = place_q
 
 
 if __name__ == "__main__":

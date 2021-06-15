@@ -346,18 +346,14 @@ def construct_problem_from_sim(simulator, stations):
         object_info = station.object_infos[item][0]
         shape_infos = update_graspable_shapes(object_info)
         iter = 1
+        q_initial = Q_NOMINAL
+        q_nominal = Q_NOMINAL
         while True:
             print(f"{Colors.GREEN}Finding grasp for {item}, iteration {iter}{Colors.RESET}")
             start_time = time.time()
             grasp_q, cost = None, np.inf
             #how many times will we try before saying it can't be done
             max_tries, tries = 5, 0
-            if iter == 1:
-                q_initial = Q_NOMINAL
-                q_nominal = Q_NOMINAL
-            else:
-                q_initial = random_normal_q(station, Q_NOMINAL)
-                q_nominal = random_normal_q(station, Q_NOMINAL)
             while tries < max_tries:
                 tries += 1
                 print(f"{Colors.BOLD}{item} grasp tries: {tries}{Colors.RESET}")
@@ -370,8 +366,8 @@ def construct_problem_from_sim(simulator, stations):
                 )
                 if np.isfinite(cost):
                     break
-                q_initial = random_normal_q(station, Q_NOMINAL)
                 q_nominal = random_normal_q(station, Q_NOMINAL)
+                q_initial = random_normal_q(station, Q_NOMINAL)
             if not np.isfinite(cost):
                 print(f"{Colors.RED}Ending grasp stream for{item}{Colors.RESET}")
                 return
@@ -395,6 +391,8 @@ def construct_problem_from_sim(simulator, stations):
             )
             iter += 1 
             yield X_HO, grasp_q, pregrasp_q, postgrasp_q
+            q_initial = random_normal_q(station, Q_NOMINAL)
+            q_nominal = random_normal_q(station, Q_NOMINAL)
             update_station(
                 station, station_context, [("atpose", item, pose)], set_others_to_inf=True
             )
@@ -420,7 +418,7 @@ def construct_problem_from_sim(simulator, stations):
         holding_object_info = station.object_infos[item][0]
         shape_infos = update_placeable_shapes(holding_object_info)
         surfaces = update_surfaces(target_object_info, station, station_context)
-
+        q_initial = Q_NOMINAL
         while True:
             print(f"{Colors.GREEN}Finding place for {item}{Colors.RESET}")
             start_time = time.time()
@@ -434,10 +432,12 @@ def construct_problem_from_sim(simulator, stations):
                     station,
                     station_context,
                     shape_infos,
-                    surfaces
+                    surfaces,
+                    initial_guess = q_initial
                 )
                 if np.isfinite(cost):
                     break
+                q_initial = random_normal_q(station, Q_NOMINAL)
             if not np.isfinite(cost):
                 print(f"{Colors.RED}Ending place stream for{item} on region {region}{Colors.RESET}")
                 return
@@ -462,6 +462,7 @@ def construct_problem_from_sim(simulator, stations):
                 f"{Colors.REVERSE}Yielding placement for {item} in {(time.time() - start_time):.4f} s{Colors.RESET}"
             )
             yield X_WO, place_q, preplace_q, postplace_q
+            q_initial = place_q
             update_station(
                 station,
                 station_context,
