@@ -516,7 +516,7 @@ class ObjectInfo:
         self.graspable_shapes = []
         self.placeable_shapes = []
         # the Surface instances of the shapes that objects can be placed on
-        self.surfaces = []
+        self.surfaces = {}
 
     def query_shape_infos(self, criteria_func = None):
         """

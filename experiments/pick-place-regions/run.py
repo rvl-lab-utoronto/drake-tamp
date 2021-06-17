@@ -18,7 +18,6 @@ from panda_station import (
     ProblemInfo,
     parse_start_poses,
     parse_config,
-    parse_tables,
     update_station,
     TrajectoryDirector,
     find_traj,
@@ -227,7 +226,7 @@ stream_pddl = """(define (stream example)
 )"""
 
 
-def construct_problem_from_sim(simulator, stations):
+def construct_problem_from_sim(simulator, stations, problem_info):
 
     init = []
     main_station = stations["main"]
@@ -250,14 +249,12 @@ def construct_problem_from_sim(simulator, stations):
     for arm, conf in arms.items():
         init += [("arm", arm), ("empty", arm), ("conf", conf), ("at", arm, conf)]
 
-    regions = parse_tables(main_station.directive)
-    for region in regions:
-        init += [("region", region)]
+    for object_name, link_name in problem_info.surfaces.items():
+        init += [("region", (object_name, link_name))]
 
     goal = (
         "and",
-        ("in", "foam_brick", "table_square"),
-        ("in", "mustard", "table"),
+        ("in", "mustard", ("table_square", "base_link")),
     )
 
     def plan_motion_gen(start, end, fluents=[]):
@@ -403,7 +400,8 @@ def construct_problem_from_sim(simulator, stations):
         <postplace_conf>) representing the pose of <item> after
         being placed in <region>, and pre/post place robot arm configurations.
         """
-        print(f"{Colors.BLUE}Starting place stream for {item} on region {region}{Colors.RESET}")
+        object_name, link_name = region
+        print(f"{Colors.BLUE}Starting place stream for {item} on region {object_name}, {link_name}{Colors.RESET}")
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
@@ -413,10 +411,10 @@ def construct_problem_from_sim(simulator, stations):
             [("atgrasppose", item, X_HO)],
             set_others_to_inf=True,
         )
-        target_object_info = station.object_infos[region][0]
+        target_object_info = station.object_infos[object_name][0]
         holding_object_info = station.object_infos[item][0]
         shape_infos = update_placeable_shapes(holding_object_info)
-        surfaces = update_surfaces(target_object_info, station, station_context)
+        surfaces = update_surfaces(target_object_info, link_name, station, station_context)
         q_initial = Q_NOMINAL
         while True:
             print(f"{Colors.GREEN}Finding place for {item}{Colors.RESET}")
@@ -526,7 +524,7 @@ def make_and_init_simulation(zmq_url, prob):
     if meshcat is not None:
         meshcat.start_recording()
     simulator.AdvanceTo(SIM_INIT_TIME)
-    return simulator, stations, director, meshcat
+    return simulator, stations, director, meshcat, problem_info
 
 
 if __name__ == "__main__":
@@ -539,10 +537,10 @@ if __name__ == "__main__":
         "-p", "--problem", nargs="?", default="problems/test_problem.yaml"
     )
     args = parser.parse_args()
-    sim, station_dict, traj_director, meshcat_vis = make_and_init_simulation(
+    sim, station_dict, traj_director, meshcat_vis, problem_info = make_and_init_simulation(
         args.url, args.problem
     )
-    problem = construct_problem_from_sim(sim, station_dict)
+    problem = construct_problem_from_sim(sim, station_dict, problem_info)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))

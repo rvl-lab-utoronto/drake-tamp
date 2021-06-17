@@ -149,6 +149,7 @@ if __name__ == "__main__":
             print(action.args)
         """
 
+        """
         plan_to_trajectory(plan, traj_director, SIM_INIT_TIME)
 
         sim.AdvanceTo(traj_director.get_end_time())
@@ -169,3 +170,4 @@ if __name__ == "__main__":
             file = open("media/" + save + ".html", "w")
             file.write(meshcat_vis.vis.static_html())
             file.close()
+        """

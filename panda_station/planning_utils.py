@@ -66,10 +66,11 @@ class ProblemInfo:
             self.objects[name]["X_WO"] = ProblemInfo.list_to_transform(
                 self.objects[name]["X_WO"]
             )
-        # TODO(agro): generalize this
+        self.surfaces = info["surfaces"]
         self.names_and_links = [
-            (name, "base_link") for name in parse_tables(find_resource(self.directive))
+            (name, main_link) for name, main_link in self.surfaces.items()
         ]
+        print(self.names_and_links)
 
     def make_station(
         self, weld_to_world, weld_to_hand=None, weld_fingers=False, name="panda_station"
@@ -181,6 +182,7 @@ class ProblemInfo:
 
 def parse_start_poses(station, station_context):
     """
+    DEPRECIATED
     Parses the information in PandaStation `station` to obtain the start
     poses of all FREE objects (manipulands)
 
@@ -330,19 +332,25 @@ def update_placeable_shapes(object_info):
     object_info.placeable_shapes = shapes
     return shapes
 
-def update_surfaces(object_info, station, station_context):
+def update_surfaces(object_info, link_name, station, station_context):
     """
     Updates and return the internal list of surfaces suitable for
-    placement within the object_info instance
+    placement within the object_info instance, considering only 
+    link_name as the safe surface for placement
     """
+    if link_name in object_info.surfaces:
+        return object_info.surfaces[link_name]
     for body_info in object_info.get_body_infos().values():
+        if link_name != body_info.get_name():
+            continue
+        object_info.surfaces[link_name] = []
         for shape_info in body_info.get_shape_infos():
             is_safe, surface = is_safe_to_place(shape_info, station, station_context)
             if not is_safe:
                 continue
-            object_info.surfaces.append(surface)
+            object_info.surfaces[link_name].append(surface)
 
-    return object_info.surfaces
+    return object_info.surfaces[link_name]
 
 def random_q(station):
     """
