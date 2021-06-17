@@ -1,0 +1,244 @@
+<?xml version='1.0'?>
+<sdf version='1.7'>
+  <model name='stove'>
+    <link name='base_link'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0 0 0 0 -0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0.005 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.6 0.45 0.01</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.3 0.3 0.3 1</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0.005 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.6 0.45 0.01</size>
+            </box>
+        </geometry>
+      </collision>
+    </link>
+    <link name='burner1'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0.18 0.1 0.015 0 0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.09</radius>
+            </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.1 0.1 0.1 0.5</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.09</radius>
+            </cylinder>
+        </geometry>
+      </collision>
+    </link>
+    <link name='burner2'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>-0.18 0.1 0.015 0 0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.09</radius>
+            </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.1 0.1 0.1 0.5</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.09</radius>
+            </cylinder>
+        </geometry>
+      </collision>
+    </link>
+    <link name='burner3'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>-0.18 -0.1 0.015 0 0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.08</radius>
+            </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.1 0.1 0.1 0.5</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.08</radius>
+            </cylinder>
+        </geometry>
+      </collision>
+    </link>
+    <link name='burner4'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0.18 -0.1 0.015 0 0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.08</radius>
+            </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.1 0.1 0.1 0.5</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.08</radius>
+            </cylinder>
+        </geometry>
+      </collision>
+    </link>
+    <link name='burner5'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0 -0.1 0.015 0 0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.08</radius>
+            </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.1 0.1 0.1 0.5</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+            <cylinder>
+                <length>0.01</length>
+                <radius>0.08</radius>
+            </cylinder>
+        </geometry>
+      </collision>
+    </link>
+    <joint name='burner1_joint' type='fixed'>
+      <parent>base_link</parent>
+      <child>burner1</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <joint name='burner2_joint' type='fixed'>
+      <parent>base_link</parent>
+      <child>burner2</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <joint name='burner3_joint' type='fixed'>
+      <parent>base_link</parent>
+      <child>burner3</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <joint name='burner4_joint' type='fixed'>
+      <parent>base_link</parent>
+      <child>burner4</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <joint name='burner5_joint' type='fixed'>
+      <parent>base_link</parent>
+      <child>burner5</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+  </model>
+</sdf>
