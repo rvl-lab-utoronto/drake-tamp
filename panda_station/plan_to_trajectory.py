@@ -168,6 +168,8 @@ def plan_to_trajectory(plan, director, start_time):
 
     time = start_time
     for action in plan:
+        if action.name not in ACTION_MAP:
+            continue
         new_panda_traj, new_hand_traj = ACTION_MAP[action.name](action.args, time)
         time = new_panda_traj.end_time()
         director.add_panda_traj(new_panda_traj)

@@ -249,8 +249,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     for arm, conf in arms.items():
         init += [("arm", arm), ("empty", arm), ("conf", conf), ("at", arm, conf)]
 
-    for object_name, link_name in problem_info.surfaces.items():
-        init += [("region", (object_name, link_name))]
+    for object_name in problem_info.surfaces:
+        for link_name in problem_info.surfaces[object_name]:
+            init += [("region", (object_name, link_name))]
 
     goal = (
         "and",
@@ -396,7 +397,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     def plan_place_gen(item, region, X_HO):
         """
         Takes an item name and a region name.
-        Yields tuples of the form (<X_WO>, <preplace_conf>,
+        Yields tuples of the form (<X_WO>, <place_conf>, <preplace_conf>,
         <postplace_conf>) representing the pose of <item> after
         being placed in <region>, and pre/post place robot arm configurations.
         """
