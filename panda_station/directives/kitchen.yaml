@@ -1,0 +1,66 @@
+# kitchen environment
+
+directives:
+
+    # ground plane
+    - add_frame:
+        name: world_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy {deg: [0.0, 0.0, 0.0]}
+            translation: [0, 0, 0]
+
+    - add_model:
+        name: ground_plane
+        file: package://kitchen/sdf/low_white_table.sdf
+
+    - add_weld:
+        parent: world_origin
+        child: ground_plane::base_link
+
+    # long white table
+    - add_frame:
+        name: long_white_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [0.625, -0.25, 0]
+
+    - add_model:
+        name: table_long_white
+        file: package://kitchen/sdf/low_white_table.sdf
+
+    - add_weld:
+        parent: table_origin
+        child: table::base_link
+
+    - add_frame:
+        name: table_square_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [-0.53, 0, 0]
+
+    - add_model:
+        name: table_square
+        file: package://tables/sdf/square_target.sdf
+
+    - add_weld:
+        parent: table_square_origin
+        child: table_square::base_link
+
+    - add_frame:
+        name: table_round_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [0, 0.6, 0]
+
+    - add_model:
+        name: table_round
+        file: package://tables/sdf/round_target.sdf
+
+    - add_weld:
+        parent: table_round_origin
+        child: table_round::base_link
+
