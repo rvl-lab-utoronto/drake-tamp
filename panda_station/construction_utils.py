@@ -6,7 +6,7 @@ import pydrake.all
 import numpy as np
 
 
-def find_resource(filename):
+def find_resource(filename, parent_path = None):
     """
     Returns the full path to this package appended to the relative path provided
     in filename (starting from this directory)
