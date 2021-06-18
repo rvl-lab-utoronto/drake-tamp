@@ -3,6 +3,7 @@ This module contains the functions/generators used in TAMP: picking, placing,
 and collision free motion planning
 """
 import numpy as np
+import ompl
 from ompl import base as ob
 from ompl import geometric as og
 import pydrake.all
@@ -48,6 +49,7 @@ def q_to_state(space, q):
     return state
 
 
+
 def find_traj(
     station, station_context, q_start, q_goal, ignore_endpoint_collisions=True
 ):
@@ -61,6 +63,96 @@ def find_traj(
     scene_graph_context = station.GetSubsystemContext(scene_graph, station_context)
     panda = station.get_panda()
     query_output_port = scene_graph.GetOutputPort("query")
+
+    class PathLengthObjective(ob.PathLengthOptimizationObjective):
+
+        def __init__(self, si):
+            super().__init__(si)
+
+        @staticmethod
+        def motionCost(state1, state2):
+            q1 = state_to_q(state1)
+            q2 = state_to_q(state2)
+            X_WH1 = q_to_X_WH(q1, station, station_context)
+            X_WH2 = q_to_X_WH(q1, station, station_context)
+            d = X_WH1.translation() -  X_WH2.translation()
+            return ob.Cost(np.linalg.norm(d))
+
+    class IntegralObjective(ob.StateCostIntegralObjective):
+
+        def __init__(self, si):
+            super().__init__(si, True)
+            self.si = si
+
+        def stateCost(self, state):
+            print("HERE")
+            return ob.Cost(1/self.si.getStateValidityChecker().clearance(state))
+
+    class MaximizeMinClearance(ob.OptimizationObjective):
+
+        def __init__(self, si):
+            super().__init__(si)
+
+        def stateCost(self, state):
+            return ob.Cost(self.clearance(state))
+
+        @staticmethod
+        def isCostBetterThan(c1, c2):
+            return c1.value() > c2.value() + 1e-4
+
+        @staticmethod
+        def combineCosts(c1, c2):
+            if (c1.value() < c2.value()):
+                return c1
+            else:
+                return c2
+
+        def motionCost(self, s1, s2):
+            return self.combineCosts(self.stateCost(s1), self.stateCost(s2))
+
+        @staticmethod
+        def identityCost():
+            return ob.Cost(np.inf)
+
+        @staticmethod
+        def infiniteCost():
+            return ob.Cost(-np.inf)
+
+        @staticmethod
+        def clearance(state):
+            q = state_to_q(state)
+            plant.SetPositions(plant_context, panda, q)
+            query_object = query_output_port.Eval(scene_graph_context)
+            sdps = query_object.ComputeSignedDistancePairwiseClosestPoints(1.0)
+            min_dist = np.inf
+            for sdp in sdps:
+                min_dist = min(sdp.distance, min_dist)
+            return min_dist
+
+
+    class MyStateValidityChecker(ob.StateValidityChecker):
+
+        def __init__(self, si):
+            super().__init__(si)
+
+        def isValid(self, state):
+            #return self.clearance(state) > 0.005
+            q = state_to_q(state)
+            plant.SetPositions(plant_context, panda, q)
+            query_object = query_output_port.Eval(scene_graph_context)
+            return not query_object.HasCollisions()
+
+        @staticmethod
+        def clearance(state):
+            q = state_to_q(state)
+            plant.SetPositions(plant_context, panda, q)
+            query_object = query_output_port.Eval(scene_graph_context)
+            sdps = query_object.ComputeSignedDistancePairwiseClosestPoints(1.0)
+            min_dist = np.inf
+            for sdp in sdps:
+                min_dist = min(sdp.distance, min_dist)
+            return min_dist
+
 
     def is_colliding(q):
         #if np.all(q == q_start) or (np.all(q == q_goal) and ignore_endpoint_collisions):
@@ -95,8 +187,16 @@ def find_traj(
         bounds.setHigh(i, joint_limits[i][1])
 
     space.setBounds(bounds)
-    ss = og.SimpleSetup(space)
-    ss.setStateValidityChecker(ob.StateValidityCheckerFn(isStateValid))
+    si = ob.SpaceInformation(space)
+    si.setStateValidityChecker(MyStateValidityChecker(si))
+    #print(f"res: {si.getStateValidityCheckingResolution()}")
+    si.setStateValidityCheckingResolution(0.005) # half of default
+    si.setup()
+
+    #ss = og.SimpleSetup(space)
+    #ss.setStateValidityChecker(ob.StateValidityCheckerFn(isStateValid))
+    #si = ss.getSpaceInformation()
+    #si.setStateValidityChecker(MyStateValidityChecker(si))
     start = q_to_state(space, q_start)
     if not isStateValid(start):
         print(f"{Colors.RED}INVALID OMPL START STATE {Colors.RESET}")
@@ -105,13 +205,36 @@ def find_traj(
     if not isStateValid(goal):
         print(f"{Colors.RED}INVALID OMPL GOAL STATE{Colors.RESET}")
         return None
-    ss.setStartAndGoalStates(start, goal)
-    solved = ss.solve()
+
+    pdef = ob.ProblemDefinition(si)
+    pdef.setStartAndGoalStates(start, goal)
+
+    def getBalancedObjective(si):
+        lengthObj = ob.PathLengthOptimizationObjective(si)
+        #clearObj = MaximizeMinClearance(si)
+        clearObj = IntegralObjective(si)
+        opt = ob.MultiOptimizationObjective(si)
+        opt.addObjective(lengthObj, 1.0)
+        opt.addObjective(clearObj, 1.0)
+        return opt
+
+    pdef.setOptimizationObjective(getBalancedObjective(si))
+    planner = og.LBKPIECE1(si)
+    planner.setProblemDefinition(pdef)
+    planner.setup()
+    solved = planner.solve(ob.CostConvergenceTerminationCondition(pdef))
+    #ss.setOptimizationObjective(getBalancedObjective(ss.getSpaceInformation()))
+    #ss.setStartAndGoalStates(start, goal)
+    #solved = ss.solve()
+    #print(ss.getPlanner())
     if not solved:
         print(f"{Colors.RED}FAILED TO FIND OMPL SOLUTION{Colors.RESET}")
         return None
-    ss.simplifySolution()
-    path = ss.getSolutionPath()
+    #ss.simplifySolution()
+    simplifier = og.PathSimplifier(si)
+    path = pdef.getSolutionPath()
+    simplifier.simplify(path, 10)
+    #path = ss.getSolutionPath()
     res = np.array([state_to_q(state) for state in path.getStates()])
     return res
 

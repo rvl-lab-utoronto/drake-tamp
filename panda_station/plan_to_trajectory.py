@@ -35,12 +35,7 @@ def make_panda_traj(qs, start_time, max_speed = JOINTSPACE_SPEED):
         times.append(times[-1] + dist/speed)
 
     times = np.array(times)
-    panda_traj = None
-    if len(qs) == 2:
-        panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
-    else:
-        panda_traj = PiecewisePolynomial.CubicShapePreserving(times, qs.T)
-    
+    panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
     return panda_traj, times
 
 def move_free_traj(args, start_time):
@@ -62,8 +57,8 @@ def move_holding_traj(args, start_time):
     return the trajectory the panda and the hand should follow,
     given that the start time of the trajectory is `start_time`
     """
-    # args (?arm ?item ?startconf ?endconf ?t)
-    traj = args[4]
+    # args (?arm ?item ?startconf ?endconf ?grasppose ?t)
+    traj = args[5]
     panda_traj, times = make_panda_traj(traj, start_time)
     hand_traj = np.array([[MAX_CLOSE] for i in range(len(times))])
     hand_traj = PiecewisePolynomial.FirstOrderHold(times, hand_traj.T)

@@ -47,7 +47,6 @@ np.random.seed(seed = 0)
 random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
-GRASP_DIST = 0.07
 
 domain_pddl = open("domain.pddl", "r").read()
 stream_pddl = open("stream.pddl", "r").read()
@@ -89,14 +88,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     goal = ["and",
         ("in", "cabbage1", ("plate", "base_link")),
-        ("cooked", "cabbage1"),
-        ("clean", "glass1"),
-        ("in", "glass1", ("placemat", "base_link")),
+        ("clean", "cabbage1"),
+        #("clean", "glass1"),
+        #("in", "glass1", ("placemat", "base_link")),
     ]
 
     cached_place_confs = {}
     
-    def plan_motion_gen(start, end, fluents = None):
+    def plan_motion_gen(start, end, fluents):
         """
         Yields a collision free trajectory from <start> to <end> 
         while the arm is not holding anything.
@@ -112,6 +111,11 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             of the objects
         """
         print(f"{Colors.BLUE}Starting move-free stream{Colors.RESET}")
+        for fluent in fluents:
+            print("FLUENT:")
+            for i in fluent:
+                print(i, end = " ")
+            print()
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
         update_station(station, station_context, fluents)
@@ -131,7 +135,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             yield traj,
             update_station(station, station_context, fluents)
 
-    def plan_motion_holding_gen(item, start, end, fluents=None):
+    def plan_motion_holding_gen(item, start, end, X_HO, fluents):
         """
         Yields a collision free trajectory from <start> to <end>
         while the arm is holding item <item>.
@@ -141,6 +145,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             item: the name of the item that the arm is holding
             start: np.array of length 7, starting arm configuration
             end: np.array of length 7, ending arm configuration
+            X_HO: the relative pose between the hand and the object
             fluents: a list of tuples of the form
             ("atpose", <item>, <X_WO>) defining the current pose of 
             all items, where <item> is a string with the item name
@@ -149,6 +154,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("grasppose", <item>, <X_HO>), where H is the hand frame.
         """
         print(f"{Colors.BLUE}Starting move-holding stream for {item}{Colors.RESET}")
+        fluents = copy.deepcopy(fluents)
+        mock_fluents = [("atgrasppose", item, X_HO)]
+        fluents += mock_fluents
         for fluent in fluents:
             print("FLUENT:")
             for i in fluent:
@@ -227,7 +235,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                     station, 
                     station_context, 
                     grasp_q,
-                    dist = GRASP_DIST
+                    dist = 0.07
                 )
             X_HO = RigidTransformWrapper(
                 q_to_X_HO(
@@ -299,7 +307,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 station, 
                 station_context, 
                 place_q,
-                dist = GRASP_DIST
+                dist = 0.07
             )
             X_WO = RigidTransformWrapper(
                 q_to_X_PF(

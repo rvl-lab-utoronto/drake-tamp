@@ -1,0 +1,253 @@
+<?xml version='3.0'?>
+<sdf version='1.7'>
+  <model name='sink'>
+    <link name='base_link'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0 0 0.005 0 -0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.4 0.3 0.01</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.788 0.850 0.850 1</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <box>
+              <size>0.4 0.3 0.01</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <link name='back_wall'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0 0.135 0.055 0 -0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.4 0.03 0.1</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.788 0.850 0.850 1</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <box>
+              <size>0.4 0.03 0.1</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <joint name='joint1' type='fixed'>
+      <parent>base_link</parent>
+      <child>back_wall</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <link name='front_wall'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0 -0.135 0.055 0 -0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.4 0.03 0.1</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.788 0.850 0.850 1</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <box>
+              <size>0.4 0.03 0.1</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <joint name='joint2' type='fixed'>
+      <parent>base_link</parent>
+      <child>front_wall</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <link name='left_wall'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0.185 0 0.055 0 -0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.03 0.24 0.1</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.788 0.850 0.850 1</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <box>
+              <size>0.03 0.24 0.1</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <joint name='joint3' type='fixed'>
+      <parent>base_link</parent>
+      <child>left_wall</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <link name='right_wall'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>-0.185 0 0.055 0 -0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.03 0.24 0.1</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.788 0.850 0.850 1</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <box>
+              <size>0.03 0.24 0.1</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <joint name='joint4' type='fixed'>
+      <parent>base_link</parent>
+      <child>right_wall</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <link name='pipe'>
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0 -0.165 0.1 0 -0 0</pose>
+      <visual name='visual'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.02 0.02 0.2</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.5 0.5 0.5 1</diffuse>
+        </material>
+      </visual>
+      <collision name='collision'>
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <box>
+              <size>0.02 0.02 0.2</size>
+          </box>
+        </geometry>
+      </collision>
+      <collision name='collision1'>
+        <pose>0 0.02 0.09 0 -0 0</pose>
+        <geometry>
+          <box>
+              <size>0.02 0.02 0.02</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name='visual1'>
+        <pose>0 0.02 0.09 0 -0 0</pose>
+        <geometry>
+            <box>
+                <size>0.02 0.02 0.02</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.5 0.5 0.5 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <joint name='joint5' type='fixed'>
+      <parent>base_link</parent>
+      <child>pipe</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+  </model>
+</sdf>

@@ -12,16 +12,17 @@
         )
     )
     (:stream plan-motion-holding
-        :inputs (?item ?start ?end)
+        :inputs (?item ?start ?end ?grasppose)
+        :fluents (atpose)
         :domain (and
             (conf ?start)
             (conf ?end)
             (item ?item)
+            (relpose ?item ?grasppose)
         )
-        :fluents (atpose)
         :outputs (?t)
         :certified (and
-            (mhtraj ?item ?start ?end ?t)
+            (mhtraj ?item ?start ?end ?grasppose ?t)
         )
     )
     (:stream grasp-conf

@@ -63,6 +63,9 @@ class ProblemInfo:
         assert "surfaces" in info, "Problem specification missing surfaces"
         assert "main_links" in info, "Problem specification missing main_links"
         self.directive = info["directive"]
+        self.planning_directive = info["directive"]
+        if "planning_directive" in info:
+            self.planning_directive = info["planning_directive"]
         self.objects = info["objects"]
         for name in self.objects:
             self.objects[name]["X_WO"] = ProblemInfo.list_to_transform(
@@ -80,7 +83,8 @@ class ProblemInfo:
         weld_to_hand=None,
         weld_fingers=False,
         name="panda_station",
-        X_PO = None
+        X_PO = None,
+        planning = False
     ):
         """
         Makes a PandaStation based on this problem instance.
@@ -94,7 +98,10 @@ class ProblemInfo:
             the newly created PandaStation
         """
         station = PandaStation(name=name)
-        station.setup_from_file(self.directive, names_and_links=self.names_and_links)
+        directive = self.directive
+        if planning:
+            directive = self.planning_directive
+        station.setup_from_file(directive, names_and_links=self.names_and_links)
         station.add_panda_with_hand(weld_fingers=weld_fingers)
         plant = station.get_multibody_plant()
 
@@ -137,7 +144,7 @@ class ProblemInfo:
         """
         print(f"{Colors.BLUE}Building move_free station{Colors.RESET}")
         return self.make_station(
-            list(self.objects.keys()), weld_fingers=True, name="move_free"
+            list(self.objects.keys()), weld_fingers=True, name="move_free", planning = True
         )
 
     def make_holding_station(self, name, X_HO = None):
@@ -154,7 +161,8 @@ class ProblemInfo:
             weld_to_hand=name,
             weld_fingers=True,
             name=name,
-            X_PO = X_HO
+            X_PO = X_HO,
+            planning = True
         )
 
     def make_all_stations(self):

@@ -1,0 +1,147 @@
+# kitchen environment
+
+directives:
+
+    # ground plane
+    - add_frame:
+        name: world_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy {deg: [0.0, 0.0, 0.0]}
+            translation: [0, 0, 0]
+
+    - add_model:
+        name: ground_plane
+        file: package://kitchen/sdf/ground_plane.sdf
+
+    - add_weld:
+        parent: world_origin
+        child: ground_plane::base_link
+
+    # table_long
+    - add_frame:
+        name: table_long_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [0.625, -0.25, 0]
+
+    - add_model:
+        name: table_long
+        file: package://kitchen/sdf/low_table_white.sdf
+
+    - add_weld:
+        parent: table_long_origin
+        child: table_long::base_link
+
+    # square white table
+    - add_frame:
+        name: table_square_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, -90.0]}
+            translation: [-0.125, -0.625, 0]
+
+    - add_model:
+        name: table_square
+        file: package://kitchen/sdf/low_table_square_white.sdf
+
+    - add_weld:
+        parent: table_square_origin
+        child: table_square::base_link
+
+    # table_serving
+    - add_frame:
+        name: table_serving_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, -45.0]}
+            translation: [-0.4, 0.4, 0]
+
+    - add_model:
+        name: table_serving
+        file: package://kitchen/sdf/glass_table.sdf
+
+    - add_weld:
+        parent: table_serving_origin
+        child: table_serving::base_link
+
+    # stove
+    - add_frame:
+        name: stove_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [-0.125, -0.5, 0.325]
+
+    - add_model:
+        name: stove
+        file: package://kitchen/sdf/stove.sdf
+
+    - add_weld:
+        parent: stove_origin
+        child: stove::base_link
+
+    # sink
+    - add_frame:
+        name: sink_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 45.0]}
+            translation: [0.45, -0.4, 0.325]
+
+    - add_model:
+        name: sink
+        file: package://kitchen/sdf/buffer_sink.sdf
+
+    - add_weld:
+        parent: sink_origin
+        child: sink::base_link
+
+    # placemat
+    - add_frame:
+        name: placemat_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 45.0]}
+            translation: [-0.3, 0.3, 0.325]
+
+    - add_model:
+        name: placemat
+        file: package://kitchen/sdf/placemat.sdf
+
+    - add_weld:
+        parent: placemat_origin
+        child: placemat::base_link
+
+    # plate
+    - add_frame:
+        name: plate_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [-0.3, 0.3, 0.34]
+
+    - add_model:
+        name: plate
+        file: package://kitchen/sdf/plate.sdf
+
+    - add_weld:
+        parent: plate_origin
+        child: plate::base_link
+
+    # tray
+    - add_frame:
+        name: tray_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 90.0]}
+            translation: [0.5, 0.1, 0.325]
+
+    - add_model:
+        name: tray
+        file: package://kitchen/sdf/tray.sdf
+
+    - add_weld:
+        parent: tray_origin
+        child: tray::base_link
