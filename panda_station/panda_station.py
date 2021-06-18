@@ -502,7 +502,6 @@ class ObjectInfo:
         Construct an ObjectInfo object
 
         Args:
-            main_body_info: the BodyInfo of the main body of this object
             welded_to_frame: the FixedOffsetFrame that the main body is welded
             to (optional)
             path: the absolute filepath used to find the model (optional)

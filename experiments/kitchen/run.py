@@ -35,18 +35,19 @@ from panda_station import (
     update_graspable_shapes,
     update_placeable_shapes,
     update_surfaces,
-    best_grasp_for_shapes,
     pre_and_post_grasps,
     plan_to_trajectory,
     Q_NOMINAL,
     random_normal_q
 )
+import kitchen_streams
 
 np.set_printoptions(precision=4, suppress=True)
 np.random.seed(seed = 0)
 random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
+GRASP_DIST = 0.07
 
 domain_pddl = open("domain.pddl", "r").read()
 stream_pddl = open("stream.pddl", "r").read()
@@ -87,13 +88,15 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
     goal = ["and",
-        ("in", "cabbage1", ("plate", "base_link")),
-        ("cooked", "cabbage1"),
+        #("in", "cabbage1", ("plate", "base_link")),
+        #("cooked", "cabbage1"),
+        ("clean", "glass1"),
+        ("in", "glass1", ("placemat", "base_link")),
     ]
 
     cached_place_confs = {}
     
-    def plan_motion_gen(start, end, fluents = []):
+    def plan_motion_gen(start, end, fluents = None):
         """
         Yields a collision free trajectory from <start> to <end> 
         while the arm is not holding anything.
@@ -108,9 +111,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             and <X_WO> is a RigidTransformWrapper with the world pose
             of the objects
         """
-        start = start.copy()
-        end = end.copy()
-        fluents = copy.deepcopy(fluents)
         print(f"{Colors.BLUE}Starting move-free stream{Colors.RESET}")
         station = stations["move_free"]
         station_context = station_contexts["move_free"]
@@ -122,7 +122,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 station_context, 
                 start, 
                 end, 
-                ignore_endpoint_collisions= True
+                ignore_endpoint_collisions= False
             )
             if traj is None:  # if a trajectory could not be found (invalid)
                 print(f"{Colors.RED}Closing move-free stream{Colors.RESET}")
@@ -131,7 +131,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             yield traj,
             update_station(station, station_context, fluents)
 
-    def plan_motion_holding_gen(item, start, end, fluents=[]):
+    def plan_motion_holding_gen(item, start, end, fluents=None):
         """
         Yields a collision free trajectory from <start> to <end>
         while the arm is holding item <item>.
@@ -148,15 +148,19 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             of the objects. One tuple has the form
             ("grasppose", <item>, <X_HO>), where H is the hand frame.
         """
-        start = start.copy()
-        end = end.copy()
-        fluents = copy.deepcopy(fluents)
         print(f"{Colors.BLUE}Starting move-holding stream for {item}{Colors.RESET}")
+        for fluent in fluents:
+            print("FLUENT:")
+            for i in fluent:
+                print(i, end = " ")
+            print()
+        print(stations)
         if not (item in stations):
             stations[item] = problem_info.make_holding_station(
                 name = item,
             )
             station_contexts[item] = stations[item].CreateDefaultContext()
+
         station = stations[item]
         station_context = station_contexts[item]
         # udate poses in station
@@ -199,10 +203,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             station, station_context, [("atpose", item, X_WO)], set_others_to_inf=True
         )
         object_info = station.object_infos[item][0]
-        shape_infos = update_graspable_shapes(object_info)
+        shape_info = update_graspable_shapes(object_info)[0]
         iter = 1
-        q_initial = Q_NOMINAL
-        q_nominal = Q_NOMINAL
         while True:
             start_time = time.time()
             if item in cached_place_confs:
@@ -212,22 +214,13 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             else:
                 print(f"{Colors.GREEN}Finding grasp for {item}, iteration {iter}{Colors.RESET}")
                 grasp_q, cost = None, np.inf
-                #how many times will we try before saying it can't be done
-                max_tries, tries = 5, 0
-                while tries < max_tries:
-                    tries += 1
-                    print(f"{Colors.BOLD}{item} grasp tries: {tries}{Colors.RESET}")
-                    grasp_q, cost = best_grasp_for_shapes(
-                        station,
-                        station_context,
-                        shape_infos,
-                        initial_guess = q_initial,
-                        q_nominal = q_nominal
-                    )
-                    if np.isfinite(cost):
-                        break
-                    q_nominal = random_normal_q(station, Q_NOMINAL)
-                    q_initial = random_normal_q(station, Q_NOMINAL)
+                grasp_q, cost = kitchen_streams.find_grasp_q(
+                    station,
+                    station_context,
+                    shape_info,
+                    q_initial = Q_NOMINAL,
+                    q_nominal = Q_NOMINAL
+                )
                 if not np.isfinite(cost):
                     print(f"{Colors.RED}Ending grasp stream for{item}{Colors.RESET}")
                     return
@@ -235,7 +228,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                     station, 
                     station_context, 
                     grasp_q,
-                    dist = 0.07
+                    dist = GRASP_DIST
                 )
             X_HO = RigidTransformWrapper(
                 q_to_X_HO(
@@ -251,8 +244,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             )
             iter += 1 
             yield X_HO, grasp_q, pregrasp_q, postgrasp_q
-            q_initial = random_normal_q(station, Q_NOMINAL)
-            q_nominal = random_normal_q(station, Q_NOMINAL)
             update_station(
                 station, station_context, [("atpose", item, X_WO)], set_others_to_inf=True
             )
@@ -288,35 +279,28 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         )
         target_object_info = station.object_infos[object_name][0]
         holding_object_info = station.object_infos[item][0]
-        shape_infos = update_placeable_shapes(holding_object_info)
-        surfaces = update_surfaces(target_object_info, link_name, station, station_context)
-        q_initial = Q_NOMINAL
+        shape_info = update_placeable_shapes(holding_object_info)[0]
+        surface = update_surfaces(target_object_info, link_name, station, station_context)[0]
         while True:
-            print(f"{Colors.GREEN}Finding place for {item}{Colors.RESET}")
+            print(f"{Colors.GREEN}Finding place for {item} on {object_name}{Colors.RESET}")
             start_time = time.time()
             place_q, cost = None, np.inf
-            #how many times will we try before saying it can't be done
-            max_tries, tries = 10, 0
-            while tries < max_tries:
-                tries += 1
-                print(f"{Colors.BOLD}{item} place tries: {tries}{Colors.RESET}")
-                place_q, cost = best_place_shapes_surfaces(
-                    station,
-                    station_context,
-                    shape_infos,
-                    surfaces
-                )
-                if np.isfinite(cost):
-                    break
+            place_q, cost = kitchen_streams.find_place_q(
+                station,
+                station_context,
+                shape_info,
+                surface,
+                q_nominal = Q_NOMINAL,
+                q_initial = Q_NOMINAL
+            )
             if not np.isfinite(cost):
                 print(f"{Colors.RED}Ending place stream for{item} on region {region}{Colors.RESET}")
                 return
-            # pregrasp_q == postplace_q, postgrasp_q == preplace_q
             postplace_q, preplace_q = pre_and_post_grasps(
                 station, 
                 station_context, 
                 place_q,
-                dist = 0.07
+                dist = GRASP_DIST
             )
             X_WO = RigidTransformWrapper(
                 q_to_X_PF(
@@ -396,6 +380,7 @@ def make_and_init_simulation(zmq_url, prob):
 
     diagram = builder.Build()
     simulator = pydrake.systems.analysis.Simulator(diagram)
+    simulator.set_target_realtime_rate(3.0)
 
     # let objects fall for a bit in the simulation
     if meshcat is not None:

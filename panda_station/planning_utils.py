@@ -329,8 +329,8 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf=Fal
         ), "you are trying to set the pose of a free object"
         offset_frame.SetPoseInBodyFrame(plant_context, X_PO)
 
-    X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
     if set_others_to_inf:
+        X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
         for object_info, Xinit_WO in list(station.object_infos.values()):
             if object_info.get_name() in set_pose:  # its pose has been set
                 continue

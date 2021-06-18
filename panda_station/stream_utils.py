@@ -5,7 +5,12 @@ and collision free motion planning
 import numpy as np
 from ompl import base as ob
 from ompl import geometric as og
-from pydrake.all import Box, Cylinder, Sphere
+import pydrake.all
+from pydrake.all import (
+    Box,
+    Cylinder,
+    Sphere,
+)
 from .grasping_and_placing import (
     Q_NOMINAL,
     cylinder_grasp_q,
@@ -58,12 +63,17 @@ def find_traj(
     query_output_port = scene_graph.GetOutputPort("query")
 
     def is_colliding(q):
-        if np.all(q == q_start) or (np.all(q == q_goal) and ignore_endpoint_collisions):
-            return False
+        #if np.all(q == q_start) or (np.all(q == q_goal) and ignore_endpoint_collisions):
+            #return False
         plant.SetPositions(plant_context, panda, q)
         query_object = query_output_port.Eval(scene_graph_context)
         return query_object.HasCollisions()
         """
+        sdps = query_object.ComputeSignedDistancePairwiseClosestPoints(0.1)
+        for sdp in sdps:
+            if sdp.distance < 0.001:
+                return True
+        return False
         pairs = query_object.ComputePointPairPenetration()
         max_pen = -np.inf
         for p in pairs:

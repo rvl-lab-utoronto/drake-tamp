@@ -101,7 +101,7 @@
             (conf ?placeconf)
             (place ?item ?region ?grasppose ?placepose ?placeconf ?preplaceconf ?postplaceconf)
             
-
+            (atgrasppose ?item ?grasppose)
             (at ?arm ?preplaceconf)
             (grasped ?arm ?item)
         )
@@ -135,6 +135,7 @@
             (item ?item)
             (region ?region)
             (burner ?region)
+            (clean ?item)
             (in ?item ?region)
         )
         :effect (and

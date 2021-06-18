@@ -144,7 +144,7 @@ ACTION_MAP = {
     "move-free": move_free_traj,
     "move-holding": move_holding_traj,
     "pick": pick_traj,
-    "place": place_traj
+    "place": place_traj,
 }
 
 def plan_to_trajectory(plan, director, start_time):
