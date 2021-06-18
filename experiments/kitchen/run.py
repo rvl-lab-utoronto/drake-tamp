@@ -47,6 +47,7 @@ np.random.seed(seed = 0)
 random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
+GRASP_DIST = 0.04
 
 domain_pddl = open("domain.pddl", "r").read()
 stream_pddl = open("stream.pddl", "r").read()
@@ -88,7 +89,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     goal = ["and",
         ("in", "cabbage1", ("plate", "base_link")),
-        ("clean", "cabbage1"),
+        ("cooked", "cabbage1"),
         #("clean", "glass1"),
         #("in", "glass1", ("placemat", "base_link")),
     ]
@@ -235,7 +236,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                     station, 
                     station_context, 
                     grasp_q,
-                    dist = 0.07
+                    dist = GRASP_DIST
                 )
             X_HO = RigidTransformWrapper(
                 q_to_X_HO(
@@ -307,7 +308,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 station, 
                 station_context, 
                 place_q,
-                dist = 0.07
+                dist = GRASP_DIST
             )
             X_WO = RigidTransformWrapper(
                 q_to_X_PF(
