@@ -14,6 +14,7 @@
         (conf ?conf)
         (contained ?item ?region ?pose) ; if item were at post, would it be inside region?
 
+        ;stream certified predicates
         (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
         (place ?item ?region ?grasppose ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
         (mftraj ?traj ?start ?end)
@@ -41,6 +42,7 @@
             (conf ?postgraspconf)
             (conf ?graspconf)
             (pose ?item ?pose)
+            (relpose ?item ?grasppose)
             (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
 
             (empty ?arm)
@@ -99,6 +101,7 @@
             (conf ?preplaceconf)
             (conf ?postplaceconf)
             (conf ?placeconf)
+            (relpose ?item ?grasppose)
             (place ?item ?region ?grasppose ?placepose ?placeconf ?preplaceconf ?postplaceconf)
             
             (atgrasppose ?item ?grasppose)

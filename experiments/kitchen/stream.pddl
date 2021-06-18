@@ -18,7 +18,7 @@
             (conf ?end)
             (item ?item)
         )
-        :fluents (atpose atgrasppose)
+        :fluents (atpose)
         :outputs (?t)
         :certified (and
             (mhtraj ?item ?start ?end ?t)

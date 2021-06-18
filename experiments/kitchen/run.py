@@ -88,8 +88,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
     goal = ["and",
-        #("in", "cabbage1", ("plate", "base_link")),
-        #("cooked", "cabbage1"),
+        ("in", "cabbage1", ("plate", "base_link")),
+        ("cooked", "cabbage1"),
         ("clean", "glass1"),
         ("in", "glass1", ("placemat", "base_link")),
     ]
@@ -154,7 +154,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             for i in fluent:
                 print(i, end = " ")
             print()
-        print(stations)
         if not (item in stations):
             stations[item] = problem_info.make_holding_station(
                 name = item,
