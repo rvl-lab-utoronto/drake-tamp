@@ -12,6 +12,7 @@ import sys
 import argparse
 import numpy as np
 import random
+from datetime import datetime
 import pydrake.all
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
@@ -59,16 +60,16 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         station_contexts[name] = stations[name].CreateDefaultContext()
     # start poses of all manipulands
     start_poses = parse_start_poses(main_station, main_station_context)
-    for item, pose in start_poses.items():
-        X_wrapper = RigidTransformWrapper(pose, name = f"X_W{item}")
+    for name, pose in start_poses.items():
+        X_wrapper = RigidTransformWrapper(pose, name = f"X_W{name}")
         init += [
-            ("item", item),
-            ("worldpose", item, X_wrapper),
-            ("atpose", item, X_wrapper),
+            ("item", name),
+            ("worldpose", name, X_wrapper),
+            ("atpose", name, X_wrapper),
         ]
-        if "contained" in problem_info.objects[item]:
+        if "contained" in problem_info.objects[name]:
             init += [
-                ("contained", item, X_wrapper, tuple(problem_info.objects[item]["contained"]))
+                ("contained", name, X_wrapper, tuple(problem_info.objects[name]["contained"]))
             ]
 
     #for item in problem_info.objects:
@@ -94,7 +95,11 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         ("in", "cabbage1", ("plate", "base_link")),
         ("cooked", "cabbage1"),
         ("clean", "glass1"),
+        ("clean", "glass2"),
         ("in", "glass1", ("placemat", "base_link")),
+        #("in", "glass2", ("placemat", "base_link")),
+        ("in", "raddish1", ("tray", "base_link")),
+        ("in", "raddish7", ("tray", "base_link")),
     ]
 
     def get_station(name):
@@ -116,16 +121,22 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         X_HI. All other tuples indicate the worldpose of the items X_WI.
         """
         print(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
-        print(fluents)
         station, station_context = get_station("move_free")
-        holding = False
+        print(f"{Colors.BOLD}FLUENTS FOR MOTION{Colors.RESET}")
+        holdingitem = None
         for fluent in fluents:
+            print(fluent[0], fluent[1], fluent[2])
             if fluent[0] == "holding":
-                holding = True
+                holdingitem = fluent[1]
                 station, station_context = get_station(fluent[1])
         update_station(station, station_context, fluents)
+        iter = 1
         while True:
-            print(f"{Colors.GREEN}Planning trajectory {item}, holding: {holding}{Colors.RESET}")
+            if holdingitem:
+                print(f"{Colors.GREEN}Planning trajectory holding {holdingitem}{Colors.RESET}")
+            else:
+                print(f"{Colors.GREEN}Planning trajectory{Colors.RESET}")
+            print(f"Iteration: {iter}")
             traj = find_traj(
                 station, 
                 station_context, 
@@ -134,10 +145,17 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 ignore_endpoint_collisions= False
             )
             if traj is None:  # if a trajectory could not be found (invalid)
-                print(f"{Colors.RED}Closing move-holding stream for {item}{Colors.RESET}")
+                if holdingitem:
+                    print(f"{Colors.GREEN}Closing trajectory stream holding {holdingitem}{Colors.RESET}")
+                else:
+                    print(f"{Colors.GREEN}Closing trajectory stream{Colors.RESET}")
                 return
-            print(f"{Colors.REVERSE}Yielding trajectory holding {item}{Colors.RESET}")
+            if holdingitem:
+                print(f"{Colors.GREEN}Yielding trajectory holding {holdingitem}{Colors.RESET}")
+            else:
+                print(f"{Colors.GREEN}Yielding trajectory{Colors.RESET}")
             yield traj,
+            iter += 1
             update_station(station, station_context, fluents)
 
     def find_grasp(item):
@@ -169,10 +187,10 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         shape_info = update_placeable_shapes(holding_object_info)[0]
         surface = update_surfaces(target_object_info, link_name, station, station_context)[0]
         while True:
-            print(f"{Colors.GREEN}Finding place for {item} on {object_name}{Colors.RESET}")
+            print(f"{Colors.GREEN}Finding place for {holdingitem} on {object_name}{Colors.RESET}")
             yield RigidTransformWrapper(
                 kitchen_streamsv2.find_place(station, station_context, shape_info, surface),
-                name = f"X_W{item}_in_{region}"
+                name = f"X_W{holdingitem}_in_{region}"
             ),
 
     def find_ik(item, X_WI, X_HI):
@@ -192,6 +210,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         #shape_info = update_graspable_shapes(object_info)[0]
         q_initial = Q_NOMINAL
         while True:
+            print(f"{Colors.GREEN}Finding ik for {item}{Colors.RESET}")
             q, cost = kitchen_streamsv2.find_ik_with_relaxed(
                 station,
                 station_context,
@@ -219,7 +238,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             [("atpose", item, X_WI)],
             set_others_to_inf = True
         )
-        return kitchen_streamsv2.check_safe_conf(station, station_context, q)
+        res = kitchen_streamsv2.check_safe_conf(station, station_context, q)
+        if res:
+            print(f"{Colors.GREEN}No collisions with {item}{Colors.RESET}")
+        else:
+            print(f"{Colors.RED}Found collisions with {item}{Colors.RESET}")
+        return res
 
     #def check_safe_place(q, itemholding, X_HI, item, X_WI):
     #    print(f"checking collisions between {itemholding} and {item}")
@@ -347,12 +371,13 @@ if __name__ == "__main__":
             (
                 f"{Colors.BOLD}\nType ENTER to exit without saving.\n"
                 "To save the video to the file\n"
-                f"media/<filename.html>, input <filename>{Colors.RESET}\n"
+                f"media/<filename-todays_date.html>, input <filename>{Colors.RESET}\n"
             )
         )
         if save != "":
             if not os.path.isdir("media"):
                 os.mkdir("media")
+            save += datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
             file = open("media/" + save + ".html", "w")
             file.write(meshcat_vis.vis.static_html())
             file.close()

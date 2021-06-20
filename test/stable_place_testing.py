@@ -69,7 +69,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     args = parser.parse_args()
-    problem = "/home/agrobenj/drake-tamp/experiments/kitchen/problems/kitchen_problem.yaml"
+    problem = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/problems/kitchen_problem.yaml"
     stations, diagram, meshcat, problem_info = make_and_init_station(args.url, problem)
     station_contexts = {}
     for station in stations:
@@ -81,7 +81,7 @@ if __name__ == "__main__":
         stations["move_free"], diagram_context
     )
 
-    item = "cabbage1"
+    item = "raddish1"
     region = "tray"
     target_object_info = stations["move_free"].object_infos[region][0]
     holding_object_info = stations["move_free"].object_infos[item][0]

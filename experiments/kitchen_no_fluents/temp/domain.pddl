@@ -21,7 +21,7 @@
         (ik ?item ?X_WI ?X_HI ?pre_q ?q)
         ; TODO check collisiosn between placed items and other items
         (colfree ?q ?item ?X_WI)
-        (colfreeholding ?q ?itemholding ?X_HI ?item ?X_WI)
+        ;(colfreeholding ?q ?itemholding ?X_HI ?item ?X_WI)
 
 
         ;fluents predicates
@@ -33,7 +33,7 @@
         ;derived
         (in ?item ?region)
         (safe ?q ?item)
-        (safeplace ?q ?itemholding ?X_HI ?item)
+        ;(safeplace ?q ?itemholding ?X_HI ?item)
     )
 
     (:derived (safe ?q ?item) 
