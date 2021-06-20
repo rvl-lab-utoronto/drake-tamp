@@ -67,15 +67,15 @@ class ProblemInfo:
         if "planning_directive" in info:
             self.planning_directive = info["planning_directive"]
         self.objects = info["objects"]
+        self.main_links = info["main_links"]
+        self.surfaces = info["surfaces"]
         for name in self.objects:
             self.objects[name]["X_WO"] = ProblemInfo.list_to_transform(
                 self.objects[name]["X_WO"]
             )
-        self.main_links = info["main_links"]
         self.names_and_links = [
             (name, main_link) for name, main_link in self.main_links.items()
         ]
-        self.surfaces = info["surfaces"]
 
     def make_station(
         self,

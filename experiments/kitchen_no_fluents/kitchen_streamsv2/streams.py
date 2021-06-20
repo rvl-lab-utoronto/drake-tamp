@@ -47,7 +47,7 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    h = HAND_HEIGHT + length/2 - 0.02
+    h = HAND_HEIGHT + length/2 + 0.005
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
 
@@ -79,7 +79,7 @@ def find_place(station, station_context, shape_info, surface):
 def find_ik_with_relaxed(
     station,
     station_context,
-    shape_info,
+    object_info,
     X_HI,
     q_initial = Q_NOMINAL,
 ):
@@ -93,7 +93,7 @@ def find_ik_with_relaxed(
     q0, cost = find_ik_with_handpose(
         station,
         station_context,
-        shape_info,
+        object_info,
         X_HI,
         q_initial = q_initial,
         relax = True
@@ -103,7 +103,7 @@ def find_ik_with_relaxed(
     return find_ik_with_handpose(
         station,
         station_context,
-        shape_info,
+        object_info,
         X_HI,
         q_initial = q0,
         relax = False
@@ -112,7 +112,7 @@ def find_ik_with_relaxed(
 def find_ik_with_handpose(
     station,
     station_context,
-    shape_info,
+    object_info,
     X_HI,
     q_initial = Q_NOMINAL,
     relax = False
@@ -124,13 +124,13 @@ def find_ik_with_handpose(
     """
     plant, plant_context = get_plant_and_context(station, station_context)
     H = plant.GetFrameByName(HAND_FRAME_NAME, station.get_hand())  # hand frame
-    G = shape_info.offset_frame  # geometry frame
+    G = object_info.get_frame()#shape_info.offset_frame  # geometry frasinkme
     W = plant.world_frame()
     ik = InverseKinematics(plant, plant_context)
     if not relax:
         ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-    lower = X_HI.translation() - 0.01*np.ones(3)
-    upper = X_HI.translation() + 0.01*np.ones(3)
+    lower = X_HI.translation() - 0.005*np.ones(3)
+    upper = X_HI.translation() + 0.005*np.ones(3)
     ik.AddPositionConstraint(
         H,
         np.zeros(3),

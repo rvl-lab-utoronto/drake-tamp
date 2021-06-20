@@ -82,7 +82,7 @@ if __name__ == "__main__":
     )
 
     item = "cabbage1"
-    region = "sink"
+    region = "tray"
     target_object_info = stations["move_free"].object_infos[region][0]
     holding_object_info = stations["move_free"].object_infos[item][0]
     shape_info = update_placeable_shapes(holding_object_info)[0]
@@ -90,8 +90,6 @@ if __name__ == "__main__":
         target_object_info, "base_link", stations["move_free"], station_contexts["move_free"]
     )[0]
     flag = True
-    holding_object_info = stations[item].object_infos[item][0]
-    other_shape_info = update_placeable_shapes(holding_object_info)[0]
     for X_WI in find_place_gen(stations["move_free"], station_contexts["move_free"], shape_info, surface):
         print(f"place: {X_WI}")
         update_station(
@@ -101,10 +99,11 @@ if __name__ == "__main__":
             set_others_to_inf= True
         ) 
         X_HI = kitchen_streamsv2.find_grasp(shape_info)
+        print(f"grasp {X_HI}")
         q= find_ik_gen(
             stations["move_free"],
             station_contexts["move_free"],
-            shape_info,
+            holding_object_info,
             X_HI
         )[0]
         plant, plant_context = kitchen_streamsv2.get_plant_and_context(

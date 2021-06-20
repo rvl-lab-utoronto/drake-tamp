@@ -66,6 +66,15 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("worldpose", item, X_wrapper),
             ("atpose", item, X_wrapper),
         ]
+        if "contained" in problem_info.objects[item]:
+            init += [
+                ("contained", item, X_wrapper, tuple(problem_info.objects[item]["contained"]))
+            ]
+
+    #for item in problem_info.objects:
+        #init += [
+            #problem_info.objects[item]["contained"]
+        #]
 
     arms = parse_config(main_station, main_station_context)
     for arm, conf in arms.items():
@@ -84,8 +93,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     goal = ["and",
         ("in", "cabbage1", ("plate", "base_link")),
         ("cooked", "cabbage1"),
-        #("clean", "glass1"),
-        #("in", "glass1", ("placemat", "base_link")),
+        ("clean", "glass1"),
+        ("in", "glass1", ("placemat", "base_link")),
     ]
 
     def get_station(name):
@@ -122,7 +131,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 station_context, 
                 q1, 
                 q2, 
-                ignore_endpoint_collisions= True
+                ignore_endpoint_collisions= False
             )
             if traj is None:  # if a trajectory could not be found (invalid)
                 print(f"{Colors.RED}Closing move-holding stream for {item}{Colors.RESET}")
@@ -180,13 +189,13 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             set_others_to_inf = True
         )
         object_info = station.object_infos[item][0]
-        shape_info = update_graspable_shapes(object_info)[0]
+        #shape_info = update_graspable_shapes(object_info)[0]
         q_initial = Q_NOMINAL
         while True:
             q, cost = kitchen_streamsv2.find_ik_with_relaxed(
                 station,
                 station_context,
-                shape_info,
+                object_info,
                 X_HI.get_rt(),
                 q_initial = q_initial
             )

@@ -79,7 +79,6 @@ def find_traj(
             """
             Check if a state is valid
             """
-            return True
             q = state_to_q(state)
             if ignore_endpoint_collisions and ((np.all(q == q_start)) or (np.all(q == q_goal))):
                 return True
