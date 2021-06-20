@@ -90,8 +90,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     goal = ["and",
         ("in", "cabbage1", ("plate", "base_link")),
         ("cooked", "cabbage1"),
-        ("clean", "glass1"),
-        ("in", "glass1", ("placemat", "base_link")),
+        #("clean", "glass1"),
+        #("in", "glass1", ("placemat", "base_link")),
     ]
 
     cached_place_confs = {}
@@ -431,7 +431,28 @@ if __name__ == "__main__":
             print(action.args)
         """
 
-        plan_to_trajectory(plan, traj_director, SIM_INIT_TIME)
+        action_map = {
+            "move-holding": (
+                plan_to_trajectory.move,
+                [5],
+            ),
+            "move-free": (
+                plan_to_trajectory.move,
+                [3],
+            ),
+            "pick":(
+                plan_to_trajectory.pick,
+                [5, 4, 6]
+            ),
+            "place":(
+                plan_to_trajectory.place,
+                [6, 5, 7]
+            )
+        }
+
+        plan_to_trajectory.make_trajectory(
+            plan, traj_director, SIM_INIT_TIME, action_map
+        )
 
         sim.AdvanceTo(traj_director.get_end_time())
         if meshcat_vis is not None:

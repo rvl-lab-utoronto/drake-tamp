@@ -24,7 +24,6 @@ from panda_station import (
     q_to_X_HO,
     best_place_shapes_surfaces,
     q_to_X_PF,
-    plan_to_trajectory,
     Colors,
     RigidTransformWrapper,
     update_graspable_shapes,
@@ -562,7 +561,28 @@ if __name__ == "__main__":
             print(action.args)
         """
 
-        plan_to_trajectory(plan, traj_director, SIM_INIT_TIME)
+        action_map = {
+            "move-holding": (
+                plan_to_trajectory.move,
+                [4],
+            ),
+            "move-free": (
+                plan_to_trajectory.move,
+                [3],
+            ),
+            "pick":(
+                plan_to_trajectory.pick,
+                [5, 4, 6]
+            ),
+            "place":(
+                plan_to_trajectory.place,
+                [6, 5, 7]
+            )
+        }
+
+        plan_to_trajectory.make_trajectory(
+            plan, traj_director, SIM_INIT_TIME, action_map
+        )
 
         sim.AdvanceTo(traj_director.get_end_time())
         if meshcat_vis is not None:

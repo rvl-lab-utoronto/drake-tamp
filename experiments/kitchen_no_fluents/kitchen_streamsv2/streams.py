@@ -33,6 +33,10 @@ np.random.seed(0)
 random.seed(0)
 
 def find_grasp(shape_info):
+    """
+    Returns a handpose X_HI that is a grasp pose for
+    `shape_info`
+    """
     length = None
     z_rot = None
     if isinstance(shape_info.shape, Box):
@@ -48,6 +52,10 @@ def find_grasp(shape_info):
     return RigidTransform(R, [0, 0, h])
 
 def find_place(station, station_context, shape_info, surface):
+    """
+    Returns a worldpose X_WI that is a stable placement pose for
+    `shape_info` on `surface`
+    """
     border = None
     length = None
     if isinstance(shape_info.shape, Box):
@@ -67,55 +75,39 @@ def find_place(station, station_context, shape_info, surface):
     R_I = RotationMatrix.MakeZRotation(np.random.uniform(0, 2*np.pi))
     return RigidTransform(R_I, p_WI)
 
-def find_ik_with_worldpose(
+
+def find_ik_with_relaxed(
     station,
     station_context,
     shape_info,
-    X_WI,
+    X_HI,
     q_initial = Q_NOMINAL,
-    relax = False
 ):
-    plant, plant_context = get_plant_and_context(station, station_context)
-    #H = plant.GetFrameByName(HAND_FRAME_NAME, station.get_hand())  # hand frame
-    G = shape_info.offset_frame  # geometry frame
-    W = plant.world_frame()
-    ik = InverseKinematics(plant, plant_context)
-    if not relax:
-        ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-    lower = X_WI.translation() - 0.01*np.ones(3)
-    upper = X_WI.translation() + 0.01*np.ones(3)
-    ik.AddPositionConstraint(
-        G,
-        np.zeros(3),
-        W,
-        lower,
-        upper,
-    )
-    R_I = X_WI.rotation()
-    ik.AddOrientationConstraint(
-        G,
-        RotationMatrix(),
-        W,
-        R_I,
-        THETA_TOL
-    )
     """
-    ik.AddAngleBetweenVectorsConstraint(
-        G, [0, 0, 1], G, R_I.col(2), 0, THETA_TOL
-    )
-    ik.AddAngleBetweenVectorsConstraint(
-        G, [1, 0, 0], G, R_I.col(0), 0, THETA_TOL
-    )
+    Find a solution to the IK problem that the hand must be at 
+    X_HI relative to shape_info (which is already positioned
+    in the world frame). This solver will first solve without
+    considering collisions, and then use that as the initial 
+    solution to solve while considering collisions
     """
-    prog = ik.prog()
-    q = ik.q()
-    prog.AddQuadraticErrorCost(np.identity(len(q)), Q_NOMINAL, q)
-    prog.SetInitialGuess(q, q_initial)
-    result = Solve(prog)
-    cost = result.get_optimal_cost()
-    if not result.is_success():
-        cost = np.inf
-    return result.GetSolution(q), cost
+    q0, cost = find_ik_with_handpose(
+        station,
+        station_context,
+        shape_info,
+        X_HI,
+        q_initial = q_initial,
+        relax = True
+    )
+    if not np.isfinite(cost):
+        return q0, cost
+    return find_ik_with_handpose(
+        station,
+        station_context,
+        shape_info,
+        X_HI,
+        q_initial = q0,
+        relax = False
+    )
 
 def find_ik_with_handpose(
     station,
@@ -125,6 +117,11 @@ def find_ik_with_handpose(
     q_initial = Q_NOMINAL,
     relax = False
 ):
+    """
+    Find a solution to the IK problem that the hand must be at 
+    X_HI relative to shape_info (which is already positioned
+    in the world frame).
+    """
     plant, plant_context = get_plant_and_context(station, station_context)
     H = plant.GetFrameByName(HAND_FRAME_NAME, station.get_hand())  # hand frame
     G = shape_info.offset_frame  # geometry frame

@@ -22,14 +22,9 @@ from panda_station import (
     ProblemInfo,
     parse_start_poses,
     parse_config,
-    parse_tables,
     update_station,
     TrajectoryDirector,
     find_traj,
-    q_to_X_HO,
-    best_place_shapes_surfaces,
-    q_to_X_PF,
-    plan_to_trajectory,
     Colors,
     RigidTransformWrapper,
     update_graspable_shapes,
@@ -38,7 +33,6 @@ from panda_station import (
     pre_and_post_grasps,
     plan_to_trajectory,
     Q_NOMINAL,
-    random_normal_q
 )
 import kitchen_streamsv2
 
@@ -89,7 +83,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     goal = ["and",
         ("in", "cabbage1", ("plate", "base_link")),
-        #("cooked", "cabbage1"),
+        ("cooked", "cabbage1"),
         #("clean", "glass1"),
         #("in", "glass1", ("placemat", "base_link")),
     ]
@@ -104,6 +98,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         return stations[name], station_contexts[name]
 
     def find_motion(q1, q2, fluents = []):
+        """
+        Find a collision free trajectory from initial configuration
+        `q1` to `q2`. `fluents` is a list of tuples of the form
+        [('atpose', item, X_WI), ..., ('handpose', holdingitem, X_HI), ...].
+        If the hand is holding an item, then the `handpose` tuple will
+        indicate the relative transformation between the hand and the object
+        X_HI. All other tuples indicate the worldpose of the items X_WI.
+        """
         print(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
         print(fluents)
         station, station_context = get_station("move_free")
@@ -130,6 +132,10 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             update_station(station, station_context, fluents)
 
     def find_grasp(item):
+        """
+        Find a pose of the hand relative to the item X_HI given
+        the item name
+        """
         print(f"{Colors.BLUE}Starting grasp stream for {item}{Colors.RESET}")
         station = stations["move_free"]
         object_info = station.object_infos[item][0]
@@ -141,11 +147,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 name = f"X_H{item}"
             ),
 
-    def find_place(holdingitem, region)  :
+    def find_place(holdingitem, region):
+        """
+        Find a stable placement pose X_WI for the item
+        `holdingitem` in the region `region`
+        """
         object_name, link_name = region
         print(f"{Colors.BLUE}Starting place stream for {holdingitem} on region {object_name}, {link_name}{Colors.RESET}")
-        station = stations["move_free"]
-        station_context = station_contexts["move_free"]
+        station, station_context = get_station("move_free")
         target_object_info = station.object_infos[object_name][0]
         holding_object_info = station.object_infos[holdingitem][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
@@ -158,33 +167,29 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ),
 
     def find_ik(item, X_WI, X_HI):
+        """
+        Position `item` at the worldpose `X_WI` and yield an IK solution
+        to the problem with the end effector at X_WH = X_WI(X_HI)^{-1}
+        """
         print(f"{Colors.BLUE}Starting ik stream for {item}{Colors.RESET}")
-        station, station_context = get_station(item)
-        #station = stations["move_free"]
-        #station_context = station_contexts["move_free"]
+        station, station_context = get_station("move_free")
         update_station(
             station,
             station_context,
-            [("holding", item, X_HI)],
+            [("aspose", item, X_WI)],
             set_others_to_inf = True
         )
         object_info = station.object_infos[item][0]
         shape_info = update_graspable_shapes(object_info)[0]
-        relax = False
         q_initial = Q_NOMINAL
-        X = X_WI
-        if isinstance(X_HI, RigidTransformWrapper):
-            X = X_WI.get_rt()
         while True:
-            q, cost = kitchen_streamsv2.find_ik(
+            q, cost = kitchen_streamsv2.find_ik_with_relaxed(
                 station,
                 station_context,
                 shape_info,
-                X,
-                relax = relax,
+                X_HI.get_rt(),
                 q_initial = q_initial
             )
-            #TODO(agro): relax and retry if failure
             if not np.isfinite(cost):
                 return
             pre_q, _ = pre_and_post_grasps(station, station_context, q, dist = 0.07)
@@ -192,7 +197,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             update_station(
                 station,
                 station_context,
-                [("holding", item, X_HI)],
+                [("aspose", item, X_WI)],
                 set_others_to_inf = True
             )
 
@@ -297,13 +302,25 @@ if __name__ == "__main__":
         if plan is None:
             print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
             sys.exit(0)
-        """
-        for action in plan:
-            print(action.name)
-            print(action.args)
-        """
 
-        plan_to_trajectory(plan, traj_director, SIM_INIT_TIME)
+        action_map = {
+            "move": (
+                plan_to_trajectory.move,
+                [1],
+            ),
+            "pick":(
+                plan_to_trajectory.pick,
+                [3, 4, 3]
+            ),
+            "place":(
+                plan_to_trajectory.place,
+                [3, 4, 3]
+            )
+        }
+
+        plan_to_trajectory.make_trajectory(
+            plan, traj_director, SIM_INIT_TIME, action_map
+        )
 
         sim.AdvanceTo(traj_director.get_end_time())
         if meshcat_vis is not None:

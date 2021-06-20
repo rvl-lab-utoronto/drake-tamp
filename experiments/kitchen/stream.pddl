@@ -35,7 +35,7 @@
         :certified (and
             (conf ?pregraspconf)
             (conf ?postgraspconf)
-            (conf ?graspconf)
+            (graspconf ?graspconf)
             (relpose ?item ?grasppose)
             (grasp ?item ?pose ?grasppose ?graspconf ?pregraspconf ?postgraspconf)
         )
@@ -52,7 +52,7 @@
             (pose ?item ?placementpose)
             (conf ?preplaceconf)
             (conf ?postplaceconf)
-            (conf ?placeconf)
+            (graspconf ?placeconf)
             (contained ?item ?region ?placementpose)
             (place ?item ?region ?grasppose ?placementpose ?placeconf ?preplaceconf ?postplaceconf)
         )
