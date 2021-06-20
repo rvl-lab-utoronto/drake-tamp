@@ -95,9 +95,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         ("in", "cabbage1", ("plate", "base_link")),
         ("cooked", "cabbage1"),
         ("clean", "glass1"),
-        ("clean", "glass2"),
-        ("in", "glass1", ("placemat", "base_link")),
-        #("in", "glass2", ("placemat", "base_link")),
+        #("clean", "glass2"),
+        ("in", "glass1", ("placemat", "leftside")),
+        #("in", "glass2", ("placemat", "rightside")),
         ("in", "raddish1", ("tray", "base_link")),
         ("in", "raddish7", ("tray", "base_link")),
     ]
@@ -245,9 +245,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             print(f"{Colors.RED}Found collisions with {item}{Colors.RESET}")
         return res
 
-    #def check_safe_place(q, itemholding, X_HI, item, X_WI):
-    #    print(f"checking collisions between {itemholding} and {item}")
-    #    return True
+    #def dist_fn(traj):
+    #    res = 0
+    #    for i in range(len(traj) - 1):
+    #        res += np.dot(traj[i], traj[i+1])
+    #    return 1+res
+
 
     stream_map = {
         "find-traj": from_gen_fn(find_motion),
@@ -255,7 +258,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         "find-place": from_gen_fn(find_place),
         "find-ik": from_gen_fn(find_ik),
         "check-safe": from_test(check_safe),
-        #"check-safe-place": from_test(check_safe_place)
+        #"distance": dist_fn,
     }
 
     return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)

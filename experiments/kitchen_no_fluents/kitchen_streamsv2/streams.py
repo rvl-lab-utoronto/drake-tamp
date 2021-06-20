@@ -59,21 +59,25 @@ def find_place(station, station_context, shape_info, surface):
     border = None
     length = None
     if isinstance(shape_info.shape, Box):
-        border = max(shape_info.shape.width(), shape_info.shape.depth())*2
+        border = max(shape_info.shape.width(), shape_info.shape.depth())/2
     if isinstance(shape_info.shape, Cylinder):
-        border = shape_info.shape.radius()*3
+        border = shape_info.shape.radius()
     border = np.ones(3)*border 
     lower = surface.bb_min + border
     upper = surface.bb_max - border
+    print(lower, upper)
     plant, plant_context = get_plant_and_context(station, station_context)
     S = surface.shape_info.offset_frame
     #TODO(agro): make this random choice smarter
-    p_SI = np.random.uniform(lower,upper)
-    p_SI[2] = surface.bb_min[2] + 1e-3
-    p_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S).translation()
-    p_WI = p_WS + p_SI
-    R_I = RotationMatrix.MakeZRotation(np.random.uniform(0, 2*np.pi))
-    return RigidTransform(R_I, p_WI)
+    p_SI_S = np.random.uniform(lower,upper)
+    p_SI_S[2] = surface.bb_min[2] + 1e-3
+    X_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S)
+    p_WS_W = X_WS.translation()
+    R_WS = X_WS.rotation()
+    # R_WS*p_SI_S = p_WI_W
+    p_WI_W = p_WS_W + R_WS.multiply(p_SI_S)
+    R_WI = RotationMatrix.MakeZRotation(np.random.uniform(0, 2*np.pi))
+    return RigidTransform(R_WI, p_WI_W)
 
 
 def find_ik_with_relaxed(

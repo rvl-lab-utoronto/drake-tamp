@@ -7,13 +7,13 @@ objects:
           path: "models/kitchen/sdf/glass.sdf"
           X_WO: [-0.43, 0.25, 0.35, 0, 0, 0]
           main_link: "base_link"
-          contained: ["placemat", "base_link"]
+          contained: ["placemat", "leftside"]
 
      glass2:
           path: "models/kitchen/sdf/glass.sdf"
           X_WO: [-0.25, 0.43, 0.35, 0, 0, 0]
           main_link: "base_link"
-          contained: ["placemat", "base_link"]
+          contained: ["placemat", "rightside"]
 
      cabbage1:
           path: "models/kitchen/sdf/cabbage.sdf"
@@ -93,7 +93,8 @@ surfaces:
    sink: 
         - "base_link"
    placemat: 
-        - "base_link"
+        - "leftside"
+        - "rightside"
    plate: 
         - "base_link"
    tray: 

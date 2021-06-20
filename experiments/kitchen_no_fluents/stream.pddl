@@ -1,5 +1,9 @@
 (define (stream kitchen)
 
+    ;(:function (distance ?traj)
+        ;(traj ?traj)
+    ;)
+
     (:stream find-traj
         :inputs (?q1 ?q2) 
         :fluents (atpose holding)
@@ -62,6 +66,8 @@
             (colfree ?q ?item ?X_WI) 
         )
     )
+
+    
 
     ;(:stream check-safe-place
     ;    :inputs (?q ?itemholding ?X_HI ?item ?X_WI) 

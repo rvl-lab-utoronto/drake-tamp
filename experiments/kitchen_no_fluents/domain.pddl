@@ -36,6 +36,10 @@
         ;(safeplace ?q ?itemholding ?X_HI ?item)
     )
 
+    ;(:functions
+        ;(distance ?traj)
+    ;)
+
     (:derived (safe ?q ?item) 
         (or
             (exists (?X_HI)
@@ -52,23 +56,6 @@
             ) 
         )
     )
-
-    ;(:derived (safeplace ?q ?itemholding ?X_HI ?item)
-    ;    (or
-    ;        (exists (?X_HI)
-    ;            (and
-    ;                (holding ?item ?X_HI)
-    ;                (handpose ?item ?X_HI)
-    ;            )
-    ;        ) 
-    ;        (exists (?X_WI)
-    ;            (and
-    ;                (colfreeholding ?q ?itemholding ?X_HI ?item ?X_WI) 
-    ;                (atpose ?item ?X_WI)
-    ;            ) 
-    ;        )
-    ;    )
-    ;)
 
     (:derived (in ?item ?region) 
         ; does there exist a pose ?X_WI such that ?item is at ?X_WI and 
@@ -89,6 +76,7 @@
         :effect (and 
             (atconf ?q2)
             (not (atconf ?q1))
+            ;(increase (total-cost) (distance ?traj)) 
             ; TODO(agro): add cost here
         )
     )
@@ -160,4 +148,6 @@
             (cooked ?item)
         )
     )
+
+
 )

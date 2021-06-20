@@ -81,13 +81,13 @@ if __name__ == "__main__":
         stations["move_free"], diagram_context
     )
 
-    item = "raddish1"
-    region = "tray"
+    item = "cabbage1"
+    region = "placemat"
     target_object_info = stations["move_free"].object_infos[region][0]
     holding_object_info = stations["move_free"].object_infos[item][0]
     shape_info = update_placeable_shapes(holding_object_info)[0]
     surface = update_surfaces(
-        target_object_info, "base_link", stations["move_free"], station_contexts["move_free"]
+        target_object_info, "rightside", stations["move_free"], station_contexts["move_free"]
     )[0]
     flag = True
     for X_WI in find_place_gen(stations["move_free"], station_contexts["move_free"], shape_info, surface):
