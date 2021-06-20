@@ -206,13 +206,20 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             update_station(
                 station,
                 station_context,
-                [("aspose", item, X_WI)],
+                [("atpose", item, X_WI)],
                 set_others_to_inf = True
             )
 
     def check_safe(q, item, X_WI):
-        print(f"checking collisions with {item}")
-        return True
+        print(f"{Colors.BLUE}Checking for collisions with {item}{Colors.RESET}")
+        station, station_context = get_station("move_free")
+        update_station(
+            station,
+            station_context,
+            [("atpose", item, X_WI)],
+            set_others_to_inf = True
+        )
+        return kitchen_streamsv2.check_safe_conf(station, station_context, q)
 
     #def check_safe_place(q, itemholding, X_HI, item, X_WI):
     #    print(f"checking collisions between {itemholding} and {item}")

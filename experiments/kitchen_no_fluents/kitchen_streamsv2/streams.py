@@ -164,6 +164,19 @@ def find_ik_with_handpose(
         cost = np.inf
     return result.GetSolution(q), cost
 
+def check_safe_conf(station, station_context, q):
+    """
+    Checks for collisions if the panda is in conf q
+    """
+    plant, plant_context = get_plant_and_context(station, station_context)
+    scene_graph = station.get_scene_graph()
+    scene_graph_context = station.GetSubsystemContext(scene_graph, station_context)
+    panda = station.get_panda()
+    query_output_port = scene_graph.GetOutputPort("query")
+    plant.SetPositions(plant_context, panda, q)
+    query_object = query_output_port.Eval(scene_graph_context)
+    return not query_object.HasCollisions()
+
 
 def get_plant_and_context(station, station_context):
     plant = station.get_multibody_plant()
