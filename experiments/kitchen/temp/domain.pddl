@@ -106,7 +106,7 @@
             ;(relpose ?item ?grasppose)
             (place ?item ?region ?grasppose ?placepose ?placeconf ?preplaceconf ?postplaceconf)
             
-            ;(atgrasppose ?item ?grasppose)
+            (atgrasppose ?item ?grasppose)
             (at ?arm ?preplaceconf)
             (grasped ?arm ?item)
         )

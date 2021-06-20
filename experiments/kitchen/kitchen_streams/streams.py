@@ -49,6 +49,7 @@ def find_place_q(
     if isinstance(shape_info.shape, Cylinder):
         border = shape_info.shape.radius()
         length = shape_info.shape.length()
+    border = np.ones(3)*border
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
     hand = station.get_hand()
@@ -59,7 +60,7 @@ def find_place_q(
     max_tries = 100
     tries = 0
     while tries < max_tries:
-        p_SR = np.random.uniform(surface.bb_min, surface.bb_max)
+        p_SR = np.random.uniform(surface.bb_min + border, surface.bb_max - border)
         lower = p_SR.copy()
         lower[2] = surface.bb_min[2]
         lower[0:2] -= np.ones(2)*0.01

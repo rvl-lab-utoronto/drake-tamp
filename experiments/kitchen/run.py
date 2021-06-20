@@ -90,8 +90,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     goal = ["and",
         ("in", "cabbage1", ("plate", "base_link")),
         ("cooked", "cabbage1"),
-        #("clean", "glass1"),
-        #("in", "glass1", ("placemat", "base_link")),
+        ("clean", "glass1"),
+        ("in", "glass1", ("placemat", "base_link")),
     ]
 
     cached_place_confs = {}
