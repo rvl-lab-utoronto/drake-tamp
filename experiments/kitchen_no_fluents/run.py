@@ -95,9 +95,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         ("in", "cabbage1", ("plate", "base_link")),
         ("cooked", "cabbage1"),
         ("clean", "glass1"),
-        #("clean", "glass2"),
+        ("clean", "glass2"),
         ("in", "glass1", ("placemat", "leftside")),
-        #("in", "glass2", ("placemat", "rightside")),
+        ("in", "glass2", ("placemat", "rightside")),
         ("in", "raddish1", ("tray", "base_link")),
         ("in", "raddish7", ("tray", "base_link")),
     ]
