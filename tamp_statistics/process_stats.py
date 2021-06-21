@@ -11,18 +11,13 @@ class CaptureOutput:
     a file, it is also printed to stdout
     """
 
-    def __init__(self, path, filt = None):
+    def __init__(self, path):
         self.original = sys.stdout
         self.log = open(path, "a")
         self.stdout = sys.stdout
-        self.filt = filt
 
     def write(self, message):
         self.stdout.write(message)
-        if self.filt is not None:
-            for f in self.filt:
-                if f in message:
-                    continue
         self.log.write(message)
 
     def flush(self):
