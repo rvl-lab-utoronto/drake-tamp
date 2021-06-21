@@ -11,20 +11,19 @@ class CaptureOutput:
     a file, it is also printed to stdout
     """
 
-    def __init__(self, path, keywords = None):
+    def __init__(self, path, filt = None):
         self.original = sys.stdout
         self.log = open(path, "a")
         self.stdout = sys.stdout
-        self.keywords = keywords
+        self.filt = filt
 
     def write(self, message):
         self.stdout.write(message)
-        if self.keywords is not None:
-            for keyword in self.keywords:
-                if keyword in message:
-                    self.log.write(message + "\n")
-        else:
-            self.log.write(message)
+        if self.filt is not None:
+            for f in self.filt:
+                if f in message:
+                    continue
+        self.log.write(message)
 
     def flush(self):
         pass

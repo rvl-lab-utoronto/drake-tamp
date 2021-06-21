@@ -65,7 +65,6 @@ def find_place(station, station_context, shape_info, surface):
     border = np.ones(3)*border 
     lower = surface.bb_min + border
     upper = surface.bb_max - border
-    print(lower, upper)
     plant, plant_context = get_plant_and_context(station, station_context)
     S = surface.shape_info.offset_frame
     #TODO(agro): make this random choice smarter

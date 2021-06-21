@@ -100,12 +100,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         ("cooked", "cabbage1"),
         ("in", "cabbage2", ("rightplate", "base_link")),
         ("cooked", "cabbage2"),
-        ("clean", "glass1"),
-        ("clean", "glass2"),
-        ("in", "glass1", ("leftplacemat", "leftside")),
-        ("in", "glass2", ("rightplacemat", "leftside")),
+        #("clean", "glass1"),
+        #("clean", "glass2"),
+        #("in", "glass1", ("leftplacemat", "leftside")),
+        #("in", "glass2", ("rightplacemat", "leftside")),
         ("in", "raddish1", ("tray", "base_link")),
         ("in", "raddish7", ("tray", "base_link")),
+        ("in", "raddish4", ("tray", "base_link")),
+        ("in", "raddish5", ("tray", "base_link")),
     ]
 
     def get_station(name):
@@ -360,6 +362,7 @@ if __name__ == "__main__":
         sys.stdout = sys.stdout.original
         sys.stdout = CaptureOutput(
             path + "stdout_logs.txt",
+            filt = ["[["] # ignore any color print
         )
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
