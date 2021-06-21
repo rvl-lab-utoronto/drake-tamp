@@ -96,16 +96,16 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
     goal = ["and",
-        ("in", "cabbage1", ("leftplate", "base_link")),
-        ("cooked", "cabbage1"),
-        ("in", "cabbage2", ("rightplate", "base_link")),
-        ("cooked", "cabbage2"),
+        #("in", "cabbage1", ("leftplate", "base_link")),
+        #("cooked", "cabbage1"),
+        #("in", "cabbage2", ("rightplate", "base_link")),
+        #("cooked", "cabbage2"),
         ("clean", "glass1"),
-        ("clean", "glass2"),
-        ("in", "glass1", ("leftplacemat", "leftside")),
-        ("in", "glass2", ("rightplacemat", "leftside")),
-        ("in", "raddish1", ("tray", "base_link")),
-        ("in", "raddish7", ("tray", "base_link")),
+        #("clean", "glass2"),
+        #("in", "glass1", ("leftplacemat", "leftside")),
+        #("in", "glass2", ("rightplacemat", "leftside")),
+        #("in", "raddish1", ("tray", "base_link")),
+        #("in", "raddish7", ("tray", "base_link")),
         #("in", "raddish4", ("tray", "base_link")),
         #("in", "raddish5", ("tray", "base_link")),
     ]
@@ -295,23 +295,24 @@ def make_and_init_simulation(zmq_url, prob):
         meshcat.load()
     else:
         print("No meshcat server url provided, running without gui")
-
+    
+    panda_info = station.panda_infos[0]
     director = builder.AddSystem(TrajectoryDirector())
     builder.Connect(
-        station.GetOutputPort("panda_position_measured"),
+        station.get_output_port(panda_info.get_panda_position_measured_port()),
         director.GetInputPort("panda_position"),
     )
     builder.Connect(
-        station.GetOutputPort("hand_state_measured"),
+        station.get_output_port(panda_info.get_hand_state_measured_port()),
         director.GetInputPort("hand_state"),
     )
     builder.Connect(
         director.GetOutputPort("panda_position_command"),
-        station.GetInputPort("panda_position"),
+        station.get_input_port(panda_info.get_panda_position_port()),
     )
     builder.Connect(
         director.GetOutputPort("hand_position_command"),
-        station.GetInputPort("hand_position"),
+        station.get_input_port(panda_info.get_hand_position_port()),
     )
 
     diagram = builder.Build()

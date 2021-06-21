@@ -62,6 +62,8 @@ class ProblemInfo:
         assert "objects" in info, "Problem specification missing objects"
         assert "surfaces" in info, "Problem specification missing surfaces"
         assert "main_links" in info, "Problem specification missing main_links"
+        assert "arms" in info, "Problem specification missing arms"
+        self.arms = info["arms"]
         self.directive = info["directive"]
         self.planning_directive = info["directive"]
         if "planning_directive" in info:
@@ -102,7 +104,13 @@ class ProblemInfo:
         if planning:
             directive = self.planning_directive
         station.setup_from_file(directive, names_and_links=self.names_and_links)
-        station.add_panda_with_hand(weld_fingers=weld_fingers)
+        for arm_info in self.arms.values():
+            station.add_panda_with_hand(
+                hand_name = arm_info["hand_name"],
+                panda_name = arm_info["panda_name"],
+                X_WB = ProblemInfo.list_to_transform(arm_info["X_WB"]),
+                weld_fingers=weld_fingers
+            )
         plant = station.get_multibody_plant()
 
         for name in self.objects:

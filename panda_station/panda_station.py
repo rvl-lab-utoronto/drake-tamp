@@ -36,15 +36,13 @@ class PandaStation(pydrake.systems.framework.Diagram):
         )
         # dict in the form: {object_name: (ObjectInfo, Xinit_WO)}
         self.object_infos = {}  # list of tuples (ObjectInfo, Xinit_WO)
-        self.controller_plant = pydrake.multibody.plant.MultibodyPlant(
-            time_step=self.time_step
-        )
-        self.weld_fingers = False  # is the hand welded open in this plant
         self.directive = None  # the directive used to setup the environment
         self.plant.set_name("plant")
         self.set_name(name)
-        self.panda = None
-        self.hand = None
+
+        # list of tuples of the form
+        # (panda_model_index, hand_model_index, X_WB, name, weld_fingers)
+        self.panda_infos = []
         self.frame_groups = {}
 
     def fix_collisions(self):
@@ -55,23 +53,25 @@ class PandaStation(pydrake.systems.framework.Diagram):
 
         Then remove collisions within each frame group
         """
-        assert self.panda is not None, "No panda has been added"
-        assert self.hand is not None, "No panda hand has been added"
+        assert len(self.panda_infos) != 0, "No panda has been added"
         # get geometry indices and create geometry sets
+        
+        for info in self.panda_infos:
+            hand = info.hand
+            panda = info.panda
+            link5 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "5", panda)
+            link7 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "7", panda)
+            hand = self.plant.GetBodyByName(HAND_FRAME_NAME, hand)
 
-        link5 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "5", self.panda)
-        link7 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "7", self.panda)
-        hand = self.plant.GetBodyByName(HAND_FRAME_NAME, self.hand)
-
-        l57_set = self.plant.CollectRegisteredGeometries([link5, link7])
-        self.scene_graph.ExcludeCollisionsWithin(l57_set)
-        lh7_set = self.plant.CollectRegisteredGeometries([hand, link7])
-        self.scene_graph.ExcludeCollisionsWithin(lh7_set)
+            l57_set = self.plant.CollectRegisteredGeometries([link5, link7])
+            self.scene_graph.ExcludeCollisionsWithin(l57_set)
+            lh7_set = self.plant.CollectRegisteredGeometries([hand, link7])
+            self.scene_graph.ExcludeCollisionsWithin(lh7_set)
 
         for frame in self.frame_groups:
             if frame.name() == HAND_FRAME_NAME:
                 for obj_id in self.frame_groups[frame]:
-                    self.remove_collisions_with_hand(obj_id)
+                    self.remove_collisions_with_hands(obj_id)
 
             bodies = []
             for object_info in self.frame_groups[frame]:
@@ -81,19 +81,22 @@ class PandaStation(pydrake.systems.framework.Diagram):
             geom_set = self.plant.CollectRegisteredGeometries(bodies)
             self.scene_graph.ExcludeCollisionsWithin(geom_set)
 
-    def remove_collisions_with_hand(self, object_info):
+    def remove_collisions_with_hands(self, object_info):
         """
         Removes collisions between all links of the object in object_info
         and the panda hand
         """
-
-        hand_body_ids = self.plant.GetBodyIndices(self.hand)
-        bodies = [self.plant.get_body(id) for id in hand_body_ids]
         body_infos = list(object_info.get_body_infos().values())
+        obj_bodies = []
         for body_info in body_infos:
-            bodies.append(body_info.get_body())
-        geom_set = self.plant.CollectRegisteredGeometries(bodies)
-        self.scene_graph.ExcludeCollisionsWithin(geom_set)
+            obj_bodies.append(body_info.get_body())
+
+        for panda_info in self.panda_infos:
+            hand = panda_info.hand
+            hand_body_ids = self.plant.GetBodyIndices(hand)
+            bodies = [self.plant.get_body(id) for id in hand_body_ids] + obj_bodies
+            geom_set = self.plant.CollectRegisteredGeometries(bodies)
+            self.scene_graph.ExcludeCollisionsWithin(geom_set)
 
         """
         hand_col_ids = []
@@ -113,7 +116,12 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """
 
     def add_panda_with_hand(
-        self, weld_fingers=False, q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0])
+        self,
+        weld_fingers=False,
+        q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0]),
+        X_WB = pydrake.math.RigidTransform(),
+        panda_name = None,
+        hand_name = None
     ):
         """
         Add the panda hand and panda arm (at the world origin) to the station
@@ -122,11 +130,25 @@ class PandaStation(pydrake.systems.framework.Diagram):
             weld_fingers: [bool] True iff the fingers are welded in the open position
             q_initial: the initial positions to set the panda arm (np.array)
         """
-        self.panda = construction_utils.add_panda(self.plant, q_initial=q_initial)
-        self.hand = construction_utils.add_panda_hand(
-            self.plant, panda_model_instance_index=self.panda, weld_fingers=weld_fingers
+        if panda_name is None:
+            panda_name = "panda" + str(len(self.panda_infos))
+        if hand_name is None:
+            hand_name = "hand" + str(len(self.panda_infos))
+        panda = construction_utils.add_panda(
+            self.plant,
+            q_initial=q_initial,
+            X_WB = X_WB,
+            name = panda_name
         )
-        self.weld_fingers = weld_fingers
+        hand = construction_utils.add_panda_hand(
+            self.plant,
+            panda_model_instance_index=panda,
+            weld_fingers=weld_fingers,
+            name = hand_name
+        )
+        self.panda_infos.append(
+            PandaInfo(panda, hand, panda_name, hand_name, X_WB, weld_fingers)
+        )
 
     def setup_from_file(self, filename, names_and_links=None):
         """
@@ -257,13 +279,15 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """
         Returns the panda arm ModelInstanceIndex of this station
         """
-        return self.panda
+        assert len(self.panda_infos) == 1, f"There are {len(self.panda_infos)} pandas in this station"
+        return self.panda_infos[0].panda
 
     def get_hand(self):
         """
         Returns the panda hand ModelInstanceIndex of this station
         """
-        return self.hand
+        assert len(self.panda_infos) == 1, f"There are {len(self.panda_infos)} pandas in this station"
+        return self.panda_infos[0].hand
 
     def get_panda_joint_limits(self):
         """
@@ -274,8 +298,10 @@ class PandaStation(pydrake.systems.framework.Diagram):
         ]
         in radians
         """
-        num_q = self.plant.num_positions(self.panda)
-        joint_inds = self.plant.GetJointIndices(self.panda)[:num_q]
+        assert len(self.panda_infos) > 0
+        panda = self.panda_infos[0].panda
+        num_q = self.plant.num_positions(panda)
+        joint_inds = self.plant.GetJointIndices(panda)[:num_q]
         joint_limits = []
         for i in joint_inds:
             joint = self.plant.get_joint(i)
@@ -288,8 +314,10 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """
         Get the lower limits of the panda in a numpy array
         """
-        num_q = self.plant.num_positions(self.panda)
-        joint_inds = self.plant.GetJointIndices(self.panda)[:num_q]
+        assert len(self.panda_infos) > 0
+        panda = self.self.panda_infos[0].panda
+        num_q = self.plant.num_positions(panda)
+        joint_inds = self.plant.GetJointIndices(panda)[:num_q]
         joint_limits = []
         for i in joint_inds:
             joint = self.plant.get_joint(i)
@@ -300,8 +328,10 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """
         Get the upper limits of the panda in a numpy array
         """
-        num_q = self.plant.num_positions(self.panda)
-        joint_inds = self.plant.GetJointIndices(self.panda)[:num_q]
+        assert len(self.panda_infos) > 0
+        panda = self.self.panda_infos[0].panda
+        num_q = self.plant.num_positions(panda)
+        joint_inds = self.plant.GetJointIndices(panda)[:num_q]
         joint_limits = []
         for i in joint_inds:
             joint = self.plant.get_joint(i)
@@ -312,8 +342,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """finalize the panda station"""
 
 
-        assert self.panda is not None, "No panda added, run add_panda_with_hand"
-        assert self.hand is not None, "No panda hand model added"
+        assert len(self.panda_infos) != 0, "No panda added, run add_panda_with_hand"
 
         inspector = self.scene_graph.model_inspector()
         counter = 0
@@ -342,7 +371,6 @@ class PandaStation(pydrake.systems.framework.Diagram):
                     body_info.add_shape_info(ShapeInfo(shape, frame))
 
         self.plant.Finalize()
-
         self.fix_collisions()
 
         for object_info, Xinit_WO in self.object_infos.values():
@@ -352,123 +380,160 @@ class PandaStation(pydrake.systems.framework.Diagram):
             main_body = object_info.main_body_info.get_body()
             self.plant.SetDefaultFreeBodyPose(main_body, Xinit_WO)
 
-        num_panda_positions = self.plant.num_positions(self.panda)
+        for info in self.panda_infos:
+            panda, hand, panda_name, hand_name, X_WB, weld_fingers = info.unpack()
 
-        panda_position = self.builder.AddSystem(
-            pydrake.systems.primitives.PassThrough(num_panda_positions)
-        )
-        self.builder.ExportInput(panda_position.get_input_port(), "panda_position")
-        self.builder.ExportOutput(
-            panda_position.get_output_port(), "panda_position_command"
-        )
+            num_panda_positions = self.plant.num_positions(panda)
 
-        demux = self.builder.AddSystem(
-            pydrake.systems.primitives.Demultiplexer(
-                2 * num_panda_positions, num_panda_positions
+            panda_position = self.builder.AddSystem(
+                pydrake.systems.primitives.PassThrough(num_panda_positions)
             )
-        )
-        self.builder.Connect(
-            self.plant.get_state_output_port(self.panda), demux.get_input_port()
-        )
-        self.builder.ExportOutput(demux.get_output_port(0), "panda_position_measured")
-        self.builder.ExportOutput(demux.get_output_port(1), "panda_velocity_estimated")
-        self.builder.ExportOutput(
-            self.plant.get_state_output_port(self.panda), "panda_state_estimated"
-        )
-
-        # plant for the panda controller
-        controller_panda = construction_utils.add_panda(self.controller_plant)
-        # welded so the controller doesn't care about the hand joints
-        construction_utils.add_panda_hand(
-            self.controller_plant,
-            panda_model_instance_index=controller_panda,
-            weld_fingers=True,
-        )
-        self.controller_plant.Finalize()
-
-        panda_controller = self.builder.AddSystem(
-            pydrake.systems.controllers.InverseDynamicsController(
-                self.controller_plant,
-                kp=[100] * num_panda_positions,
-                ki=[1] * num_panda_positions,
-                kd=[20] * num_panda_positions,
-                has_reference_acceleration=False,
-            )
-        )
-
-        panda_controller.set_name("panda_controller")
-        self.builder.Connect(
-            self.plant.get_state_output_port(self.panda),
-            panda_controller.get_input_port_estimated_state(),
-        )
-        # feedforward torque
-        adder = self.builder.AddSystem(
-            pydrake.systems.primitives.Adder(2, num_panda_positions)
-        )
-        self.builder.Connect(
-            panda_controller.get_output_port_control(), adder.get_input_port(0)
-        )
-        # passthrough to make the feedforward torque optional (default to zero values)
-        torque_passthrough = self.builder.AddSystem(
-            pydrake.systems.primitives.PassThrough([0] * num_panda_positions)
-        )
-        self.builder.Connect(
-            torque_passthrough.get_output_port(), adder.get_input_port(1)
-        )
-        self.builder.ExportInput(
-            torque_passthrough.get_input_port(), "panda_feedforward_torque"
-        )
-        self.builder.Connect(
-            adder.get_output_port(), self.plant.get_actuation_input_port(self.panda)
-        )
-
-        # add a discete derivative to find velocity command based on positional commands
-        desired_state_from_position = self.builder.AddSystem(
-            pydrake.systems.primitives.StateInterpolatorWithDiscreteDerivative(
-                num_panda_positions, self.time_step, suppress_initial_transient=True
-            )
-        )
-        desired_state_from_position.set_name("desired_state_from_position")
-        self.builder.Connect(
-            desired_state_from_position.get_output_port(),
-            panda_controller.get_input_port_desired_state(),
-        )
-        self.builder.Connect(
-            panda_position.get_output_port(),
-            desired_state_from_position.get_input_port(),
-        )
-
-        if not self.weld_fingers:
-            # TODO(agro): make sure this hand controller is accurate
-            hand_controller = self.builder.AddSystem(PandaHandPositionController())
-            hand_controller.set_name("hand_controller")
-            self.builder.Connect(
-                hand_controller.GetOutputPort("generalized_force"),
-                self.plant.get_actuation_input_port(self.hand),
-            )
-            self.builder.Connect(
-                self.plant.get_state_output_port(self.hand),
-                hand_controller.GetInputPort("state"),
-            )
-            self.builder.ExportInput(
-                hand_controller.GetInputPort("desired_position"), "hand_position"
-            )
-            self.builder.ExportInput(
-                hand_controller.GetInputPort("force_limit"), "hand_force_limit"
-            )
-            hand_mbp_state_to_hand_state = self.builder.AddSystem(
-                make_multibody_state_to_panda_hand_state_system()
-            )
-            self.builder.Connect(
-                self.plant.get_state_output_port(self.hand),
-                hand_mbp_state_to_hand_state.get_input_port(),
+            info.add_panda_position_port(
+                self.builder.ExportInput(
+                    panda_position.get_input_port(),
+                    f"{panda_name}_position"
+                )
             )
             self.builder.ExportOutput(
-                hand_mbp_state_to_hand_state.get_output_port(), "hand_state_measured"
+                panda_position.get_output_port(),
+                f"{panda_name}_position_command"
+            )
+
+            demux = self.builder.AddSystem(
+                pydrake.systems.primitives.Demultiplexer(
+                    2 * num_panda_positions, num_panda_positions
+                )
+            )
+            self.builder.Connect(
+                self.plant.get_state_output_port(panda), demux.get_input_port()
+            )
+            info.add_panda_position_measured_port(
+                self.builder.ExportOutput(
+                    demux.get_output_port(0),
+                    f"{panda_name}_position_measured"
+                )
             )
             self.builder.ExportOutput(
-                hand_controller.GetOutputPort("grip_force"), "hand_force_measured"
+                demux.get_output_port(1),
+                f"panda{i}_velocity_estimated"
             )
+            self.builder.ExportOutput(
+                self.plant.get_state_output_port(panda),
+                f"panda{i}_state_estimated"
+            )
+
+            controller_plant = pydrake.multibody.plant.MultibodyPlant(
+                time_step=self.time_step
+            )
+            # plant for the panda controller
+            controller_panda = construction_utils.add_panda(
+                controller_plant,
+                X_WB = X_WB,
+                name = panda_name
+            )
+            # welded so the controller doesn't care about the hand joints
+            construction_utils.add_panda_hand(
+                controller_plant,
+                panda_model_instance_index=controller_panda,
+                weld_fingers=True,
+            )
+            controller_plant.Finalize()
+
+            panda_controller = self.builder.AddSystem(
+                pydrake.systems.controllers.InverseDynamicsController(
+                    controller_plant,
+                    kp=[100] * num_panda_positions,
+                    ki=[1] * num_panda_positions,
+                    kd=[20] * num_panda_positions,
+                    has_reference_acceleration=False,
+                )
+            )
+
+            panda_controller.set_name(f"panda{i}_controller")
+            self.builder.Connect(
+                self.plant.get_state_output_port(panda),
+                panda_controller.get_input_port_estimated_state(),
+            )
+            # feedforward torque
+            adder = self.builder.AddSystem(
+                pydrake.systems.primitives.Adder(2, num_panda_positions)
+            )
+            self.builder.Connect(
+                panda_controller.get_output_port_control(),
+                adder.get_input_port(0)
+            )
+            # passthrough to make the feedforward torque optional (default to zero values)
+            torque_passthrough = self.builder.AddSystem(
+                pydrake.systems.primitives.PassThrough([0] * num_panda_positions)
+            )
+            self.builder.Connect(
+                torque_passthrough.get_output_port(),
+                adder.get_input_port(1)
+            )
+            self.builder.ExportInput(
+                torque_passthrough.get_input_port(),
+                f"panda{i}_feedforward_torque"
+            )
+            self.builder.Connect(
+                adder.get_output_port(),
+                self.plant.get_actuation_input_port(panda)
+            )
+
+            # add a discete derivative to find velocity command based on positional commands
+            desired_state_from_position = self.builder.AddSystem(
+                pydrake.systems.primitives.StateInterpolatorWithDiscreteDerivative(
+                    num_panda_positions, self.time_step, suppress_initial_transient=True
+                )
+            )
+            desired_state_from_position.set_name(f"desired_state_from_position{i}")
+            self.builder.Connect(
+                desired_state_from_position.get_output_port(),
+                panda_controller.get_input_port_desired_state(),
+            )
+            self.builder.Connect(
+                panda_position.get_output_port(),
+                desired_state_from_position.get_input_port(),
+            )
+
+            if not weld_fingers:
+                # TODO(agro): make sure this hand controller is accurate
+                hand_controller = self.builder.AddSystem(PandaHandPositionController())
+                hand_controller.set_name(f"{hand_name}_controller")
+                self.builder.Connect(
+                    hand_controller.GetOutputPort(f"generalized_force"),
+                    self.plant.get_actuation_input_port(hand),
+                )
+                self.builder.Connect(
+                    self.plant.get_state_output_port(hand),
+                    hand_controller.GetInputPort("state"),
+                )
+                info.add_hand_position_port(
+                    self.builder.ExportInput(
+                        hand_controller.GetInputPort("desired_position"),
+                        f"{hand_name}_position"
+                    )
+                )
+                self.builder.ExportInput(
+                    hand_controller.GetInputPort("force_limit"),
+                    f"{hand_name}_force_limit"
+                )
+                hand_mbp_state_to_hand_state = self.builder.AddSystem(
+                    make_multibody_state_to_panda_hand_state_system()
+                )
+                self.builder.Connect(
+                    self.plant.get_state_output_port(hand),
+                    hand_mbp_state_to_hand_state.get_input_port(),
+                )
+                info.add_hand_state_measured_port(
+                    self.builder.ExportOutput(
+                        hand_mbp_state_to_hand_state.get_output_port(),
+                        f"{hand_name}_state_measured"
+                    )
+                )
+                self.builder.ExportOutput(
+                    hand_controller.GetOutputPort("grip_force"),
+                    f"{hand_name}_force_measured"
+                )
 
         # TODO(agro): cameras if needed
 
@@ -703,3 +768,56 @@ class ShapeInfo:
         if self.type == pydrake.geometry.Sphere:
             res += "sphere"
         return res
+
+class PandaInfo:
+
+    def __init__(
+        self,
+        panda,
+        hand,
+        panda_name,
+        hand_name,
+        X_WB,
+        weld_fingers):
+
+        self.panda = panda
+        self.hand = hand
+        self.panda_name = panda_name
+        self.hand_name = hand_name
+        self.X_WB = X_WB
+        self.weld_fingers = weld_fingers
+        self.ports = {}
+
+    def unpack(self):
+        return (
+            self.panda,
+            self.hand,
+            self.panda_name,
+            self.hand_name,
+            self.X_WB,
+            self.weld_fingers
+        )
+
+    def add_panda_position_port(self, port_index):
+        self.ports["panda_position"] = port_index
+
+    def get_panda_position_port(self):
+        return self.ports["panda_position"]
+
+    def add_panda_position_measured_port(self, port_index):
+        self.ports["panda_position_measured"] = port_index
+
+    def get_panda_position_measured_port(self):
+        return self.ports["panda_position_measured"]
+
+    def add_hand_state_measured_port(self, port_index):
+        self.ports["hand_state_measured"] = port_index
+
+    def get_hand_state_measured_port(self):
+        return self.ports["hand_state_measured"]
+
+    def add_hand_position_port(self, port_index):
+        self.ports["hand_position"] = port_index
+
+    def get_hand_position_port(self):
+        return self.ports["hand_position"]

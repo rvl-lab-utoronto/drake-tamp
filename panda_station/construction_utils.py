@@ -41,6 +41,7 @@ def add_panda(
     plant,
     q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0]),
     X_WB=pydrake.math.RigidTransform(),
+    name = "panda"
 ):
     """
     Adds a panda arm to the multibody plant `plant` in the initial joint positions
@@ -61,7 +62,7 @@ def add_panda(
     )
 
     parser = pydrake.multibody.parsing.Parser(plant)
-    model_index = parser.AddModelFromFile(urdf_file)
+    model_index = parser.AddModelFromFile(urdf_file, name)
     plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("panda_link0"), X_WB)
 
     index = 0
@@ -74,7 +75,13 @@ def add_panda(
     return model_index
 
 
-def add_panda_hand(plant, panda_model_instance_index=None, roll=0, weld_fingers=False):
+def add_panda_hand(
+    plant,
+    panda_model_instance_index=None,
+    roll=0,
+    weld_fingers=False,
+    name = "hand"
+):
     """
     Adds a panda hand to the multibody plant `plant`. If
     `panda_model_instance_index` is supplied, it will weld the panda hand
@@ -95,11 +102,13 @@ def add_panda_hand(plant, panda_model_instance_index=None, roll=0, weld_fingers=
 
     if weld_fingers:
         model_index = parser.AddModelFromFile(
-            find_resource("models/modified_panda_hand/sdf/welded_panda_hand.sdf")
+            find_resource("models/modified_panda_hand/sdf/welded_panda_hand.sdf"),
+            name
         )
     else:
         model_index = parser.AddModelFromFile(
-            find_resource("models/modified_panda_hand/sdf/panda_hand.sdf")
+            find_resource("models/modified_panda_hand/sdf/panda_hand.sdf"),
+            name
         )
 
     if panda_model_instance_index is not None:
