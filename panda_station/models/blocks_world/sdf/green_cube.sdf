@@ -1,0 +1,38 @@
+<sdf version="1.7">
+  <model name="green_cube">
+    <link name="base_link">
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>1.6875e-05</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.6875e-05</iyy>
+          <iyz>0</iyz>
+          <izz>1.6875e-05</izz>
+        </inertia>
+        <pose>0 0 0 0 0 0</pose>
+      </inertial>
+      <pose>0 0 0 0 0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0.0225 0 0 0</pose>
+        <geometry>
+            <box>
+                <size>0.06 0.06 0.06</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.1 1 0.1 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <pose>0 0 0.0225 0 0 0</pose>
+        <geometry>
+            <box>
+              <size>0.06 0.06 0.06</size>
+            </box>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

@@ -48,4 +48,4 @@ def solid_sphere(r, m):
     print(f"ixx: {i}\niyy: {i}\nizz: {i}")
 
 
-solid_cylinder(0.03, 0.07, 0.05)
+solid_cuboid(0.045, 0.045, 0.045, 0.05)
