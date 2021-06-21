@@ -35,6 +35,10 @@ from panda_station import (
     plan_to_trajectory,
     Q_NOMINAL,
 )
+from tamp_statistics import (
+    CaptureOutput,
+    process_pickle,
+)
 import kitchen_streamsv2
 
 np.set_printoptions(precision=4, suppress=True)
@@ -92,12 +96,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
     goal = ["and",
-        ("in", "cabbage1", ("plate", "base_link")),
+        ("in", "cabbage1", ("leftplate", "base_link")),
         ("cooked", "cabbage1"),
+        ("in", "cabbage2", ("rightplate", "base_link")),
+        ("cooked", "cabbage2"),
         ("clean", "glass1"),
         ("clean", "glass2"),
-        ("in", "glass1", ("placemat", "leftside")),
-        ("in", "glass2", ("placemat", "rightside")),
+        ("in", "glass1", ("leftplacemat", "leftside")),
+        ("in", "glass2", ("rightplacemat", "leftside")),
         ("in", "raddish1", ("tray", "base_link")),
         ("in", "raddish7", ("tray", "base_link")),
     ]
@@ -136,7 +142,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 print(f"{Colors.GREEN}Planning trajectory holding {holdingitem}{Colors.RESET}")
             else:
                 print(f"{Colors.GREEN}Planning trajectory{Colors.RESET}")
-            print(f"Iteration: {iter}")
+            print(f"Try: {iter}")
             traj = find_traj(
                 station, 
                 station_context, 
@@ -337,11 +343,31 @@ if __name__ == "__main__":
     for algorithm in [
         "adaptive",
     ]:
-        solution = solve(problem, algorithm=algorithm, verbose=True)
+        time = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+
+        if not os.path.isdir("logs"):
+            os.mkdir("logs")
+        if not os.path.isdir(f"logs/{time}"):
+            os.mkdir(f"logs/{time}")
+
+        path = f"logs/{time}/"
+        
+        sys.stdout = CaptureOutput(
+            path + "stdout_logs.txt",
+            #keywords = ["Iteration", "Attempt"] 
+        )
+        solution = solve(problem, algorithm=algorithm, verbose=False)
+        sys.stdout = sys.stdout.original
+        sys.stdout = CaptureOutput(
+            path + "stdout_logs.txt",
+        )
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
+        sys.stdout = sys.stdout.original
 
-        plan, _, _ = solution
+        process_pickle("statistics/py3/kitchen.pkl", path + "pddlstream_statistics.json")
+
+        plan, _, evaluations = solution
         if plan is None:
             print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
             sys.exit(0)
@@ -373,14 +399,11 @@ if __name__ == "__main__":
         save = input(
             (
                 f"{Colors.BOLD}\nType ENTER to exit without saving.\n"
-                "To save the video to the file\n"
-                f"media/<filename-todays_date.html>, input <filename>{Colors.RESET}\n"
+                "Type any key to save the video to the file\n"
+                f"logs/<todays_date>/recording.html\n"
             )
         )
         if save != "":
-            if not os.path.isdir("media"):
-                os.mkdir("media")
-            save += datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
-            file = open("media/" + save + ".html", "w")
+            file = open(path + "recording.html", "w")
             file.write(meshcat_vis.vis.static_html())
             file.close()

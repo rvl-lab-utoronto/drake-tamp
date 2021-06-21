@@ -98,37 +98,69 @@ directives:
         parent: sink_origin
         child: sink::base_link
 
-    # placemat
+    # leftplacemat
     - add_frame:
-        name: placemat_origin
+        name: leftplacemat_origin
         X_PF:
             base_frame: world
             rotation: !Rpy { deg: [0.0, 0.0, 45.0]}
-            translation: [-0.3, 0.3, 0.325]
+            translation: [-0.45, 0.15, 0.325]
 
     - add_model:
-        name: placemat
+        name: leftplacemat
         file: package://kitchen/sdf/placemat.sdf
 
     - add_weld:
-        parent: placemat_origin
-        child: placemat::base_link
+        parent: leftplacemat_origin
+        child: leftplacemat::base_link
 
-    # plate
+    # leftplate
     - add_frame:
-        name: plate_origin
+        name: leftplate_origin
         X_PF:
             base_frame: world
             rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
-            translation: [-0.3, 0.3, 0.34]
+            translation: [-0.45, 0.15, 0.34]
 
     - add_model:
-        name: plate
+        name: leftplate
         file: package://kitchen/sdf/plate.sdf
 
     - add_weld:
-        parent: plate_origin
-        child: plate::base_link
+        parent: leftplate_origin
+        child: leftplate::base_link
+
+    # rightplacemat
+    - add_frame:
+        name: rightplacemat_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 45.0]}
+            translation: [-0.15, 0.45, 0.325]
+
+    - add_model:
+        name: rightplacemat
+        file: package://kitchen/sdf/green_placemat.sdf
+
+    - add_weld:
+        parent: rightplacemat_origin
+        child: rightplacemat::base_link
+
+    # rightplate
+    - add_frame:
+        name: rightplate_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [-0.15, 0.45, 0.34]
+
+    - add_model:
+        name: rightplate
+        file: package://kitchen/sdf/plate.sdf
+
+    - add_weld:
+        parent: rightplate_origin
+        child: rightplate::base_link
 
     # tray
     - add_frame:
