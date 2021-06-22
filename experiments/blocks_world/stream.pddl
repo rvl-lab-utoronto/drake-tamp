@@ -1,108 +1,95 @@
-(define (stream kitchen)
-
-    ;(:function (distance ?traj)
-        ;(traj ?traj)
-    ;)
+(define (stream blocks_world)
 
     (:stream find-traj
-        :inputs (?q1 ?q2) 
-        :fluents (atpose holding)
+        :inputs (?arm ?q1 ?q2) 
+        :fluents (atworldpose athandpose atconf)
         :domain (and
-            (conf ?q1) 
-            (conf ?q2)
+            (arm ?arm)
+            (conf ?arm ?q1)  
+            (conf ?arm ?q2)  
         )
         :outputs (?traj)
         :certified (and
-            (motion ?q1 ?traj ?q2) 
+            (motion ?arm ?q1 ?traj ?q2) 
         )
     )
-
+    
     (:stream find-grasp
-        :inputs (?item)
+        :inputs (?block)
         :domain (and
-            (item ?item) 
+            (block ?block) 
         ) 
-        :outputs (?X_HI)
+        :outputs (?X_HB)
         :certified (and
-            (handpose ?item ?X_HI)
-        )
-    )
-
-    (:stream find-place
-        :inputs (?item ?region) 
-        :domain (and
-            (item ?item) 
-            (region ?region)
-        ) 
-        :outputs (?X_WI)
-        :certified (and 
-            (contained ?item ?X_WI ?region)
-            (worldpose ?item ?X_WI)
+            (handpose ?block ?X_HB)
         )
     )
 
     (:stream find-ik
-        :inputs (?item ?X_WI ?X_HI) 
+        :inputs (?arm ?block ?X_WB ?X_HB)
         :domain (and
-            (worldpose ?item ?X_WI)
-            (handpose ?item ?X_HI)
+            (arm ?arm)
+            (worldpose ?block ?X_WB) 
+            (handpose ?block ?X_HB)
         ) 
         :outputs (?pre_q ?q)
-        :certified (and 
-            (ik ?item ?X_WI ?X_HI ?pre_q ?q)
-            (conf ?pre_q)
-            (graspconf ?q)
+        :certified (and
+            (ik ?arm ?block ?X_WB ?X_HB ?pre_q ?q) 
+            (conf ?arm ?pre_q)
+            (graspconf ?arm ?q)
         )
     )
 
-    (:stream check-safe
-        :inputs (?q ?item ?X_WI) 
+    (:stream check-colfree-block
+        :inputs (?arm ?q ?block ?X_WB)
         :domain (and
-            (item ?item)
-            (graspconf ?q)
-            (worldpose ?item ?X_WI)
+            (arm ?arm)
+            (block ?block) 
+            (graspconf ?arm ?q)
+            (worldpose ?block ?X_WB)
         )
         :certified (and
-            (colfree ?q ?item ?X_WI) 
+            (colfree-block ?arm ?q ?block ?X_WB)    
         )
     )
 
-    
+    (:stream check-colfree-arms
+        :inputs (?arm1 ?q1 ?arm2 ?q2)
+        :domain (and
+            (arm ?arm1)
+            (arm ?arm2)
+            (graspconf ?arm1 ?q1)
+            (graspconf ?arm2 ?q2)
+        )
+        :certified (and
+            (colfree-arms ?arm1 ?q1 ?arm2 ?q2)    
+        )
+    )
 
-    ;(:stream check-safe-place
-    ;    :inputs (?q ?itemholding ?X_HI ?item ?X_WI) 
-    ;    :domain (and
-    ;        (item ?itemholding)
-    ;        (item ?item)
-    ;        (graspconf ?q)
-    ;        (worldpose ?item ?X_WI)
-    ;        (handpose ?itemholding ?X_HI)
-    ;    )
-    ;    :certified (and
-    ;        (colfreeholding ?q ?itemholding ?X_HI ?item ?X_WI) 
-    ;    )
-    ;)
+    (:stream find-table-place
+        :inputs (?block)
+        :domain (and
+            (block ?block) 
+        )
+        :outputs (?X_WB)
+        :certified (and
+            (worldpose ?block ?X_WB)    
+            (table-support ?block ?X_WB)
+        )
+    )
 
+    (:stream find-block-place
+        :inputs (?block ?lowerblock ?X_WL) 
+        :domain (and
+            (block ?block) 
+            (block ?lowerblock) 
+            (worldpose ?lowerblock ?X_WL)
+        )
+        :outputs (?X_WB)
+        :certified (and
+            (worldpose ?block ?X_WB) 
+            (block-support ?lowerblock ?X_WL ?block ?X_WB)
+        )
+    )
 
-    ;(:stream check-pick
-    ;    :inputs (?grasp_q ?item ?X_WI)
-    ;    :domain (and
-    ;        (item ?item) 
-    ;        (conf ?grasp_q)
-    ;        (worldpose ?item ?X_WI)
-    ;    ) 
-    ;    :certified (safeikfree ?grasp_q ?item ?X_WI)
-    ;)
-
-    ;(:stream check-place
-    ;    :inputs (?place_q ?holdingitem ?X_HI ?worlditem ?X_WI)
-    ;    :domain (and
-    ;        (item ?holdingitem) 
-    ;        (item ?worlditem)
-    ;        (conf ?place_q)
-    ;        (worldpose ?worlditem ?X_WI)
-    ;        (handpose ?holdingitem ?X_HI)
-    ;    ) 
-    ;    :certified (safeikholding ?place_q ?holdingitem ?X_HI ?worlditem ?X_WI)
-    ;)
 )

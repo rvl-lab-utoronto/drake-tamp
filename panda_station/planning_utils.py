@@ -84,6 +84,7 @@ class ProblemInfo:
         weld_to_world,
         weld_to_hand=None,
         weld_fingers=False,
+        arm_name = None,
         name="panda_station",
         X_PO = None,
         planning = False
@@ -104,13 +105,21 @@ class ProblemInfo:
         if planning:
             directive = self.planning_directive
         station.setup_from_file(directive, names_and_links=self.names_and_links)
-        for arm_info in self.arms.values():
+
+        arms = []
+        if arm_name is None:
+            arms = self.arms.values()
+        else:
+            arms = [self.arms[arm_name]]
+
+        for arm_info in arms:
             station.add_panda_with_hand(
                 hand_name = arm_info["hand_name"],
                 panda_name = arm_info["panda_name"],
                 X_WB = ProblemInfo.list_to_transform(arm_info["X_WB"]),
                 weld_fingers=weld_fingers
             )
+
         plant = station.get_multibody_plant()
 
         for name in self.objects:
@@ -145,17 +154,21 @@ class ProblemInfo:
         print(f"{Colors.BLUE}Building main station{Colors.RESET}")
         return self.make_station([], name="main")
 
-    def make_move_free_station(self):
+    def make_move_free_station(self, arm_name = None):
         """
         Make the move_free station for TAMP: a station with all objects welded
         to the world
         """
         print(f"{Colors.BLUE}Building move_free station{Colors.RESET}")
         return self.make_station(
-            list(self.objects.keys()), weld_fingers=True, name="move_free", planning = True
+            list(self.objects.keys()),
+            weld_fingers=True,
+            name="move_free",
+            planning = True,
+            arm_name = arm_name
         )
 
-    def make_holding_station(self, name, X_HO = None):
+    def make_holding_station(self, name, X_HO = None, arm_name = None):
         """
         Make a station with object named `name` welded to the panda
         hand. X_HO is an optional argument specifying the relative
@@ -168,6 +181,7 @@ class ProblemInfo:
             weld_to_world,
             weld_to_hand=name,
             weld_fingers=True,
+            arm_name = arm_name,
             name=name,
             X_PO = X_HO,
             planning = True
@@ -191,8 +205,18 @@ class ProblemInfo:
         res = {}
         res["main"] = self.make_main_station()
         res["move_free"] = self.make_move_free_station()
-        for name in self.objects:
-            res[name] = self.make_holding_station(name)
+        if len(self.arms) == 1:
+            for name in self.objects:
+                res[name] = self.make_holding_station(name)
+        else:
+            for arm_name in self.arms:
+                res[arm_name] = {}
+                res[arm_name]["move_free"] = self.make_move_free_station()
+                for name in self.objects:
+                    res[arm_name][name] = self.make_holding_station(
+                        name,
+                        arm_name = arm_name
+                    )
         return res
 
     @staticmethod
@@ -277,12 +301,15 @@ def parse_config(station, station_context):
         config of the ith panda arm
     """
     # TODO(agro): current, panda station only supports one arm, make this more
-    panda = station.get_panda()
+    arms = {}
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
-    q = plant.GetPositions(plant_context, panda)
-    arms = {}
-    arms["panda"] = q
+
+    for panda_info in station.panda_infos:
+        panda = panda_info.panda
+        q = plant.GetPositions(plant_context, panda)
+        arms[panda_info.panda_name] = q
+
     return arms
 
 

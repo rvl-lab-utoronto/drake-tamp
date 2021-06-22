@@ -10,8 +10,56 @@ directives:
 
     - add_model:
         name: ground_plane
-        file: package://kitchen/sdf/ground_plane.sdf
+        file: package://blocks_world/sdf/ground_plane.sdf
 
     - add_weld:
         parent: world_origin
         child: ground_plane::base_link
+
+    # left table
+    - add_frame:
+        name: left_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [-1.3, 0, 0]
+
+    - add_model:
+        name: left_table
+        file: package://blocks_world/sdf/square_table.sdf
+
+    - add_weld:
+        parent: left_table_origin
+        child: left_table::base_link
+
+    # right table
+    - add_frame:
+        name: right_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [1.3, 0, 0]
+
+    - add_model:
+        name: right_table
+        file: package://blocks_world/sdf/square_table.sdf
+
+    - add_weld:
+        parent: right_table_origin
+        child: right_table::base_link
+
+    # middle table
+    - add_frame:
+        name: middle_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [0, 0, 0]
+
+    - add_model:
+        name: middle_table
+        file: package://blocks_world/sdf/square_table.sdf
+
+    - add_weld:
+        parent: middle_table_origin
+        child: middle_table::base_link

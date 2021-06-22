@@ -63,7 +63,11 @@ def add_panda(
 
     parser = pydrake.multibody.parsing.Parser(plant)
     model_index = parser.AddModelFromFile(urdf_file, name)
-    plant.WeldFrames(plant.world_frame(), plant.GetFrameByName("panda_link0"), X_WB)
+    plant.WeldFrames(
+        plant.world_frame(),
+        plant.GetFrameByName("panda_link0", model_index),
+        X_WB
+    )
 
     index = 0
     for joint_index in plant.GetJointIndices(model_index):

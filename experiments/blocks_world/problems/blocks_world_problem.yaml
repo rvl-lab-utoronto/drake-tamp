@@ -1,0 +1,43 @@
+directive: "directives/blocks_world.yaml"
+# the internal representation used for planning
+planning_directive: "directives/blocks_world.yaml"  
+
+arms:
+     left_panda:
+          panda_name: left_panda
+          hand_name: left_panda_hand
+          X_WB: [-0.7, 0, 0, 0, 0, 0]
+     right_panda:
+          panda_name: right_panda
+          hand_name: right_panda_hand
+          X_WB: [0.7, 0, 0, 0, 0, 0]
+
+objects:
+
+     red_block:
+          path: "models/blocks_world/sdf/red_cube.sdf"
+          X_WO: [-1.15, 0, 0.38, 0, 0, 0]
+          main_link: "base_link"
+          support: "table"
+
+     blue_block:
+          path: "models/blocks_world/sdf/blue_cube.sdf"
+          X_WO: [0, 0, 0.38, 0, 0, 0]
+          main_link: "base_link"
+          support: "table"
+
+     green_block:
+          path: "models/blocks_world/sdf/green_cube.sdf"
+          X_WO: [0, 0, 0.45, 0, 0, 0]
+          main_link: "base_link"
+          support: "blue_block"
+
+main_links:
+     right_table: "base_link"
+     left_table: "base_link"
+     middle_table: "base_link"
+
+surfaces:
+     right_table: "base_link"
+     left_table: "base_link"
+     middle_table: "base_link"

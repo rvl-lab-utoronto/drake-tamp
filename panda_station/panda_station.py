@@ -415,11 +415,11 @@ class PandaStation(pydrake.systems.framework.Diagram):
             )
             self.builder.ExportOutput(
                 demux.get_output_port(1),
-                f"panda{i}_velocity_estimated"
+                f"{panda_name}_velocity_estimated"
             )
             self.builder.ExportOutput(
                 self.plant.get_state_output_port(panda),
-                f"panda{i}_state_estimated"
+                f"{panda_name}_state_estimated"
             )
 
             controller_plant = pydrake.multibody.plant.MultibodyPlant(
@@ -449,7 +449,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 )
             )
 
-            panda_controller.set_name(f"panda{i}_controller")
+            panda_controller.set_name(f"{panda_name}_controller")
             self.builder.Connect(
                 self.plant.get_state_output_port(panda),
                 panda_controller.get_input_port_estimated_state(),
@@ -472,7 +472,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
             )
             self.builder.ExportInput(
                 torque_passthrough.get_input_port(),
-                f"panda{i}_feedforward_torque"
+                f"{panda_name}_feedforward_torque"
             )
             self.builder.Connect(
                 adder.get_output_port(),
@@ -485,7 +485,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
                     num_panda_positions, self.time_step, suppress_initial_transient=True
                 )
             )
-            desired_state_from_position.set_name(f"desired_state_from_position{i}")
+            desired_state_from_position.set_name(f"desired_{panda_name}_state_from_position")
             self.builder.Connect(
                 desired_state_from_position.get_output_port(),
                 panda_controller.get_input_port_desired_state(),

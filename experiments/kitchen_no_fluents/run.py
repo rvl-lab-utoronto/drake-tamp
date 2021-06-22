@@ -318,6 +318,7 @@ def make_and_init_simulation(zmq_url, prob):
     diagram = builder.Build()
     simulator = pydrake.systems.analysis.Simulator(diagram)
     simulator.set_target_realtime_rate(3.0)
+    simulator.Initialize()
 
     # let objects fall for a bit in the simulation
     if meshcat is not None:
