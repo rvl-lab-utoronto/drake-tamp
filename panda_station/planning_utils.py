@@ -350,7 +350,7 @@ def parse_tables(directive):
 def update_arm(station, station_context, panda_name, q):
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
-    panda = station.panda_info[panda_name].panda
+    panda = station.panda_infos[panda_name].panda
     plant.SetPositions(plant_context, panda, q)
 
 def update_station(station, station_context, pose_fluents, set_others_to_inf=False):
@@ -464,7 +464,8 @@ def random_normal_q(station, q_nominal):
     )
     return np.clip(rand_q, lower, upper)
 
-def pre_and_post_grasps(station, station_context, grasp_q, dist = 0.07):
+# TODO(agro): this currently only supports one panda
+def pre_and_post_grasps(station, station_context, grasp_q, dist = 0.07, panda_info = None):
     """
     Return the pre and post grasp joint configurations for the 
     PandaStation station given the grasping configuration 
@@ -479,7 +480,8 @@ def pre_and_post_grasps(station, station_context, grasp_q, dist = 0.07):
             grasp_q, 
             station, 
             station_context, 
-            d = dist
+            d = dist,
+            panda_info = panda_info
         )
         if np.isfinite(cost) and not set_pregrasp:
             pregrasp_q = q
@@ -488,10 +490,31 @@ def pre_and_post_grasps(station, station_context, grasp_q, dist = 0.07):
             grasp_q, 
             station, 
             station_context, 
-            d = dist
+            d = dist,
+            panda_info = panda_info
         )
         if np.isfinite(cost) and not set_postgrasp:
             postgrasp_q = q
             set_postgrasp = True
         dist -= 0.01
     return pregrasp_q, postgrasp_q
+
+def find_pregrasp(station, station_context, grasp_q, dist = 0.07, panda_info = None):
+    """
+    Return the pre grasp joint configurations for the 
+    PandaStation station given the grasping configuration 
+    grasp_q. `dist` is the optimal distance between the pre/post grasp
+    end effector poses and the grasp end effector pose
+    """
+    while (dist > 0):
+        q, cost = backup_on_hand_z(
+            grasp_q, 
+            station, 
+            station_context, 
+            d = dist,
+            panda_info = panda_info
+        )
+        if np.isfinite(cost):
+            return q
+        dist -= 0.01
+    return q

@@ -527,7 +527,7 @@ def sphere_grasp_q(
     return result.GetSolution(q), cost
 
 
-def q_to_X_PF(q, P, F, station, station_context):
+def q_to_X_PF(q, P, F, station, station_context, panda_info = None):
     """
     Given the joint positions of the panda arm `q`, in PandaStation `station`
     with Context `station_context` return the pose of the frame F wrt to
@@ -537,47 +537,66 @@ def q_to_X_PF(q, P, F, station, station_context):
     assert len(q) == NUM_Q, "This config is the incorrect length"
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
-    panda = station.get_panda()
+    panda = None
+    if panda_info is None:
+        panda = station.get_panda()
+    else:
+        panda = panda_info.panda
     plant.SetPositions(plant_context, panda, q)
     return plant.CalcRelativeTransform(plant_context, P, F)
 
 
-def q_to_X_WH(q, station, station_context):
+def q_to_X_WH(q, station, station_context, panda_info = None):
     """
     Given the joint positions of the panda arm `q`, in PandaStation `station`
     with Context `station_context` return the pose of the hand frame in the
     world X_WH
     """
     plant = station.get_multibody_plant()
-    hand = station.get_hand()
+    hand = None
+    if panda_info is None:
+        hand = station.get_hand()
+    else:
+        hand = panda_info.hand
     return q_to_X_PF(
         q,
         plant.world_frame(),
         plant.GetFrameByName(HAND_FRAME_NAME, hand),
         station,
         station_context,
+        panda_info = panda_info
     )
 
 
-def q_to_X_HO(q, body_info, station, station_context):
+def q_to_X_HO(q, body_info, station, station_context, panda_info = None):
     """
     Given the joint positions of the panda arm `q`, in PandaStation `station`
     with Context `station_context` return the pose of the body in
     body_info wrt to the panda hand
     """
     plant = station.get_multibody_plant()
-    hand = station.get_hand()
+    hand = None
+    if panda_info is None:
+        hand = station.get_hand()
+    else:
+        hand = panda_info.hand
     return q_to_X_PF(
         q,
         plant.GetFrameByName(HAND_FRAME_NAME, hand),
         body_info.get_body_frame(),
         station,
         station_context,
+        panda_info = panda_info
     )
 
 
 def X_WH_to_q(
-    X_WH, station, station_context, q_nominal=Q_NOMINAL, initial_guess=Q_NOMINAL
+    X_WH,
+    station,
+    station_context,
+    q_nominal=Q_NOMINAL,
+    initial_guess=Q_NOMINAL,
+    panda_info = None
 ):
     """
     Given the desired pose of the hand frame in the world, X_WH,
@@ -594,7 +613,22 @@ def X_WH_to_q(
     """
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
-    hand = station.get_hand()
+
+    hand = None
+    panda = None
+    if panda_info is None:
+        hand = station.get_hand()
+        panda = station.get_panda()
+    else:
+        hand = panda_info.hand
+        panda = panda_info.panda
+
+    plant.SetPositions(plant_context, panda, q_nominal)
+    q_nominal = plant.GetPositions(plant_context)
+    
+    plant.SetPositions(plant_context, panda, initial_guess)
+    initial_guess = plant.GetPositions(plant_context)
+
     H = plant.GetFrameByName(HAND_FRAME_NAME, hand)
     W = plant.world_frame()
     ik = InverseKinematics(plant, plant_context)
@@ -615,10 +649,16 @@ def X_WH_to_q(
     cost = result.get_optimal_cost()
     if not result.is_success():
         cost = np.inf
-    return result.GetSolution(), cost
+    return plant.GetPositions(plant_context, panda), cost
 
 
-def backup_on_hand_z(grasp_q, station, station_context, d=GRASP_HEIGHT):
+def backup_on_hand_z(
+    grasp_q,
+    station,
+    station_context,
+    panda_info =None,
+    d=GRASP_HEIGHT
+):
     """
     Find the pregrasp/postplace configuration given
     the current config `grasp_q` by "backing up" a distance `d`
@@ -628,15 +668,26 @@ def backup_on_hand_z(grasp_q, station, station_context, d=GRASP_HEIGHT):
         q: joint positions
         cost: cost of solution (np.inf if no solution is found)
     """
-    X_WH = q_to_X_WH(grasp_q, station, station_context)
+    X_WH = q_to_X_WH(grasp_q, station, station_context, panda_info = panda_info)
     X_HP = RigidTransform(RotationMatrix(), [0, 0, -d])
     X_WP = X_WH.multiply(X_HP)
     return X_WH_to_q(
-        X_WP, station, station_context, initial_guess=grasp_q, q_nominal=grasp_q
+        X_WP,
+        station,
+        station_context,
+        initial_guess=grasp_q,
+        q_nominal=grasp_q,
+        panda_info = panda_info
     )
 
 
-def backup_on_world_z(grasp_q, station, station_context, d=GRASP_HEIGHT):
+def backup_on_world_z(
+    grasp_q,
+    station,
+    station_context,
+    panda_info = None,
+    d=GRASP_HEIGHT
+):
     """
     Find the postgrasp/preplace configuration given
     the current config `grasp_q` by "backing up" a distance `d`
@@ -646,13 +697,18 @@ def backup_on_world_z(grasp_q, station, station_context, d=GRASP_HEIGHT):
         q: joint positions
         cost: cost of solution (np.inf if no solution is found)
     """
-    X_WH = q_to_X_WH(grasp_q, station, station_context)
+    X_WH = q_to_X_WH(grasp_q, station, station_context, panda_info = panda_info)
     X_WP = X_WH
     p_HP_W = [0, 0, d]
     p_WH_W = X_WH.translation()
     X_WP.set_translation(p_WH_W + p_HP_W)
     return X_WH_to_q(
-        X_WP, station, station_context, initial_guess=grasp_q, q_nominal=grasp_q
+        X_WP,
+        station,
+        station_context,
+        initial_guess=grasp_q,
+        q_nominal=grasp_q,
+        panda_info = panda_info
     )
 
 

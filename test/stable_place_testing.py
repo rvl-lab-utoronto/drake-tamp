@@ -11,25 +11,42 @@ from pydrake.all import (
     RotationMatrix,
     ConnectMeshcatVisualizer,
 )
-import kitchen_streamsv2
+import blocks_world_streams
 from panda_station import *
+Q_NOMINAL = np.array([0.0, 0.55, 0.0, -1.45, 0.0, 1.58, 0.0])
 
 
 def find_place_gen(station, station_context, shape_info, surface):
     while True:
-        yield kitchen_streamsv2.find_place(
+        yield blocks_world_streams.find_table_place(
             station, station_context, shape_info, surface
         )
 
-def find_ik_gen(station, station_context, shape_info, X_HI):
-    q0 = kitchen_streamsv2.find_ik_with_handpose(
-        station, station_context, shape_info, X_HI, relax = True
-    )[0]
-    res =  kitchen_streamsv2.find_ik_with_handpose(
-        station, station_context, shape_info, X_HI, q_initial = q0
+def find_ik_gen(station, station_context, object_info, X_HI, panda_info):
+    plant = station.get_multibody_plant()
+    plant_context = station.GetSubsystemContext(plant, station_context)
+    X_WI = plant.CalcRelativeTransform(
+        plant_context, plant.world_frame(), object_info.welded_to_frame
     )
-    print(res[1])
-    return res
+    p_WI = X_WI.translation()
+    p_WB = panda_info.X_WB.translation()
+    rpy = RollPitchYaw(panda_info.X_WB.rotation())
+    print(rpy.yaw_angle())
+    dy = p_WI[1] - p_WB[1]
+    dx = p_WI[0] - p_WB[0]
+    print(dy, dx)
+    theta = np.arctan2(dy,dx) - rpy.yaw_angle()
+    q_initial = Q_NOMINAL[:]
+    q_initial[0] = theta
+    print(f"theta {theta}")
+    return blocks_world_streams.find_ik_with_relaxed(
+        station,
+        station_context,
+        object_info,
+        X_HI,
+        panda_info,
+        q_initial = q_initial
+    )
 
 
 def make_and_init_station(zmq_url, prob):
@@ -69,11 +86,16 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     args = parser.parse_args()
-    problem = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/problems/kitchen_problem.yaml"
+    problem = "/home/agrobenj/drake-tamp/experiments/blocks_world/problems/blocks_world_problem.yaml"
     stations, diagram, meshcat, problem_info = make_and_init_station(args.url, problem)
     station_contexts = {}
     for station in stations:
-        station_contexts[station] = stations[station].CreateDefaultContext()
+        if isinstance(stations[station], dict):
+            station_contexts[station] = {}
+            for name in stations[station]:
+                station_contexts[station][name] = stations[station][name].CreateDefaultContext()
+        else:
+            station_contexts[station] = stations[station].CreateDefaultContext()
 
     diagram_context = diagram.CreateDefaultContext()
     diagram.Publish(diagram_context)
@@ -81,15 +103,17 @@ if __name__ == "__main__":
         stations["move_free"], diagram_context
     )
 
-    item = "cabbage1"
-    region = "placemat"
-    target_object_info = stations["move_free"].object_infos[region][0]
+    item = "blue_block"
+    region = "middle_table"
     holding_object_info = stations["move_free"].object_infos[item][0]
     shape_info = update_placeable_shapes(holding_object_info)[0]
+    target_object_info = stations["move_free"].object_infos[region][0]
     surface = update_surfaces(
-        target_object_info, "rightside", stations["move_free"], station_contexts["move_free"]
+        target_object_info, "base_link", stations["move_free"], station_contexts["move_free"]
     )[0]
     flag = True
+    fail = 0
+    tot = 0
     for X_WI in find_place_gen(stations["move_free"], station_contexts["move_free"], shape_info, surface):
         print(f"place: {X_WI}")
         update_station(
@@ -98,19 +122,25 @@ if __name__ == "__main__":
             [("atpose", item, X_WI)],
             set_others_to_inf= True
         ) 
-        X_HI = kitchen_streamsv2.find_grasp(shape_info)
+        X_HI = blocks_world_streams.find_grasp(shape_info)
         print(f"grasp {X_HI}")
-        q= find_ik_gen(
+        panda_info = stations["move_free"].panda_infos["right_panda"]
+        q,cost= find_ik_gen(
             stations["move_free"],
             station_contexts["move_free"],
             holding_object_info,
-            X_HI
-        )[0]
-        plant, plant_context = kitchen_streamsv2.get_plant_and_context(
+            X_HI,
+            panda_info = panda_info
+        )
+        plant, plant_context = blocks_world_streams.get_plant_and_context(
             stations["move_free"], station_contexts["move_free"]
         )
-        plant.SetPositions(plant_context, q)
-        print(q)
+        plant.SetPositions(plant_context, panda_info.panda, q)
+        print(q, cost)
+        if not np.isfinite(cost):
+            fail +=1 
+        tot +=1
+        print(f"success rate: {1 - (fail/tot)}")
         diagram.Publish(diagram_context)
         inp = input()
         if inp == "a":

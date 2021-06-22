@@ -24,6 +24,7 @@ from panda_station import (
     parse_start_poses,
     parse_config,
     update_station,
+    PlanToTrajectory,
     TrajectoryDirector,
     find_traj,
     Colors,
@@ -32,7 +33,6 @@ from panda_station import (
     update_placeable_shapes,
     update_surfaces,
     pre_and_post_grasps,
-    plan_to_trajectory,
     Q_NOMINAL,
 )
 from tamp_statistics import (
@@ -376,24 +376,31 @@ if __name__ == "__main__":
             print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
             sys.exit(0)
 
+
         action_map = {
-            "move": (
-                plan_to_trajectory.move,
-                [1],
-            ),
-            "pick":(
-                plan_to_trajectory.pick,
-                [3, 4, 3]
-            ),
-            "place":(
-                plan_to_trajectory.place,
-                [3, 4, 3]
-            )
+            "move": {
+                "function": PlanToTrajectory.move,
+                "argument_indices": [1],
+                "arm_name": "panda"
+            },
+            "pick": {
+                "function": PlanToTrajectory.pick,
+                "argument_indices": [3,4,3],
+                "arm_name": "panda" # index of action or string
+            },
+            "place": {
+                "function": PlanToTrajectory.place,
+                "argument_indices": [3,4,3],
+                "arm_name": "panda"
+            },
         }
 
-        plan_to_trajectory.make_trajectory(
-            plan, traj_director, SIM_INIT_TIME, action_map
+        traj_maker = PlanToTrajectory(station_dict["main"])
+        traj_maker.make_trajectory(
+            plan, SIM_INIT_TIME, action_map
         )
+        traj_director.add_panda_traj(traj_maker.trajectories["panda"]["panda_traj"])
+        traj_director.add_hand_traj(traj_maker.trajectories["panda"]["hand_traj"])
 
         sim.AdvanceTo(traj_director.get_end_time())
         if meshcat_vis is not None:

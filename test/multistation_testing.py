@@ -22,7 +22,7 @@ problem_info = ProblemInfo(
 
 stations = problem_info.make_all_stations()
 print(stations)
-station = stations["left_panda"]["green_block"]
+station = stations["move_free"]
 builder.AddSystem(station)
 scene_graph = station.get_scene_graph()
 
@@ -46,5 +46,6 @@ diagram.Publish(diagram_context)
 
 plant = station.get_multibody_plant()
 plant_context = plant.GetMyContextFromRoot(diagram_context)
+print(plant.GetPositions(plant_context))
 
 input("Press Enter")

@@ -58,8 +58,8 @@
         :domain (and
             (arm ?arm1)
             (arm ?arm2)
-            (graspconf ?arm1 ?q1)
-            (graspconf ?arm2 ?q2)
+            (conf ?arm1 ?q1)
+            (conf ?arm2 ?q2)
         )
         :certified (and
             (colfree-arms ?arm1 ?q1 ?arm2 ?q2)    

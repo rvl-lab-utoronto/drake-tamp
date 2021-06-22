@@ -80,15 +80,12 @@
     )
 
     (:derived (arm-safe ?arm ?q ?otherarm) 
-        (or
-            (atconf ?otherarm ?q) ; if true, there can't be collisions, also if same arm
-            (exists (?q_other)
-                (and
-                    (colfree-arms ?arm ?q ?otherarm ?q_other)
-                    (atconf ?otherarm ?q_other) 
-                ) 
+        (exists (?q_other)
+            (and
+                (atconf ?otherarm ?q_other) 
+                (colfree-arms ?arm ?q ?otherarm ?q_other)
             ) 
-        )
+        ) 
     )
 
     (:action pick  ;off of a table
@@ -100,18 +97,18 @@
             (empty ?arm)
             (atconf ?arm ?pre_q)
             (table-support ?block ?X_WB)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
-            ;(forall (?otherarm)
-            ;    (imply 
-            ;        (arm ?otherarm) 
-            ;        (arm-safe ?arm ?q ?otherarm)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
+            (forall (?otherarm)
+                (imply 
+                    (arm ?otherarm) 
+                    (arm-safe ?arm ?pre_q ?otherarm)
+                ) 
+            )
         ) 
         :effect (and
             (athandpose ?arm ?block ?X_HB)
@@ -139,18 +136,18 @@
             (athandpose ?arm ?block ?X_HB)
             (atconf ?arm ?pre_q)
             (table-support ?block ?X_WB)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
-            ;(forall (?otherarm)
-            ;    (imply 
-            ;        (arm ?otherarm) 
-            ;        (arm-safe ?arm ?q ?otherarm)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
+            (forall (?otherarm)
+                (imply 
+                    (arm ?otherarm) 
+                    (arm-safe ?arm ?pre_q ?otherarm)
+                ) 
+            )
         ) 
         :effect (and
             (not (athandpose ?arm ?block ?X_HB))
@@ -168,18 +165,18 @@
             (atworldpose ?lowerblock ?X_WL)
             (atconf ?arm ?pre_q)
             (block-support ?lowerblock ?X_WL ?block ?X_WB)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
-            ;(forall (?otherarm)
-            ;    (imply 
-            ;        (arm ?otherarm) 
-            ;        (arm-safe ?arm ?q ?otherarm)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
+            (forall (?otherarm)
+                (imply 
+                    (arm ?otherarm) 
+                    (arm-safe ?arm ?pre_q ?otherarm)
+                ) 
+            )
         )
         :effect (and
             (not (clear ?lowerblock))
@@ -198,18 +195,18 @@
             (empty ?arm)
             (atconf ?arm ?pre_q)
             (on-block ?lowerblock ?block)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
-            ;(forall (?otherarm)
-            ;    (imply 
-            ;        (arm ?otherarm) 
-            ;        (arm-safe ?arm ?q ?otherarm)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
+            (forall (?otherarm)
+                (imply 
+                    (arm ?otherarm) 
+                    (arm-safe ?arm ?pre_q ?otherarm)
+                ) 
+            )
         ) 
         :effect (and
             (athandpose ?arm ?block ?X_HB)

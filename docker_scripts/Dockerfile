@@ -44,6 +44,8 @@ RUN apt-get -y install sudo
 RUN apt-get -y install xfce4-terminal
 RUN apt-get -y install gedit
 RUN apt-get -y install trash-cli
+RUN apt-get -y install ffmpeg
+RUN apt-get -y install xdg-utils
 
 # pddlstream
 RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream

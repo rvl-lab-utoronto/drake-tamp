@@ -4,7 +4,7 @@ Simple script to make cubes
 """
 import xml.etree.ElementTree as ET
 
-SIZE = "0.06 0.06 0.06"
+SIZE = "0.045 0.045 0.045"
 COLORS = [
     "1 0.1 0.1 1",
     "1 0.623 0.1 1",
