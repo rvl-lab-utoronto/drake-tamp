@@ -16,10 +16,13 @@ builder = pydrake.systems.framework.DiagramBuilder()
 problem_info = ProblemInfo(
     "/home/agrobenj/drake-tamp/experiments/blocks_world/problems/blocks_world_problem.yaml"
 )
+#problem_info = ProblemInfo(
+    #"/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/problems/kitchen_problem.yaml"
+#)
 
 stations = problem_info.make_all_stations()
 print(stations)
-station = stations["left_panda"]["red_block"]
+station = stations["left_panda"]["green_block"]
 builder.AddSystem(station)
 scene_graph = station.get_scene_graph()
 

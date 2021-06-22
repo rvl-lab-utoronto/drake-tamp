@@ -24,6 +24,7 @@ from panda_station import (
     parse_start_poses,
     parse_config,
     update_station,
+    update_arm,
     TrajectoryDirector,
     find_traj,
     Colors,
@@ -101,22 +102,69 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         ]
 
     goal = ["and",
-        ("on-block", "green_block", "blue_block"),
-        ("on-block", "blue_block", "red_block"),
+        ("on-block", "red_block", "blue_block"),
+        #("on-block", "blue_block", "red_block"),
     ]
 
-    def get_station(name):
-        if name in stations:
-            return stations[name], station_contexts[name]
-        stations[name] = problem_info.make_holding_station(
-            name = name,
+    def get_station(name, arm_name = None):
+        if arm_name is None:
+            return stations[name], station_contexts[name] # ie. move_free
+
+        if arm_name not in stations:
+            stations[arm_name] = {}
+            station_contexts[arm_name] = {}
+        if name in stations[arm_name]:
+            return stations[arm_name][name], station_contexts[arm_name][name]
+
+        stations[arm_name][name] = problem_info.make_holding_station(
+            name,
+            arm_name = arm_name
         )
-        station_contexts[name] = stations[name].CreateDefaultContext()
-        return stations[name], station_contexts[name]
+        station_contexts[arm_name][name] = stations[arm_name][name].CreateDefaultContext()
+        return stations[arm_name][name], station_contexts[arm_name][name]
 
     def find_motion(arm_name, q1, q2, fluents = []):
+        print(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
+        station, station_context = get_station("move_free")
+        holding_block = None
+        other_name = None
+        q_other = None
+        print(f"{Colors.BOLD}FLUENTS FOR MOTION{Colors.RESET}")
+        fluents = fluents.copy()
+        i = 0
+        while i < len(fluents):
+            fluent = fluents[i]
+            if fluent[0] == "atconf":
+                fluents.pop(i)
+                if fluent[1] != arm_name:
+                    other_name = fluent[1]
+                    q_other = fluent[2]
+                continue
+            if fluent[0] == "athandpose":
+                holding_block = fluent[2]
+                station, station_context = get_station(holding_block, arm_name = arm_name)
+                fluents[i] = ("athandpose", holding_block, fluent[3])
+            i+=1
+
+        update_station(station, station_context, fluents)
+        update_arm(station, station_context, other_name, q_other)
+        panda = station.panda_infos[arm_name].panda
         while True:
             yield f"{arm_name}_traj",
+            traj = find_traj(
+                station, 
+                station_context, 
+                q1, 
+                q2, 
+                ignore_endpoint_collisions= False
+                panda = panda
+            )
+            if traj is None:
+                return
+            yield traj,
+            update_station(station, station_context, fluents)
+            update_arm(station, station_context, other_name, q_other)
+
 
     def find_grasp(block):
         while True:
@@ -181,7 +229,7 @@ def make_and_init_simulation(zmq_url, prob):
 
     directors = {}
 
-    for panda_info in station.panda_infos:
+    for panda_info in station.panda_infos.values():
         arm_name = panda_info.panda_name
         director = builder.AddSystem(TrajectoryDirector())
         directors[arm_name] = director

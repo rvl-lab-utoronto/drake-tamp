@@ -87,7 +87,8 @@ class ProblemInfo:
         arm_name = None,
         name="panda_station",
         X_PO = None,
-        planning = False
+        planning = False,
+        dummy = False
     ):
         """
         Makes a PandaStation based on this problem instance.
@@ -100,25 +101,31 @@ class ProblemInfo:
         Returns:
             the newly created PandaStation
         """
-        station = PandaStation(name=name)
+        station = PandaStation(name=name, dummy = dummy)
         directive = self.directive
         if planning:
             directive = self.planning_directive
         station.setup_from_file(directive, names_and_links=self.names_and_links)
 
-        arms = []
-        if arm_name is None:
-            arms = self.arms.values()
-        else:
-            arms = [self.arms[arm_name]]
+        #arms = []
+        #if arm_name is None:
+            #arms = self.arms.values()
+        #else:
+            #arms = [self.arms[arm_name]]
 
-        for arm_info in arms:
-            station.add_panda_with_hand(
+        if arm_name is None:
+            arm_name = list(self.arms.values())[0]["panda_name"]
+
+        panda_info = None
+        for arm_info in self.arms.values():
+            info = station.add_panda_with_hand(
                 hand_name = arm_info["hand_name"],
                 panda_name = arm_info["panda_name"],
                 X_WB = ProblemInfo.list_to_transform(arm_info["X_WB"]),
                 weld_fingers=weld_fingers
             )
+            if info.panda_name == arm_name:
+                panda_info = info
 
         plant = station.get_multibody_plant()
 
@@ -129,7 +136,7 @@ class ProblemInfo:
             if name in weld_to_world:
                 welded = True
             if name == weld_to_hand:
-                P = plant.GetFrameByName("panda_hand", station.get_hand())
+                P = plant.GetFrameByName("panda_hand", panda_info.hand)
                 X = RigidTransform()
                 X.set_translation([0, 0, 0.2])
                 welded = True
@@ -165,7 +172,8 @@ class ProblemInfo:
             weld_fingers=True,
             name="move_free",
             planning = True,
-            arm_name = arm_name
+            arm_name = arm_name,
+            dummy = True
         )
 
     def make_holding_station(self, name, X_HO = None, arm_name = None):
@@ -184,7 +192,8 @@ class ProblemInfo:
             arm_name = arm_name,
             name=name,
             X_PO = X_HO,
-            planning = True
+            planning = True,
+            dummy = True
         )
 
     def make_all_stations(self):
@@ -305,7 +314,7 @@ def parse_config(station, station_context):
     plant = station.get_multibody_plant()
     plant_context = station.GetSubsystemContext(plant, station_context)
 
-    for panda_info in station.panda_infos:
+    for panda_info in station.panda_infos.values():
         panda = panda_info.panda
         q = plant.GetPositions(plant_context, panda)
         arms[panda_info.panda_name] = q
@@ -337,6 +346,12 @@ def parse_tables(directive):
                 in_model = True
     return res
 
+
+def update_arm(station, station_context, panda_name, q):
+    plant = station.get_multibody_plant()
+    plant_context = station.GetSubsystemContext(plant, station_context)
+    panda = station.panda_info[panda_name].panda
+    plant.SetPositions(plant_context, panda, q)
 
 def update_station(station, station_context, pose_fluents, set_others_to_inf=False):
     """

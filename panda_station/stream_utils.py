@@ -51,7 +51,12 @@ def q_to_state(space, q):
 
 
 def find_traj(
-    station, station_context, q_start, q_goal, ignore_endpoint_collisions=False
+    station,
+    station_context,
+    q_start,
+    q_goal,
+    ignore_endpoint_collisions=False,
+    panda = None
 ):
     """
     Find a collision free trajectory from the configurations
@@ -61,7 +66,8 @@ def find_traj(
     plant, scene_graph = station.get_plant_and_scene_graph()
     plant_context = station.GetSubsystemContext(plant, station_context)
     scene_graph_context = station.GetSubsystemContext(scene_graph, station_context)
-    panda = station.get_panda()
+    if panda is None:
+        panda = station.get_panda()
     query_output_port = scene_graph.GetOutputPort("query")
 
     class MyStateValidityChecker(ob.StateValidityChecker):

@@ -296,7 +296,7 @@ def make_and_init_simulation(zmq_url, prob):
     else:
         print("No meshcat server url provided, running without gui")
     
-    panda_info = station.panda_infos[0]
+    panda_info = list(station.panda_infos.values())[0]
     director = builder.AddSystem(TrajectoryDirector())
     builder.Connect(
         station.get_output_port(panda_info.get_panda_position_measured_port()),

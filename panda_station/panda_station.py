@@ -18,15 +18,18 @@ class PandaStation(pydrake.systems.framework.Diagram):
     TODO(agro): add cameras if nessecary
     """
 
-    def __init__(self, time_step=0.001, name = "panda_station"):
+    def __init__(self, time_step=0.001, name = "panda_station", dummy = False):
         """
         Construct a panda station
 
         Args:
             time_step: simulation time step [float]
+            name: the name of the station
+            dummy: if True, none of the ports are connnected
         """
         pydrake.systems.framework.Diagram.__init__(self)
         self.time_step = time_step
+        self.dummy = dummy
         self.builder = pydrake.systems.framework.DiagramBuilder()
         (
             self.plant,
@@ -42,7 +45,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
 
         # list of tuples of the form
         # (panda_model_index, hand_model_index, X_WB, name, weld_fingers)
-        self.panda_infos = []
+        self.panda_infos = {}
         self.frame_groups = {}
 
     def fix_collisions(self):
@@ -56,7 +59,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         assert len(self.panda_infos) != 0, "No panda has been added"
         # get geometry indices and create geometry sets
         
-        for info in self.panda_infos:
+        for info in self.panda_infos.values():
             hand = info.hand
             panda = info.panda
             link5 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "5", panda)
@@ -91,7 +94,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         for body_info in body_infos:
             obj_bodies.append(body_info.get_body())
 
-        for panda_info in self.panda_infos:
+        for panda_info in self.panda_infos.values():
             hand = panda_info.hand
             hand_body_ids = self.plant.GetBodyIndices(hand)
             bodies = [self.plant.get_body(id) for id in hand_body_ids] + obj_bodies
@@ -146,9 +149,10 @@ class PandaStation(pydrake.systems.framework.Diagram):
             weld_fingers=weld_fingers,
             name = hand_name
         )
-        self.panda_infos.append(
-            PandaInfo(panda, hand, panda_name, hand_name, X_WB, weld_fingers)
+        self.panda_infos[panda_name] = PandaInfo(
+            panda, hand, panda_name, hand_name, X_WB, weld_fingers
         )
+        return self.panda_infos[panda_name]
 
     def setup_from_file(self, filename, names_and_links=None):
         """
@@ -280,14 +284,14 @@ class PandaStation(pydrake.systems.framework.Diagram):
         Returns the panda arm ModelInstanceIndex of this station
         """
         assert len(self.panda_infos) == 1, f"There are {len(self.panda_infos)} pandas in this station"
-        return self.panda_infos[0].panda
+        return list(self.panda_infos.values())[0].panda
 
     def get_hand(self):
         """
         Returns the panda hand ModelInstanceIndex of this station
         """
         assert len(self.panda_infos) == 1, f"There are {len(self.panda_infos)} pandas in this station"
-        return self.panda_infos[0].hand
+        return list(self.panda_infos.values())[0].hand
 
     def get_panda_joint_limits(self):
         """
@@ -299,7 +303,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         in radians
         """
         assert len(self.panda_infos) > 0
-        panda = self.panda_infos[0].panda
+        panda = list(self.panda_infos.values())[0].panda
         num_q = self.plant.num_positions(panda)
         joint_inds = self.plant.GetJointIndices(panda)[:num_q]
         joint_limits = []
@@ -315,7 +319,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         Get the lower limits of the panda in a numpy array
         """
         assert len(self.panda_infos) > 0
-        panda = self.self.panda_infos[0].panda
+        panda = list(self.panda_infos.values())[0].panda
         num_q = self.plant.num_positions(panda)
         joint_inds = self.plant.GetJointIndices(panda)[:num_q]
         joint_limits = []
@@ -329,7 +333,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         Get the upper limits of the panda in a numpy array
         """
         assert len(self.panda_infos) > 0
-        panda = self.self.panda_infos[0].panda
+        panda = list(self.panda_infos.values())[0].panda
         num_q = self.plant.num_positions(panda)
         joint_inds = self.plant.GetJointIndices(panda)[:num_q]
         joint_limits = []
@@ -380,7 +384,12 @@ class PandaStation(pydrake.systems.framework.Diagram):
             main_body = object_info.main_body_info.get_body()
             self.plant.SetDefaultFreeBodyPose(main_body, Xinit_WO)
 
-        for info in self.panda_infos:
+        if self.dummy:
+            infos = []
+        else:
+            infos = self.panda_infos.values()
+
+        for info in infos:
             panda, hand, panda_name, hand_name, X_WB, weld_fingers = info.unpack()
 
             num_panda_positions = self.plant.num_positions(panda)
