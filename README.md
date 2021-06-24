@@ -12,9 +12,16 @@ Clone the repository and build the docker image. Fill in `<your_password>` with 
 
 ```
 cd ~
-git clone https://github.com/rvl-lab-utoronto/drake-tamp.git
+git clone --recurse-submodules https://github.com/rvl-lab-utoronto/drake-tamp.git
 cd ~/drake-tamp/docker_scripts/
 ./docker_build.sh <your_password>
+```
+
+To compile FastDownward run:
+
+```
+cd pddlstream && ./FastDownward/build.py release64
+cd pddlstream/FastDownward/builds && ln -s release64 release32
 ```
 
 Start the container, specifying the port you want to use for ssh `<port>` and the container name `<container_name>`:

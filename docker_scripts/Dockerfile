@@ -48,10 +48,10 @@ RUN apt-get -y install ffmpeg
 RUN apt-get -y install xdg-utils
 
 # pddlstream
-RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream
-RUN cd pddlstream && ./FastDownward/build.py release64
-RUN cd pddlstream/FastDownward/builds && ln -s release64 release32
-ENV PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream
+#RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream
+#RUN cd pddlstream && ./FastDownward/build.py release64
+#RUN cd pddlstream/FastDownward/builds && ln -s release64 release32
+#ENV PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream
 
 # update terminal config
 RUN printf "2\n" | update-alternatives --config x-terminal-emulator
@@ -75,11 +75,13 @@ USER $user
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
+ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
 RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/"
-RUN echo "export  PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream/"
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/"
+#RUN echo "export  PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream/"
 
 WORKDIR /home/$user/drake-tamp
 COPY .tmux.conf /home/$user/.tmux.conf
