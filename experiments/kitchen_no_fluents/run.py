@@ -373,7 +373,7 @@ if __name__ == "__main__":
         #pr = cProfile.Profile()
         #pr.enable()
         solution = solve(
-            problem, algorithm=algorithm, verbose = False, logpath = path + "stats.json"
+            problem, algorithm=algorithm, verbose = VERBOSE, logpath = path + "stats.json"
         )
         #pr.disable()
         #sys.stdout = sys.stdout.original

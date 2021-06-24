@@ -4,6 +4,8 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+import matplotlib
+matplotlib.use("Agg")
 import time
 import os
 import copy
@@ -37,10 +39,11 @@ from panda_station import (
     Q_NOMINAL,
 )
 from tamp_statistics import (
-    CaptureOutput,
-    process_pickle,
+    make_plot
 )
 import blocks_world_streams
+
+VERBOSE = False
 
 np.set_printoptions(precision=4, suppress=True)
 np.random.seed(seed = 0)
@@ -51,6 +54,10 @@ GRASP_DIST = 0.04
 
 domain_pddl = open("domain.pddl", "r").read()
 stream_pddl = open("stream.pddl", "r").read()
+
+def lprint(string):
+    if VERBOSE:
+        print(string)
 
 def construct_problem_from_sim(simulator, stations, problem_info):
     """
@@ -130,12 +137,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         return stations[arm_name][name], station_contexts[arm_name][name]
 
     def find_motion(arm_name, q1, q2, fluents = []):
-        print(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
         station, station_context = get_station("move_free")
         holding_block = None
         other_name = None
         q_other = None
-        #print(f"{Colors.BOLD}FLUENTS FOR MOTION{Colors.RESET}")
+        lprint(f"{Colors.BOLD}FLUENTS FOR MOTION{Colors.RESET}")
         fluents = fluents.copy()
         i = 0
         while i < len(fluents):
@@ -162,7 +169,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 q1, 
                 q2, 
                 ignore_endpoint_collisions= False,
-                panda = panda
+                panda = panda,
+                verbose = VERBOSE
             )
             if traj is None:
                 return
@@ -172,19 +180,19 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
 
     def find_grasp(block):
-        print(f"{Colors.BLUE}Starting grasp stream for {block}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting grasp stream for {block}{Colors.RESET}")
         station = stations["move_free"]
         object_info = station.object_infos[block][0]
         shape_info = update_graspable_shapes(object_info)[0]
         while True:
-            print(f"{Colors.REVERSE}Yielding X_H{block}{Colors.RESET}")
+            lprint(f"{Colors.REVERSE}Yielding X_H{block}{Colors.RESET}")
             yield RigidTransformWrapper(
                 blocks_world_streams.find_grasp(shape_info),
                 name = f"X_H{block}"
             ),
 
     def find_ik(arm_name, block, X_WB, X_HB):
-        print(f"{Colors.BLUE}Starting ik stream for {block} at {X_WB}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting ik stream for {block} at {X_WB}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
             station,
@@ -202,7 +210,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         q_initial = Q_NOMINAL[:]
         q_initial[0] = q0
         while True:
-            print(f"{Colors.GREEN}Finding ik for {block}{Colors.RESET}")
+            lprint(f"{Colors.GREEN}Finding ik for {block}{Colors.RESET}")
             q, cost = blocks_world_streams.find_ik_with_relaxed(
                 station,
                 station_context,
@@ -212,12 +220,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 q_initial = q_initial
             )
             if not np.isfinite(cost):
-                print(f"{Colors.RED}Failed ik for {block}{Colors.RESET}")
+                lprint(f"{Colors.RED}Failed ik for {block}{Colors.RESET}")
                 return
             pre_q = find_pregrasp(
                 station, station_context, q, 0.07, panda_info = panda_info
             )
-            print(f"{Colors.REVERSE}Yielding ik for {block}{Colors.RESET}")
+            lprint(f"{Colors.REVERSE}Yielding ik for {block}{Colors.RESET}")
             yield pre_q, q
             update_station(
                 station,
@@ -227,14 +235,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             )
 
     def find_table_place(block):
-        print(f"{Colors.BLUE}Starting place stream for {block}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting place stream for {block}{Colors.RESET}")
         station, station_context = get_station("move_free")
         holding_object_info = station.object_infos[block][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
         while True:
             object_name, link_name = random.choice(surfaces)
             target_object_info = station.object_infos[object_name][0]
-            print(object_name, link_name)
+            lprint(object_name, link_name)
             surface = update_surfaces(target_object_info, link_name, station, station_context)[0]
             yield RigidTransformWrapper(
                 blocks_world_streams.find_table_place(
@@ -270,7 +278,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             )
 
     def check_colfree_block(arm_name, q, block, X_WB):
-        print(f"{Colors.BLUE}Checking for collisions between {arm_name} and {block}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Checking for collisions between {arm_name} and {block}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
             station,
@@ -287,7 +295,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     def check_colfree_arms(arm1_name, q1, arm2_name, q2):
         return True
-        print(f"{Colors.BLUE}Checking for collisions between arms{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Checking for collisions between arms{Colors.RESET}")
         if arm1_name == arm2_name:
             return True
         station, station_context = get_station("move_free")
@@ -341,7 +349,7 @@ def make_and_init_simulation(zmq_url, prob):
         )
         meshcat.load()
     else:
-        print("No meshcat server url provided, running without gui")
+        lprint("No meshcat server url provided, running without gui")
 
     director = builder.AddSystem(TrajectoryDirector())
 
@@ -405,81 +413,66 @@ if __name__ == "__main__":
             os.mkdir("logs")
         if not os.path.isdir(f"logs/{time}"):
             os.mkdir(f"logs/{time}")
-
         path = f"logs/{time}/"
         
-        sys.stdout = CaptureOutput(
-            path + "stdout_logs.txt",
-            #keywords = ["Iteration", "Attempt"] 
+        solution = solve(
+            problem, algorithm=algorithm, verbose=VERBOSE, logpath = path + "stats.json"
         )
-        solution = solve(problem, algorithm=algorithm, verbose=True)
 
-        sys.stdout = sys.stdout.original
-        sys.stdout = CaptureOutput(
-            path + "stdout_logs.txt",
-        )
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
-        sys.stdout = sys.stdout.original
-
-        process_pickle("statistics/py3/kitchen.pkl", path + "pddlstream_statistics.json")
 
         plan, _, evaluations = solution
         if plan is None:
             print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
             sys.exit(0)
 
-        action_map = {
-            "move": {
-                "function": PlanToTrajectory.move,
-                "argument_indices": [2],
-                "arm_name": 0
-            },
-            "pick": {
-                "function": PlanToTrajectory.pick,
-                "argument_indices": [4,5,4],
-                "arm_name": 0
-            },
-            "place": {
-                "function": PlanToTrajectory.place,
-                "argument_indices": [4,5,4],
-                "arm_name": 0
-            },
-            "stack": {
-                "function": PlanToTrajectory.place,
-                "argument_indices": [6,7,6],
-                "arm_name": 0
-            },
-            "unstack": {
-                "function": PlanToTrajectory.pick,
-                "argument_indices": [5,6,5],
-                "arm_name": 0
-            },
-        }
+        make_plot(path + "stats.json", save_path = path + "plots.png")
 
-        traj_maker = PlanToTrajectory(station_dict["main"])
-        traj_maker.make_trajectory(
-            plan, SIM_INIT_TIME, action_map
-        )
-
-        for panda_name in traj_directors:
-            traj_director = traj_directors[panda_name]
-            traj_director.add_panda_traj(traj_maker.trajectories[panda_name]["panda_traj"])
-            traj_director.add_hand_traj(traj_maker.trajectories[panda_name]["hand_traj"])
-
-        sim.AdvanceTo(traj_director.get_end_time())
         if meshcat_vis is not None:
-            meshcat_vis.stop_recording()
-            meshcat_vis.publish_recording()
+            action_map = {
+                "move": {
+                    "function": PlanToTrajectory.move,
+                    "argument_indices": [2],
+                    "arm_name": 0
+                },
+                "pick": {
+                    "function": PlanToTrajectory.pick,
+                    "argument_indices": [4,5,4],
+                    "arm_name": 0
+                },
+                "place": {
+                    "function": PlanToTrajectory.place,
+                    "argument_indices": [4,5,4],
+                    "arm_name": 0
+                },
+                "stack": {
+                    "function": PlanToTrajectory.place,
+                    "argument_indices": [6,7,6],
+                    "arm_name": 0
+                },
+                "unstack": {
+                    "function": PlanToTrajectory.pick,
+                    "argument_indices": [5,6,5],
+                    "arm_name": 0
+                },
+            }
 
-        #save = input(
-        #    (
-        #        f"{Colors.BOLD}\nType ENTER to exit without saving.\n"
-        #        "Type any key to save the video to the file\n"
-        #        f"logs/<todays_date>/recording.html\n"
-        #    )
-        #)
-        #if save != "":
-        file = open(path + "recording.html", "w")
-        file.write(meshcat_vis.vis.static_html())
-        file.close()
+            traj_maker = PlanToTrajectory(station_dict["main"])
+            traj_maker.make_trajectory(
+                plan, SIM_INIT_TIME, action_map
+            )
+
+            for panda_name in traj_directors:
+                traj_director = traj_directors[panda_name]
+                traj_director.add_panda_traj(traj_maker.trajectories[panda_name]["panda_traj"])
+                traj_director.add_hand_traj(traj_maker.trajectories[panda_name]["hand_traj"])
+
+            sim.AdvanceTo(traj_director.get_end_time())
+            if meshcat_vis is not None:
+                meshcat_vis.stop_recording()
+                meshcat_vis.publish_recording()
+
+            file = open(path + "recording.html", "w")
+            file.write(meshcat_vis.vis.static_html())
+            file.close()

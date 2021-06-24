@@ -56,7 +56,8 @@ def find_traj(
     q_start,
     q_goal,
     ignore_endpoint_collisions=False,
-    panda = None
+    panda = None,
+    verbose = False
 ):
     """
     Find a collision free trajectory from the configurations
@@ -122,11 +123,13 @@ def find_traj(
 
     start = q_to_state(space, q_start)
     if not checker.isValid(start):
-        print(f"{Colors.RED}INVALID OMPL START STATE {Colors.RESET}")
+        if verbose:
+            print(f"{Colors.RED}INVALID OMPL START STATE {Colors.RESET}")
         return None
     goal = q_to_state(space, q_goal)
     if not checker.isValid(goal):
-        print(f"{Colors.RED}INVALID OMPL GOAL STATE{Colors.RESET}")
+        if verbose:
+            print(f"{Colors.RED}INVALID OMPL GOAL STATE{Colors.RESET}")
         return None
 
     pdef = ob.ProblemDefinition(si)
@@ -139,7 +142,8 @@ def find_traj(
 
     solved = planner.solve(ob.CostConvergenceTerminationCondition(pdef))
     if not solved:
-        print(f"{Colors.RED}FAILED TO FIND OMPL SOLUTION{Colors.RESET}")
+        if verbose:
+            print(f"{Colors.RED}FAILED TO FIND OMPL SOLUTION{Colors.RESET}")
         return None
 
     simplifier = og.PathSimplifier(si)
