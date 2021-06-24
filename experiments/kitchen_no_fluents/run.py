@@ -34,7 +34,7 @@ from panda_station import (
     update_graspable_shapes,
     update_placeable_shapes,
     update_surfaces,
-    pre_and_post_grasps,
+    find_pregrasp,
     Q_NOMINAL,
 )
 from tamp_statistics import (
@@ -45,6 +45,7 @@ from tamp_statistics import (
 import kitchen_streamsv2
 import cProfile, pstats, io
 
+VERBOSE = False
 
 np.set_printoptions(precision=4, suppress=True)
 np.random.seed(seed = 0)
@@ -55,6 +56,10 @@ GRASP_DIST = 0.04
 
 domain_pddl = open("domain.pddl", "r").read()
 stream_pddl = open("stream.pddl", "r").read()
+
+def lprint(string):
+    if VERBOSE:
+        print(string)
 
 def construct_problem_from_sim(simulator, stations, problem_info):
     """
@@ -101,16 +106,16 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
     goal = ["and",
-        ("in", "cabbage1", ("leftplate", "base_link")),
-        ("cooked", "cabbage1"),
-        ("in", "cabbage2", ("rightplate", "base_link")),
-        ("cooked", "cabbage2"),
+        #("in", "cabbage1", ("leftplate", "base_link")),
+        #("cooked", "cabbage1"),
+        #("in", "cabbage2", ("rightplate", "base_link")),
+        #("cooked", "cabbage2"),
         ("clean", "glass1"),
         #("clean", "glass2"),
         #("in", "glass1", ("leftplacemat", "leftside")),
         #("in", "glass2", ("rightplacemat", "leftside")),
-        ("in", "raddish1", ("tray", "base_link")),
-        ("in", "raddish7", ("tray", "base_link")),
+        #("in", "raddish1", ("tray", "base_link")),
+        #("in", "raddish7", ("tray", "base_link")),
         #("in", "raddish4", ("tray", "base_link")),
         #("in", "raddish5", ("tray", "base_link")),
     ]
@@ -133,7 +138,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         indicate the relative transformation between the hand and the object
         X_HI. All other tuples indicate the worldpose of the items X_WI.
         """
-        print(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
         station, station_context = get_station("move_free")
         #print(f"{Colors.BOLD}FLUENTS FOR MOTION{Colors.RESET}")
         holdingitem = None
@@ -146,10 +151,10 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         iter = 1
         while True:
             if holdingitem:
-                print(f"{Colors.GREEN}Planning trajectory holding {holdingitem}{Colors.RESET}")
+                lprint(f"{Colors.GREEN}Planning trajectory holding {holdingitem}{Colors.RESET}")
             else:
-                print(f"{Colors.GREEN}Planning trajectory{Colors.RESET}")
-            print(f"Try: {iter}")
+                lprint(f"{Colors.GREEN}Planning trajectory{Colors.RESET}")
+            lprint(f"Try: {iter}")
             traj = find_traj(
                 station, 
                 station_context, 
@@ -159,14 +164,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             )
             if traj is None:  # if a trajectory could not be found (invalid)
                 if holdingitem:
-                    print(f"{Colors.GREEN}Closing trajectory stream holding {holdingitem}{Colors.RESET}")
+                    lprint(f"{Colors.GREEN}Closing trajectory stream holding {holdingitem}{Colors.RESET}")
                 else:
-                    print(f"{Colors.GREEN}Closing trajectory stream{Colors.RESET}")
+                    lprint(f"{Colors.GREEN}Closing trajectory stream{Colors.RESET}")
                 return
             if holdingitem:
-                print(f"{Colors.GREEN}Yielding trajectory holding {holdingitem}{Colors.RESET}")
+                lprint(f"{Colors.GREEN}Yielding trajectory holding {holdingitem}{Colors.RESET}")
             else:
-                print(f"{Colors.GREEN}Yielding trajectory{Colors.RESET}")
+                lprint(f"{Colors.GREEN}Yielding trajectory{Colors.RESET}")
             yield traj,
             iter += 1
             update_station(station, station_context, fluents)
@@ -176,12 +181,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         Find a pose of the hand relative to the item X_HI given
         the item name
         """
-        print(f"{Colors.BLUE}Starting grasp stream for {item}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting grasp stream for {item}{Colors.RESET}")
         station = stations["move_free"]
         object_info = station.object_infos[item][0]
         shape_info = update_graspable_shapes(object_info)[0]
         while True:
-            print(f"{Colors.REVERSE}Yielding X_H{item}{Colors.RESET}")
+            lprint(f"{Colors.REVERSE}Yielding X_H{item}{Colors.RESET}")
             yield RigidTransformWrapper(
                 kitchen_streamsv2.find_grasp(shape_info),
                 name = f"X_H{item}"
@@ -193,14 +198,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         `holdingitem` in the region `region`
         """
         object_name, link_name = region
-        print(f"{Colors.BLUE}Starting place stream for {holdingitem} on region {object_name}, {link_name}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting place stream for {holdingitem} on region {object_name}, {link_name}{Colors.RESET}")
         station, station_context = get_station("move_free")
         target_object_info = station.object_infos[object_name][0]
         holding_object_info = station.object_infos[holdingitem][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
         surface = update_surfaces(target_object_info, link_name, station, station_context)[0]
         while True:
-            print(f"{Colors.GREEN}Finding place for {holdingitem} on {object_name}{Colors.RESET}")
+            lprint(f"{Colors.GREEN}Finding place for {holdingitem} on {object_name}{Colors.RESET}")
             yield RigidTransformWrapper(
                 kitchen_streamsv2.find_place(station, station_context, shape_info, surface),
                 name = f"X_W{holdingitem}_in_{region}"
@@ -211,7 +216,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         Position `item` at the worldpose `X_WI` and yield an IK solution
         to the problem with the end effector at X_WH = X_WI(X_HI)^{-1}
         """
-        print(f"{Colors.BLUE}Starting ik stream for {item}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Starting ik stream for {item}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
             station,
@@ -223,7 +228,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         #shape_info = update_graspable_shapes(object_info)[0]
         q_initial = Q_NOMINAL
         while True:
-            print(f"{Colors.GREEN}Finding ik for {item}{Colors.RESET}")
+            lprint(f"{Colors.GREEN}Finding ik for {item}{Colors.RESET}")
             q, cost = kitchen_streamsv2.find_ik_with_relaxed(
                 station,
                 station_context,
@@ -233,7 +238,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             )
             if not np.isfinite(cost):
                 return
-            pre_q, _ = pre_and_post_grasps(station, station_context, q, dist = 0.07)
+            pre_q = find_pregrasp(
+                station, station_context, q, 0.07
+            )
             yield pre_q, q
             update_station(
                 station,
@@ -243,7 +250,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             )
 
     def check_safe(q, item, X_WI):
-        print(f"{Colors.BLUE}Checking for collisions with {item}{Colors.RESET}")
+        lprint(f"{Colors.BLUE}Checking for collisions with {item}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
             station,
@@ -253,9 +260,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         )
         res = kitchen_streamsv2.check_safe_conf(station, station_context, q)
         if res:
-            print(f"{Colors.GREEN}No collisions with {item}{Colors.RESET}")
+            lprint(f"{Colors.GREEN}No collisions with {item}{Colors.RESET}")
         else:
-            print(f"{Colors.RED}Found collisions with {item}{Colors.RESET}")
+            lprint(f"{Colors.RED}Found collisions with {item}{Colors.RESET}")
         return res
 
     #def dist_fn(traj):
@@ -367,7 +374,7 @@ if __name__ == "__main__":
         )
         pr = cProfile.Profile()
         pr.enable()
-        solution = solve(problem, algorithm=algorithm, verbose=False)
+        solution = solve(problem, algorithm=algorithm)
         pr.disable()
         sys.stdout = sys.stdout.original
         sys.stdout = CaptureOutput(
