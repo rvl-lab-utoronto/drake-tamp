@@ -37,13 +37,13 @@ from panda_station import (
     find_pregrasp,
     Q_NOMINAL,
 )
-from tamp_statistics import (
-    CaptureOutput,
-    process_pickle,
-    make_plot
-)
+#from tamp_statistics import (
+#    CaptureOutput,
+#    process_pickle,
+#    make_plot
+#)
 import kitchen_streamsv2
-import cProfile, pstats, io
+#import cProfile, pstats, io
 
 VERBOSE = False
 
@@ -106,16 +106,16 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
     goal = ["and",
-        #("in", "cabbage1", ("leftplate", "base_link")),
-        #("cooked", "cabbage1"),
+        ("in", "cabbage1", ("leftplate", "base_link")),
+        ("cooked", "cabbage1"),
         #("in", "cabbage2", ("rightplate", "base_link")),
         #("cooked", "cabbage2"),
         ("clean", "glass1"),
         #("clean", "glass2"),
-        #("in", "glass1", ("leftplacemat", "leftside")),
+        ("in", "glass1", ("leftplacemat", "leftside")),
         #("in", "glass2", ("rightplacemat", "leftside")),
-        #("in", "raddish1", ("tray", "base_link")),
-        #("in", "raddish7", ("tray", "base_link")),
+        ("in", "raddish1", ("tray", "base_link")),
+        ("in", "raddish7", ("tray", "base_link")),
         #("in", "raddish4", ("tray", "base_link")),
         #("in", "raddish5", ("tray", "base_link")),
     ]
@@ -368,34 +368,36 @@ if __name__ == "__main__":
 
         path = f"logs/{time}/"
         
-        sys.stdout = CaptureOutput(
-            path + "stdout_logs.txt",
-            #keywords = ["Iteration", "Attempt"] 
+        #sys.stdout = CaptureOutput(
+        #    path + "stdout_logs.txt",
+        #    #keywords = ["Iteration", "Attempt"] 
+        #)
+        #pr = cProfile.Profile()
+        #pr.enable()
+        solution = solve(
+            problem, algorithm=algorithm, verbose = False, logpath = path + "stats.json"
         )
-        pr = cProfile.Profile()
-        pr.enable()
-        solution = solve(problem, algorithm=algorithm)
-        pr.disable()
-        sys.stdout = sys.stdout.original
-        sys.stdout = CaptureOutput(
-            path + "stdout_logs.txt",
-        )
+        #pr.disable()
+        #sys.stdout = sys.stdout.original
+        #sys.stdout = CaptureOutput(
+        #    path + "stdout_logs.txt",
+        #)
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
 
-        ps = pstats.Stats(pr).sort_stats(2)
+        #ps = pstats.Stats(pr).sort_stats(2)
         #ps.print_stats()
 
-        sys.stdout = sys.stdout.original
+        #sys.stdout = sys.stdout.original
 
-        process_pickle("statistics/py3/kitchen.pkl", path + "pddlstream_statistics.json")
+        #process_pickle("statistics/py3/kitchen.pkl", path + "pddlstream_statistics.json")
 
         plan, _, evaluations = solution
         if plan is None:
             print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
             sys.exit(0)
 
-        make_plot(path + "stdout_logs.txt", save_path = path + "graphs.png")
+        #make_plot(path + "stdout_logs.txt", save_path = path + "graphs.png")
 
         if meshcat_vis is None:
             sys.exit(0)
