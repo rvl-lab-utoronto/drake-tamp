@@ -472,14 +472,14 @@ if __name__ == "__main__":
             meshcat_vis.stop_recording()
             meshcat_vis.publish_recording()
 
-        save = input(
-            (
-                f"{Colors.BOLD}\nType ENTER to exit without saving.\n"
-                "Type any key to save the video to the file\n"
-                f"logs/<todays_date>/recording.html\n"
-            )
-        )
-        if save != "":
+        #save = input(
+        #    (
+        #        f"{Colors.BOLD}\nType ENTER to exit without saving.\n"
+        #        "Type any key to save the video to the file\n"
+        #        f"logs/<todays_date>/recording.html\n"
+        #    )
+        #)
+        #if save != "":
         file = open(path + "recording.html", "w")
         file.write(meshcat_vis.vis.static_html())
         file.close()
