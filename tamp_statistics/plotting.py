@@ -15,7 +15,7 @@ def fix_time(times, start_time):
     return np.array(times) - np.ones(len(times)) * start_time
 
 
-def make_plot(filepath, save_path=None):
+def make_plot(filepath, save_path=None, show=False):
     """
     Makes a timing plot given the output to stdout of
     a call to pddlstream.algorithms.meta.solve
@@ -37,18 +37,31 @@ def make_plot(filepath, save_path=None):
     for i in range(2):
         for iteration in data["iterations"]:
             ax[i].axvline(
-                iteration["total_time"], linestyle=":", color="k", linewidth=0.9
+                iteration["total_time"],
+                linestyle=":",
+                color="tab:brown",
+                label="Iteration",
             )
         for attempt in data["attempts"]:
             if attempt["success"]:
                 ax[i].axvline(
                     attempt["time"],
-                    linestyle="-",
-                    color="tab:purple",
+                    color="k",
                     label="Optimisitic Plan",
                 )
-    ax[0].axvline(data["summary"]["run_time"], color = "tab:pink", linewidth = 3, label = "Done")
-    ax[1].axvline(data["summary"]["run_time"], color = "tab:pink", linewidth = 3)
+
+    for time in data["unrefined"]:
+        ax[0].axvline(time, color="k", linestyle = "--", label="Unrefined Plan")
+        ax[1].axvline(
+            time,
+            color="k",
+            linestyle = "--"
+        )
+
+    ax[0].axvline(
+        data["summary"]["run_time"], color="tab:blue", linewidth=3, label="Done"
+    )
+    ax[1].axvline(data["summary"]["run_time"], color="tab:blue", linewidth=3)
 
     data["results"][0].append(data["summary"]["run_time"])
     data["results"][1].append(data["results"][1][-1])
@@ -57,15 +70,15 @@ def make_plot(filepath, save_path=None):
         data["results"][1],
         where="post",
         linestyle="--",
-        color="tab:blue",
+        color="tab:orange",
         label="Results",
     )
 
     ax[1].step(
         data["evaluations"][0],
         np.array(data["evaluations"][1]),
-        color="tab:orange",
-        linestyle="-.",
+        color="tab:green",
+        linestyle="--",
         label="Evalulations",
         where="post",
     )
@@ -89,25 +102,23 @@ def make_plot(filepath, save_path=None):
             ax[0].axvspan(
                 curr_interval[0],
                 curr_interval[1],
-                color="tab:green",
+                color="tab:blue",
                 alpha=0.2,
                 label="Sampling Time",
             )
             ax[1].axvspan(
-                curr_interval[0], curr_interval[1], color="tab:green", alpha=0.2
+                curr_interval[0], curr_interval[1], color="tab:blue", alpha=0.2
             )
             curr_interval = next_interval
 
     ax[0].axvspan(
         curr_interval[0],
         curr_interval[1],
-        color="tab:green",
+        color="tab:blue",
         alpha=0.2,
         label="Sampling Time",
     )
-    ax[1].axvspan(
-        curr_interval[0], curr_interval[1], color="tab:green", alpha=0.2
-    )
+    ax[1].axvspan(curr_interval[0], curr_interval[1], color="tab:blue", alpha=0.2)
 
     ax[0].set_xlabel("Time (s)")
     ax[1].set_xlabel("Time (s)")
@@ -119,5 +130,8 @@ def make_plot(filepath, save_path=None):
     ax2.legend(loc="lower right")
 
     if save_path is not None:
+        fig.tight_layout()
+        fig.set_size_inches(18.5, 10.5)
         plt.savefig(save_path, dpi=300)
-    plt.show()
+    if show:
+        plt.show()

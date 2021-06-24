@@ -37,11 +37,9 @@ from panda_station import (
     find_pregrasp,
     Q_NOMINAL,
 )
-#from tamp_statistics import (
-#    CaptureOutput,
-#    process_pickle,
-#    make_plot
-#)
+from tamp_statistics import (
+    make_plot
+)
 import kitchen_streamsv2
 #import cProfile, pstats, io
 
@@ -111,9 +109,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         #("in", "cabbage2", ("rightplate", "base_link")),
         #("cooked", "cabbage2"),
         ("clean", "glass1"),
-        #("clean", "glass2"),
+        ("clean", "glass2"),
         ("in", "glass1", ("leftplacemat", "leftside")),
-        #("in", "glass2", ("rightplacemat", "leftside")),
+        ("in", "glass2", ("rightplacemat", "leftside")),
         ("in", "raddish1", ("tray", "base_link")),
         ("in", "raddish7", ("tray", "base_link")),
         #("in", "raddish4", ("tray", "base_link")),
@@ -397,7 +395,7 @@ if __name__ == "__main__":
             print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
             sys.exit(0)
 
-        #make_plot(path + "stdout_logs.txt", save_path = path + "graphs.png")
+        make_plot(path + "stats.json", save_path = path + "plots.png")
 
         if meshcat_vis is None:
             sys.exit(0)
