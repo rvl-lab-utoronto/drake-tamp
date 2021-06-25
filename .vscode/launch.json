@@ -5,12 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Kitchen No Fluents",
             "type": "python",
             "request": "launch",
             "program": "run.py",
             "console": "integratedTerminal",
-            "cwd": "experiments/kitchen_no_fluents/"
+            "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/"
         }
     ]
 }

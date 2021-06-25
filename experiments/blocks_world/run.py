@@ -53,8 +53,8 @@ SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
 
 file = "five_action"
-domain_pddl = open(f"{file}/domain.pddl", "r").read()
-stream_pddl = open(f"{file}/stream.pddl", "r").read()
+domain_pddl = open(f"experiments/blocks_world/{file}/domain.pddl", "r").read()
+stream_pddl = open(f"experiments/blocks_world/{file}/stream.pddl", "r").read()
 
 def lprint(string):
     if VERBOSE:
@@ -394,7 +394,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     parser.add_argument(
-        "-p", "--problem", nargs="?", default="problems/blocks_world_problem.yaml"
+        "-p", "--problem", nargs="?", default="experiments/blocks_world/problems/blocks_world_problem.yaml"
     )
     args = parser.parse_args()
     sim, station_dict, traj_directors, meshcat_vis, prob_info = make_and_init_simulation(
@@ -416,7 +416,7 @@ if __name__ == "__main__":
         path = f"logs/{time}/"
         
         solution = solve(
-            problem, algorithm=algorithm, verbose=VERBOSE, logpath = path + "stats.json"
+            problem, algorithm=algorithm, verbose=VERBOSE, logpath = path
         )
 
         print(f"\n\n{algorithm} solution:")

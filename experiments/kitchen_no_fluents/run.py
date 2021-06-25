@@ -52,8 +52,8 @@ ARRAY = tuple
 SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
 
-domain_pddl = open("domain.pddl", "r").read()
-stream_pddl = open("stream.pddl", "r").read()
+domain_pddl = open("experiments/kitchen_no_fluents/domain.pddl", "r").read()
+stream_pddl = open("experiments/kitchen_no_fluents/stream.pddl", "r").read()
 
 def lprint(string):
     if VERBOSE:
@@ -104,16 +104,16 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
     goal = ["and",
-        ("in", "cabbage1", ("leftplate", "base_link")),
-        ("cooked", "cabbage1"),
+        #("in", "cabbage1", ("leftplate", "base_link")),
+        #("cooked", "cabbage1"),
         #("in", "cabbage2", ("rightplate", "base_link")),
         #("cooked", "cabbage2"),
         ("clean", "glass1"),
-        ("clean", "glass2"),
+        #("clean", "glass2"),
         ("in", "glass1", ("leftplacemat", "leftside")),
-        ("in", "glass2", ("rightplacemat", "leftside")),
-        ("in", "raddish1", ("tray", "base_link")),
-        ("in", "raddish7", ("tray", "base_link")),
+        #("in", "glass2", ("rightplacemat", "leftside")),
+        #("in", "raddish1", ("tray", "base_link")),
+        #("in", "raddish7", ("tray", "base_link")),
         #("in", "raddish4", ("tray", "base_link")),
         #("in", "raddish5", ("tray", "base_link")),
     ]
@@ -345,7 +345,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     parser.add_argument(
-        "-p", "--problem", nargs="?", default="problems/kitchen_problem.yaml"
+        "-p", "--problem", nargs="?", default="experiments/kitchen_no_fluents/problems/kitchen_problem.yaml"
     )
     args = parser.parse_args()
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
@@ -374,7 +374,7 @@ if __name__ == "__main__":
         #pr = cProfile.Profile()
         #pr.enable()
         solution = solve(
-            problem, algorithm=algorithm, verbose = VERBOSE, logpath = path + "stats.json"
+            problem, algorithm=algorithm, verbose = VERBOSE, logpath = path
         )
         #pr.disable()
         #sys.stdout = sys.stdout.original
