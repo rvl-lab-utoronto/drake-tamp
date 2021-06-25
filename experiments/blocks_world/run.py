@@ -52,8 +52,9 @@ ARRAY = tuple
 SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
 
-domain_pddl = open("domain.pddl", "r").read()
-stream_pddl = open("stream.pddl", "r").read()
+file = "five_action"
+domain_pddl = open(f"{file}/domain.pddl", "r").read()
+stream_pddl = open(f"{file}/stream.pddl", "r").read()
 
 def lprint(string):
     if VERBOSE:
@@ -242,7 +243,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         while True:
             object_name, link_name = random.choice(surfaces)
             target_object_info = station.object_infos[object_name][0]
-            lprint(object_name, link_name)
             surface = update_surfaces(target_object_info, link_name, station, station_context)[0]
             yield RigidTransformWrapper(
                 blocks_world_streams.find_table_place(

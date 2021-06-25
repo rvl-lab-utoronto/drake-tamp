@@ -158,7 +158,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 station_context, 
                 q1, 
                 q2, 
-                ignore_endpoint_collisions= False
+                ignore_endpoint_collisions= False,
+                verbose = False
             )
             if traj is None:  # if a trajectory could not be found (invalid)
                 if holdingitem:
