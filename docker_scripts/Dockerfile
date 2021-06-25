@@ -79,8 +79,8 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
-RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/"
-RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/"
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/" >> ~/.bashrc
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/" >> ~/.bashrc
 #RUN echo "export  PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream/"
 
 WORKDIR /home/$user/drake-tamp
