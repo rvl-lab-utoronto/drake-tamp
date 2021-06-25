@@ -44,22 +44,27 @@ def make_atom_map(node_from_atom):
 
 def is_matching(can_fact, can_ans):
     """
-    returns True iff 
-    TODO(agro) 
-    ... Insert definition here
+    returns True iff there exists a fact, f, in
+    atom_map (global) and a substitution
+    S such that S(can_fact) == f and for all 
+    f_i in ancestors(f) there exists an li in can_fact
+    such that S(l_i) = f_i.
+
+    A subsitution is defined as a mapping from variable to object
+    ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
     pass
 
 def is_relevant(result, node_from_atom):
     """
-    returns True iff 
-    TODO(agro) 
-    ... Insert definition here
+    returns True iff either one of the
+    certified facts in result.get_certified()
+    is_matching() (see above function)
     """
-    atom_map = make_atom_map(node_from_atom)
+    can_atom_map = make_atom_map(node_from_atom)
     can_ans = set()
     for domain_fact in result.domain:
-        can_ans |= ancestors(domain_fact)
+        can_ans |= ancestors(domain_fact, can_atom_map)
     for can_fact in result.get_certified():
         if is_matching(can_fact, can_ans):
             return True
