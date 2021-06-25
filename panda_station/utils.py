@@ -44,6 +44,10 @@ class RigidTransformWrapper:
         self.rigid_transform = rigid_transform
         self.name = name
 
+    @property
+    def xyz_rpy_list(self):
+        xyzrpy = rt_to_xyzrpy(self.rigid_transform)
+        return list(xyzrpy)
 
     def __str__(self):
         xyzrpy = rt_to_xyzrpy(self.rigid_transform)
