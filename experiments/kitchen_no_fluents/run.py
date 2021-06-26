@@ -52,8 +52,9 @@ ARRAY = tuple
 SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
 
-domain_pddl = open("experiments/kitchen_no_fluents/domain.pddl", "r").read()
-stream_pddl = open("experiments/kitchen_no_fluents/stream.pddl", "r").read()
+file_path, _ = os.path.split(os.path.realpath(__file__))
+domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
+stream_pddl = open(f"{file_path}/stream.pddl", "r").read()
 
 def lprint(string):
     if VERBOSE:
@@ -345,7 +346,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     parser.add_argument(
-        "-p", "--problem", nargs="?", default="experiments/kitchen_no_fluents/problems/kitchen_problem.yaml"
+        "-p", "--problem", nargs="?", default=f"{file_path}/problems/kitchen_problem.yaml"
     )
     args = parser.parse_args()
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
@@ -360,36 +361,18 @@ if __name__ == "__main__":
     ]:
         time = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
 
-        if not os.path.isdir("logs"):
-            os.mkdir("logs")
-        if not os.path.isdir(f"logs/{time}"):
-            os.mkdir(f"logs/{time}")
+        if not os.path.isdir(f"{file_path}/logs"):
+            os.mkdir(f"{file_path}/logs")
+        if not os.path.isdir(f"{file_path}/logs/{time}"):
+            os.mkdir(f"{file_path}/logs/{time}")
 
-        path = f"logs/{time}/"
+        path = f"{file_path}/logs/{time}/"
         
-        #sys.stdout = CaptureOutput(
-        #    path + "stdout_logs.txt",
-        #    #keywords = ["Iteration", "Attempt"] 
-        #)
-        #pr = cProfile.Profile()
-        #pr.enable()
         solution = solve(
             problem, algorithm=algorithm, verbose = VERBOSE, logpath = path
         )
-        #pr.disable()
-        #sys.stdout = sys.stdout.original
-        #sys.stdout = CaptureOutput(
-        #    path + "stdout_logs.txt",
-        #)
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
-
-        #ps = pstats.Stats(pr).sort_stats(2)
-        #ps.print_stats()
-
-        #sys.stdout = sys.stdout.original
-
-        #process_pickle("statistics/py3/kitchen.pkl", path + "pddlstream_statistics.json")
 
         plan, _, evaluations = solution
         if plan is None:

@@ -53,8 +53,9 @@ SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
 
 file = "five_action"
-domain_pddl = open(f"experiments/blocks_world/{file}/domain.pddl", "r").read()
-stream_pddl = open(f"experiments/blocks_world/{file}/stream.pddl", "r").read()
+file_path, _ = os.path.split(os.path.realpath(__file__))
+domain_pddl = open(f"{file_path}/{file}/domain.pddl", "r").read()
+stream_pddl = open(f"{file_path}/{file}/stream.pddl", "r").read()
 
 def lprint(string):
     if VERBOSE:
@@ -394,7 +395,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     parser.add_argument(
-        "-p", "--problem", nargs="?", default="experiments/blocks_world/problems/blocks_world_problem.yaml"
+        "-p", "--problem", nargs="?", default=f"{file_path}/problems/blocks_world_problem.yaml"
     )
     args = parser.parse_args()
     sim, station_dict, traj_directors, meshcat_vis, prob_info = make_and_init_simulation(

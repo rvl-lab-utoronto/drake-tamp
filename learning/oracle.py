@@ -1,8 +1,10 @@
 import json
+import os
 from typing import AnyStr
 from panda_station import (
     RigidTransformWrapper
 )
+file_path, _ = os.path.split(os.path.realpath(__file__))
 
 def item_to_dict(atom_map):
     res = {}
@@ -14,7 +16,7 @@ def item_to_dict(atom_map):
 
 last_preimage = None
 atom_map = None
-with open("learning/data/stats.json") as stream:
+with open(f"{file_path}/data/stats.json") as stream:
     data = json.load(stream)
     last_preimage = data["last_preimage"]
     atom_map = item_to_dict(data["atom_map"])
