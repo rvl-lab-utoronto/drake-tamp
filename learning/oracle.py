@@ -57,6 +57,7 @@ def subsitution(l, g, sub_map):
     sub_map.update(test_sub_map)
     return True
 
+sub_map = {}
 def is_matching(l, ans_l):
     """
     returns True iff there exists a fact, g, in
@@ -69,7 +70,6 @@ def is_matching(l, ans_l):
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
 
-    sub_map = {}
     for g in atom_map:
         if not subsitution(l, g, sub_map): # facts are of same type
             continue
