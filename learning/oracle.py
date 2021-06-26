@@ -38,6 +38,7 @@ def make_atom_map(node_from_atom):
     for atom in node_from_atom:
         node = node_from_atom[atom]
         result = node.result
+        print(node)
         if result is None:
             atom_map[atom] = []
             continue
@@ -70,7 +71,7 @@ def is_matching(l, ans_l):
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
 
-    for g in atom_map:
+    for g in last_preimage:
         if not subsitution(l, g, sub_map): # facts are of same type
             continue
         ans_g = ancestors(g, atom_map)
@@ -101,10 +102,10 @@ def is_relevant(result, node_from_atom):
         can_ans.add(domain_fact)
         can_ans |= ancestors(domain_fact, can_atom_map)
     for can_fact in result.get_certified():
+        print(f"candidate fact: {can_fact}")
+        print(f"ancestors: {can_ans}")
         if is_matching(can_fact, can_ans):
-            #print(can_fact)
-            #print("Relevant")
+            print("Relevant")
             return True
-    #print(can_fact)
-    #print("Irrelevant")
+    print("Irrelevant")
     return False
