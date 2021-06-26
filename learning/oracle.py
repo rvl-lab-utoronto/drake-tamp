@@ -28,7 +28,7 @@ def ancestors(fact, atom_map):
     that fact's ancestors
     """
     parents = atom_map[fact]
-    res = set(parents.copy())
+    res = set(parents)
     for parent in parents:
         res |= ancestors(parent, atom_map)
     return set(res)
@@ -44,18 +44,50 @@ def make_atom_map(node_from_atom):
         atom_map[atom] = result.domain
     return atom_map
 
-def is_matching(can_fact, can_ans):
+def subsitution(l, g, sub_map):
+    test_sub_map = sub_map.copy()
+    if (l[0] != g[0]) or (len(l) != len(g)):
+        return False
+    for can_o, o in zip(l[1:], g[1:]) :
+        if not (can_o in test_sub_map):
+            test_sub_map[can_o] = o
+            continue
+        if test_sub_map[can_o] != o:
+            return False
+    sub_map.update(test_sub_map)
+    return True
+
+def is_matching(l, ans_l):
     """
-    returns True iff there exists a fact, f, in
+    returns True iff there exists a fact, g, in
     atom_map (global) and a substitution
-    S such that S(can_fact) == f and for all 
-    f_i in ancestors(f) there exists an li in can_fact
-    such that S(l_i) = f_i.
+    S such that S(can_fact) == g and for all 
+    g_i in ancestors(f) there exists an li in can_fact
+    such that S(l_i) = g_i.
 
     A subsitution is defined as a mapping from variable to object
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
-    pass
+
+    sub_map = {}
+    for g in atom_map:
+        if not subsitution(l, g, sub_map): # facts are of same type
+            continue
+        ans_g = ancestors(g, atom_map)
+        all = True
+        for g_i in ans_g: # forall g_i in ans(g)
+            l_exists = False # does there exists and l_i such that
+            for l_i in ans_l:
+                if subsitution(l_i, g_i, sub_map):
+                    l_exists = True
+                    break
+            if not l_exists:
+                all = False
+                break # go to next g
+        if all:
+            return True
+    return False
+
 
 def is_relevant(result, node_from_atom):
     """
@@ -66,8 +98,13 @@ def is_relevant(result, node_from_atom):
     can_atom_map = make_atom_map(node_from_atom)
     can_ans = set()
     for domain_fact in result.domain:
+        can_ans.add(domain_fact)
         can_ans |= ancestors(domain_fact, can_atom_map)
     for can_fact in result.get_certified():
         if is_matching(can_fact, can_ans):
+            #print(can_fact)
+            #print("Relevant")
             return True
+    #print(can_fact)
+    #print("Irrelevant")
     return False

@@ -111,7 +111,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         #("cooked", "cabbage2"),
         ("clean", "glass1"),
         #("clean", "glass2"),
-        ("in", "glass1", ("leftplacemat", "leftside")),
+        #("in", "glass1", ("leftplacemat", "leftside")),
         #("in", "glass2", ("rightplacemat", "leftside")),
         #("in", "raddish1", ("tray", "base_link")),
         #("in", "raddish7", ("tray", "base_link")),
