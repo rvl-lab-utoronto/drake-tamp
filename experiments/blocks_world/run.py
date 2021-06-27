@@ -16,6 +16,7 @@ import numpy as np
 import random
 from datetime import datetime
 import pydrake.all
+from pydrake.all import Role
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
@@ -117,8 +118,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
 
     goal = ["and",
+        #("on-block", "green_block", "blue_block"),
         ("on-block", "red_block", "blue_block"),
-        ("on-block", "blue_block", "green_block"),
     ]
 
     def get_station(name, arm_name = None):
@@ -162,7 +163,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             i+=1
 
         update_station(station, station_context, fluents)
-        update_arm(station, station_context, other_name, q_other)
+        if other_name is not None:
+            update_arm(station, station_context, other_name, q_other)
         panda = station.panda_infos[arm_name].panda
         while True:
             traj = find_traj(
@@ -178,7 +180,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 return
             yield traj,
             update_station(station, station_context, fluents)
-            update_arm(station, station_context, other_name, q_other)
+            if other_name is not None:
+                update_arm(station, station_context, other_name, q_other)
 
 
     def find_grasp(block):
@@ -295,7 +298,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         )
 
     def check_colfree_arms(arm1_name, q1, arm2_name, q2):
-        return True
         lprint(f"{Colors.BLUE}Checking for collisions between arms{Colors.RESET}")
         if arm1_name == arm2_name:
             return True
@@ -334,7 +336,7 @@ def make_and_init_simulation(zmq_url, prob):
     """
     builder = pydrake.systems.framework.DiagramBuilder()
     problem_info = ProblemInfo(prob)
-    station = problem_info.make_main_station()
+    station = problem_info.make_main_station(time_step = 5e-4)
     stations = {"main": station, "move_free": problem_info.make_move_free_station()}
     builder.AddSystem(station)
     scene_graph = station.get_scene_graph()
@@ -347,6 +349,7 @@ def make_and_init_simulation(zmq_url, prob):
             output_port=station.GetOutputPort("query_object"),
             delete_prefix_on_load=True,
             zmq_url=zmq_url,
+            #role = Role.kProximity
         )
         meshcat.load()
     else:
@@ -395,7 +398,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     parser.add_argument(
-        "-p", "--problem", nargs="?", default=f"{file_path}/problems/blocks_world_problem.yaml"
+        "-p", "--problem", nargs="?", default=f"{file_path}/problems/one_arm_problem.yaml"
     )
     args = parser.parse_args()
     sim, station_dict, traj_directors, meshcat_vis, prob_info = make_and_init_simulation(

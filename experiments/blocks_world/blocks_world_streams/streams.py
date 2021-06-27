@@ -47,7 +47,7 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    h = HAND_HEIGHT + length - np.random.uniform(0.018,0.023)
+    h = HAND_HEIGHT + length
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
 
@@ -157,8 +157,8 @@ def find_ik_with_handpose(
     ik = InverseKinematics(plant, plant_context)
     if not relax:
         ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-    lower = X_HI.translation() - 0.01*np.ones(3)
-    upper = X_HI.translation() + 0.01*np.ones(3)
+    lower = X_HI.translation() - np.array([0.001, 0.001, 0.01])
+    upper = X_HI.translation() + np.array([0.001, 0.001, 0.01])
     ik.AddPositionConstraint(
         H,
         np.zeros(3),

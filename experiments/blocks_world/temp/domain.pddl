@@ -97,12 +97,12 @@
             (empty ?arm)
             (atconf ?arm ?pre_q)
             (table-support ?block ?X_WB)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
             ;(forall (?otherarm)
             ;    (imply 
             ;        (arm ?otherarm) 
@@ -136,12 +136,12 @@
             (athandpose ?arm ?block ?X_HB)
             (atconf ?arm ?pre_q)
             (table-support ?block ?X_WB)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
             ;(forall (?otherarm)
             ;    (imply 
             ;        (arm ?otherarm) 
@@ -165,12 +165,12 @@
             (atworldpose ?lowerblock ?X_WL)
             (atconf ?arm ?pre_q)
             (block-support ?lowerblock ?X_WL ?block ?X_WB)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
             ;(forall (?otherarm)
             ;    (imply 
             ;        (arm ?otherarm) 
@@ -195,12 +195,12 @@
             (empty ?arm)
             (atconf ?arm ?pre_q)
             (on-block ?lowerblock ?block)
-            ;(forall (?otherblock)
-            ;    (imply 
-            ;        (block ?otherblock) 
-            ;        (block-safe ?arm ?q ?otherblock)
-            ;    ) 
-            ;)
+            (forall (?otherblock)
+                (imply 
+                    (block ?otherblock) 
+                    (block-safe ?arm ?q ?otherblock)
+                ) 
+            )
             ;(forall (?otherarm)
             ;    (imply 
             ;        (arm ?otherarm) 

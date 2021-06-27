@@ -88,7 +88,8 @@ class ProblemInfo:
         name="panda_station",
         X_PO = None,
         planning = False,
-        dummy = False
+        dummy = False,
+        time_step = 1e-3
     ):
         """
         Makes a PandaStation based on this problem instance.
@@ -101,7 +102,7 @@ class ProblemInfo:
         Returns:
             the newly created PandaStation
         """
-        station = PandaStation(name=name, dummy = dummy)
+        station = PandaStation(name=name, dummy = dummy, time_step = time_step)
         directive = self.directive
         if planning:
             directive = self.planning_directive
@@ -154,12 +155,12 @@ class ProblemInfo:
         station.finalize()
         return station
 
-    def make_main_station(self):
+    def make_main_station(self, time_step = 1e-4):
         """
         Make the main station for TAMP: a station with no objects welded
         """
         print(f"{Colors.BLUE}Building main station{Colors.RESET}")
-        return self.make_station([], name="main")
+        return self.make_station([], name="main", time_step = 1e-4)
 
     def make_move_free_station(self, arm_name = None):
         """

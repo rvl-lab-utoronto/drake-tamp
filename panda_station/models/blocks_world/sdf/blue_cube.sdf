@@ -4,18 +4,18 @@
       <inertial>
         <mass>0.05</mass>
         <inertia>
-          <ixx>1.6875e-05</ixx>
+          <ixx>1.6875e-06</ixx>
           <ixy>0</ixy>
           <ixz>0</ixz>
-          <iyy>1.6875e-05</iyy>
+          <iyy>1.6875e-06</iyy>
           <iyz>0</iyz>
-          <izz>1.6875e-05</izz>
+          <izz>1.6875e-06</izz>
         </inertia>
-        <pose>0 0 0 0 0 0</pose>
+        <pose>0 0 0.01 0 0 0</pose>
       </inertial>
       <pose>0 0 0 0 0 0</pose>
       <visual name="visual">
-        <pose>0 0 0.0225 0 0 0</pose>
+        <pose>0 0 0.03 0 0 0</pose>
         <geometry>
             <box>
                 <size>0.045 0.045 0.045</size>
@@ -26,11 +26,76 @@
         </material>
       </visual>
       <collision name="collision">
-        <pose>0 0 0.0225 0 0 0</pose>
+        <pose>0 0 0.03 0 0 0</pose>
         <geometry>
             <box>
               <size>0.045 0.045 0.045</size>
             </box>
+        </geometry>
+      </collision>
+      
+      <collision name="ball1">
+        <pose>-0.025 -0.025 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball2">
+        <pose>0.025 -0.025 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball3">
+        <pose>-0.025 0.025 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball4">
+        <pose>0.025 0.025 0.005 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball5">
+        <pose>-0.025 -0.025 0.06 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball6">
+        <pose>0.025 -0.025 0.06 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball7">
+        <pose>-0.025 0.025 0.06 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball8">
+        <pose>0.025 0.025 0.06 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-7</radius>
+          </sphere>
         </geometry>
       </collision>
     </link>
