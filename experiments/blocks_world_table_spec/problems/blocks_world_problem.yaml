@@ -7,30 +7,32 @@ arms:
           panda_name: left_panda
           hand_name: left_panda_hand
           X_WB: [-0.525, 0, 0, 0, 0, 1.57]
+          near: [["left_table", "base_link"], ["middle_table", "base_link"]]
      right_panda:
           panda_name: right_panda
           hand_name: right_panda_hand
           X_WB: [0.525, 0, 0, 0, 0, 1.57]
+          near: [["right_table", "base_link"], ["middle_table", "base_link"]]
 
 objects:
 
-     #red_block:
-     #     path: "models/blocks_world/sdf/red_cube.sdf"
-     #     X_WO: [-1.0, -0.1, 0.38, 0, 0, 0]
-     #     main_link: "base_link"
-     #     support: "table"
-
-     blue_block:
-          path: "models/blocks_world/sdf/blue_cube.sdf"
-          X_WO: [-1.0, 0.1, 0.38, 0, 0, 0]
+     red_block:
+          path: "models/blocks_world/sdf/red_cube.sdf"
+          X_WO: [-1.0, -0.1, 0.38, 0, 0, 0]
           main_link: "base_link"
-          support: "table"
+          support: ["left_table", "base_link"]
+
+     #blue_block:
+     #     path: "models/blocks_world/sdf/blue_cube.sdf"
+     #     X_WO: [0.0, 0.1, 0.38, 0, 0, 0]
+     #     main_link: "base_link"
+     #     support: ["middle_table", "base_link"]
 
      green_block:
           path: "models/blocks_world/sdf/green_cube.sdf"
           X_WO: [1.0, 0, 0.45, 0, 0, 0]
           main_link: "base_link"
-          support: "table"
+          support: ["right_table", "base_link"]
 
 main_links:
      right_table: "base_link"
@@ -38,7 +40,7 @@ main_links:
      middle_table: "base_link"
 
 surfaces:
-     right_table:
+     right_table: 
           - "base_link"
      left_table:
           - "base_link"

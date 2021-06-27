@@ -53,7 +53,7 @@ ARRAY = tuple
 SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
 
-file = "five_action"
+file = "pddl_spec"
 file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/{file}/domain.pddl", "r").read()
 stream_pddl = open(f"{file_path}/{file}/stream.pddl", "r").read()
@@ -76,6 +76,10 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     # start poses of all manipulands
     start_poses = parse_start_poses(main_station, main_station_context)
 
+    for object_name, link_name in problem_info.surfaces.items():
+        for link_name in problem_info.surfaces[object_name]:
+            table = (object_name, link_name)
+            init += [("table", table)]
 
     # this needs to be done first so all of the RTs are updated
     supports = []
@@ -90,9 +94,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("atworldpose", name, pose),
         ]
         on = problem_info.objects[name]["support"] 
-        if on == "table":
+        if isinstance(on, list):
             init += [
-                ("table-support", name, pose),
+                ("table-support", tuple(on), name, pose),
             ]
         else:
             init += [
@@ -102,6 +106,15 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             init += [
                 ("clear", name),
             ]
+
+    for arm in problem_info.arms:
+        near_tables = problem_info.arms[arm]["near"]
+        for table in near_tables:
+            table = tuple(table)
+            init += [
+                ("near", arm, table)
+            ]
+
 
     arms = parse_config(main_station, main_station_context)
     for arm, conf in arms.items():
@@ -113,19 +126,14 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         ]
 
     surfaces = []
-    for object_name in problem_info.surfaces:
-        for link_name in problem_info.surfaces[object_name]:
-            surfaces.append((object_name, link_name))
+    for object_name, link_name in problem_info.surfaces.items():
+        surfaces.append((object_name, link_name))
 
 
     goal = ["and",
-        ("on-block", "green_block", "blue_block"),
+        #("on-block", "blue_block", "red_block"),
+        ("on-block", "red_block", "green_block"),
     ]
-
-    #goal = ["and",
-    #    ("on-block", "red_block", "blue_block"),
-    #    ("on-block", "blue_block", "orange_block"),
-    #]
 
     def get_station(name, arm_name = None):
         if arm_name is None:
@@ -244,13 +252,13 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 set_others_to_inf = True
             )
 
-    def find_table_place(block):
+    def find_table_place(table, block):
         lprint(f"{Colors.BLUE}Starting place stream for {block}{Colors.RESET}")
         station, station_context = get_station("move_free")
         holding_object_info = station.object_infos[block][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
+        object_name, link_name = table
         while True:
-            object_name, link_name = random.choice(surfaces)
             target_object_info = station.object_infos[object_name][0]
             surface = update_surfaces(target_object_info, link_name, station, station_context)[0]
             yield RigidTransformWrapper(
@@ -403,7 +411,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("-u", "--url", nargs="?", default=None)
     parser.add_argument(
-        "-p", "--problem", nargs="?", default=f"{file_path}/problems/one_arm_problem.yaml"
+        "-p", "--problem", nargs="?", default=f"{file_path}/problems/blocks_world_problem.yaml"
     )
     args = parser.parse_args()
     sim, station_dict, traj_directors, meshcat_vis, prob_info = make_and_init_simulation(
