@@ -51,6 +51,7 @@ random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
+DUMMY_STREAMS = False
 
 file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
@@ -137,6 +138,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         indicate the relative transformation between the hand and the object
         X_HI. All other tuples indicate the worldpose of the items X_WI.
         """
+        while DUMMY_STREAMS:
+            yield f"traj_{q1}_{q2}",
         lprint(f"{Colors.BLUE}Starting trajectory stream{Colors.RESET}")
         station, station_context = get_station("move_free")
         #print(f"{Colors.BOLD}FLUENTS FOR MOTION{Colors.RESET}")
@@ -181,6 +184,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         Find a pose of the hand relative to the item X_HI given
         the item name
         """
+        while DUMMY_STREAMS:
+            yield f"grasp_{item}",
         lprint(f"{Colors.BLUE}Starting grasp stream for {item}{Colors.RESET}")
         station = stations["move_free"]
         object_info = station.object_infos[item][0]
@@ -197,6 +202,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         Find a stable placement pose X_WI for the item
         `holdingitem` in the region `region`
         """
+        while DUMMY_STREAMS:
+            yield f"place_{holdingitem}_in_{region}",
         object_name, link_name = region
         lprint(f"{Colors.BLUE}Starting place stream for {holdingitem} on region {object_name}, {link_name}{Colors.RESET}")
         station, station_context = get_station("move_free")
@@ -216,6 +223,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         Position `item` at the worldpose `X_WI` and yield an IK solution
         to the problem with the end effector at X_WH = X_WI(X_HI)^{-1}
         """
+        while DUMMY_STREAMS:
+            yield "pre_q", "q"
         lprint(f"{Colors.BLUE}Starting ik stream for {item}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
@@ -250,6 +259,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             )
 
     def check_safe(q, item, X_WI):
+        if DUMMY_STREAMS:
+            return True
         lprint(f"{Colors.BLUE}Checking for collisions with {item}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
