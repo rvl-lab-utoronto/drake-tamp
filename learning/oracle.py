@@ -39,17 +39,22 @@ def make_atom_map(node_from_atom):
         node = node_from_atom[atom]
         result = node.result
         if result is None:
-            atom_map[atom] = []
+            atom_map[fact_to_pddl(atom)] = []
             continue
-        atom_map[atom] = result.domain
+        atom_map[fact_to_pddl(atom)] = [fact_to_pddl(f) for f in result.domain]
     return atom_map
 
 def subsitution(l, g, sub_map):
     test_sub_map = sub_map.copy()
     if (l[0] != g[0]) or (len(l) != len(g)):
         return False
-    for can_o, o in zip(l[1:], g[1:]) :
+    for can_o, o in zip(l[1:], g[1:]):
+        if not can_o.startswith('#'):
+            if can_o != o:
+                return False
+            continue
         if not (can_o in test_sub_map):
+            assert can_o.startswith('#'), "Expected substitution keys to only include variables"
             test_sub_map[can_o] = o
             continue
         if test_sub_map[can_o] != o:
@@ -57,8 +62,14 @@ def subsitution(l, g, sub_map):
     sub_map.update(test_sub_map)
     return True
 
-sub_map = {}
-def is_matching(l, ans_l):
+from pddlstream.language.object import Object, OptimisticObject
+def fact_to_pddl(fact):
+    new_fact = [fact[0]]
+    for obj in fact[1:]:
+        new_fact.append(obj.pddl if isinstance(obj, Object) or isinstance(obj, OptimisticObject) else obj)
+    return tuple(new_fact)
+    
+def is_matching(l, ans_l, preimage, atom_map):
     """
     returns True iff there exists a fact, g, in
     atom_map (global) and a substitution
@@ -69,12 +80,15 @@ def is_matching(l, ans_l):
     A subsitution is defined as a mapping from variable to object
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
-    for g in last_preimage:
+
+    for g in preimage:
+        sub_map = {}
         g = tuple(g)
-        if not subsitution(l, g, sub_map): # facts are of same type
+        if not subsitution(l, g, sub_map):  # facts are of same type
             continue
+        
         if not(g in atom_map):
-            continue
+            raise NotImplementedError("Something wrong here.")
         ans_g = ancestors(g, atom_map)
         all = True
         for g_i in ans_g: # forall g_i in ans(g)
@@ -83,6 +97,7 @@ def is_matching(l, ans_l):
                 if subsitution(l_i, g_i, sub_map):
                     l_exists = True
                     break
+                # Do we need the l_i, g_i matching to be bijective?
             if not l_exists:
                 all = False
                 break # go to next g
@@ -100,12 +115,12 @@ def is_relevant(result, node_from_atom):
     can_atom_map = make_atom_map(node_from_atom)
     can_ans = set()
     for domain_fact in result.domain:
-        can_ans.add(domain_fact)
-        can_ans |= ancestors(domain_fact, can_atom_map)
+        can_ans.add(fact_to_pddl(domain_fact))
+        can_ans |= ancestors(fact_to_pddl(domain_fact), can_atom_map)
     for can_fact in result.get_certified():
         #print(f"candidate fact: {can_fact}")
         #print(f"ancestors: {can_ans}")
-        if is_matching(can_fact, can_ans):
+        if is_matching(fact_to_pddl(can_fact), can_ans, last_preimage, atom_map):
             #print("Relevant")
             return True
     #print("Irrelevant")
