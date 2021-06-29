@@ -40,6 +40,7 @@ from panda_station import (
 from tamp_statistics import (
     make_plot
 )
+from learning import visualization
 import kitchen_streamsv2
 #import cProfile, pstats, io
 
@@ -391,6 +392,7 @@ if __name__ == "__main__":
             sys.exit(0)
 
         make_plot(path + "stats.json", save_path = path + "plots.png")
+        visualization.stats_to_graph(path + "stats.json", save_path = path + "preimage_graph.html")
 
         if meshcat_vis is None:
             sys.exit(0)

@@ -66,13 +66,16 @@ class DirectedGraph:
         max_children = self.max_children
         if max_children == 0:
             max_children = 1
-        r = 255*(max_children - self.num_children(fact))/max_children
+        r = 200*(max_children - self.num_children(fact))/max_children
         g = 0
-        b = 0
+        b = 100*(max_children - self.num_children(fact))/max_children
+        if (self.num_children(fact) == 0) and (self.num_ans(fact) == 0):
+            r = 0
+            b = 200
         color = f"rgba({r},{g},{b},1)"
         return color
 
-    def make_pyvis_net(self, net, add_loners=False, node_repulsion=True):
+    def make_pyvis_net(self, net, add_loners=True, node_repulsion=True):
         added = []
         level_x = {}
         for fact in self.adjaceny_list:
@@ -101,7 +104,7 @@ class DirectedGraph:
                         level=level,
                         physics=node_repulsion,
                         shape="box",
-                        color = self.fact_to_color(fact),
+                        color = self.fact_to_color(child),
                     )
                 net.add_edge(str(fact), str(child), physics=False)
 
