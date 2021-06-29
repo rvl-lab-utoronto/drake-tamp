@@ -59,8 +59,11 @@ def fact_to_pddl(fact):
     for obj in fact[1:]:
         new_fact.append(obj.pddl if isinstance(obj, Object) or isinstance(obj, OptimisticObject) else obj)
     return tuple(new_fact)
-    
-def is_matching(l, ans_l, preimage, atom_map, return_all=False):
+
+def apply_substitution(fact, substitution):
+    return tuple(substitution.get(arg, arg) for arg in fact)
+
+def is_matching(l, ans_l, preimage, atom_map):
     """
     returns True iff there exists a fact, g, in
     atom_map (global) and a substitution
@@ -71,7 +74,6 @@ def is_matching(l, ans_l, preimage, atom_map, return_all=False):
     A subsitution is defined as a mapping from variable to object
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
-    result = []
     for g in preimage:
         sub_map = {}
         g = tuple(g)
@@ -81,6 +83,10 @@ def is_matching(l, ans_l, preimage, atom_map, return_all=False):
         if not(g in atom_map):
             raise NotImplementedError("Something wrong here.")
         ans_g = ancestors(g, atom_map)
+        if not ans_g:
+            continue # never need to match initial conditions
+        if len(ans_g) != len(ans_l):
+            continue # avoid cost of unnecessary computation
         all = True
         for g_i in ans_g: # forall g_i in ans(g)
             l_exists = False # does there exists and l_i such that
@@ -92,12 +98,11 @@ def is_matching(l, ans_l, preimage, atom_map, return_all=False):
             if not l_exists:
                 all = False
                 break # go to next g
-        if not return_all and all:
-            return True, g
-        elif return_all:
-            result.append(g)
-    if return_all:
-        return len(result) > 0, result
+        if all:
+            substituted_ancestors = {apply_substitution(fact, sub_map) for fact in ans_l}
+            if substituted_ancestors == ans_g:
+                return True, g
+            continue
     return False, None
 
 
@@ -108,6 +113,7 @@ def is_relevant(result, node_from_atom):
     is_matching() (see above function)
     """
     can_atom_map = make_atom_map(node_from_atom)
+    # assert {x for x in atom_map if not atom_map[x]} == {x for x in can_atom_map if not can_atom_map[x]}
     can_ans = set()
     for domain_fact in result.domain:
         can_ans.add(fact_to_pddl(domain_fact))
@@ -117,7 +123,7 @@ def is_relevant(result, node_from_atom):
         #print(f"ancestors: {can_ans}")
         is_match, match = is_matching(fact_to_pddl(can_fact), can_ans, last_preimage, atom_map)
         if is_match:
-            # print('yes', fact_to_pddl(can_fact), match)
+            # print(f'Relevant: \n\t {fact_to_pddl(can_fact)}: {can_ans} \n\t {match}: {ancestors(match, atom_map)}')            
             return True
         else:
             pass
