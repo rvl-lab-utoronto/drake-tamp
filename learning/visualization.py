@@ -5,7 +5,7 @@ from . import oracle
 
 
 class DirectedGraph:
-    def __init__(self, atom_map):
+    def __init__(self, atom_map, verbose = False):
         """
         atom_map is a dictionary of the form
         {
@@ -19,13 +19,15 @@ class DirectedGraph:
         self.atom_map = atom_map
         self.max_level = 0
         self.max_children = 0
+        self.verbose = verbose
 
     def add_node(self, fact):
         """
         Adds a node and all of its parents
         """
         if fact not in self.atom_map:
-            print(f"Failed to add {fact}, not in atom_map")
+            if self.verbose:
+                print(f"Failed to add {fact}, not in atom_map")
             return
         if fact in self.adjaceny_list:
             return
@@ -80,7 +82,8 @@ class DirectedGraph:
         level_x = {}
         for fact in self.adjaceny_list:
             if (len(self.adjaceny_list[fact]) == 0 and self.num_ans(fact) == 0) and not add_loners:
-                print(f"Not adding {fact} to network visualization: No children")
+                if self.verbose:
+                    print(f"Not adding {fact} to network visualization: No children")
                 continue
             if fact not in added:
                 # print(str(fact))
@@ -138,7 +141,7 @@ def tuplize_preimage(preimage):
     return res
 
 
-def stats_to_graph(path_to_stats, save_path):
+def stats_to_graph(path_to_stats, save_path, verbose = False):
     """
     Given the path to the `stats.json` file for
     a particular trial, create the graph for that
@@ -153,7 +156,7 @@ def stats_to_graph(path_to_stats, save_path):
     )
     last_preimage = tuplize_preimage(data["last_preimage"])
     atom_map = tuplize_atom_map(data["atom_map"])
-    graph = DirectedGraph(atom_map)
+    graph = DirectedGraph(atom_map, verbose = verbose)
     for fact in last_preimage:
         graph.add_node(fact)
     graph.make_pyvis_net(net)
