@@ -8,6 +8,7 @@ import matplotlib
 matplotlib.use("Agg")
 import time
 import os
+import subprocess
 import copy
 from re import I
 import sys
@@ -107,12 +108,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     goal = ["and",
         #("in", "cabbage1", ("leftplate", "base_link")),
-        ("cooked", "cabbage1"),
+        #("cooked", "cabbage1"),
         #("in", "cabbage2", ("rightplate", "base_link")),
         #("cooked", "cabbage2"),
         ("clean", "glass1"),
         #("clean", "glass2"),
-        ("in", "glass1", ("leftplacemat", "leftside")),
+        #("in", "glass1", ("leftplacemat", "leftside")),
         #("in", "glass2", ("rightplacemat", "leftside")),
         #("in", "raddish1", ("tray", "base_link")),
         #("in", "raddish7", ("tray", "base_link")),
@@ -349,17 +350,48 @@ def make_and_init_simulation(zmq_url, prob):
     simulator.AdvanceTo(SIM_INIT_TIME)
     return simulator, stations, director, meshcat, problem_info
 
+def setup_parser():
+
+    parser = argparse.ArgumentParser(
+        description= "Run the kitchen domain"
+    )
+    parser.add_argument(
+        "-u",
+        "--url",
+        nargs="?",
+        default=None,
+        help = "Specify the zmq_url for a meshcat server",
+    )
+    parser.add_argument(
+        "-p",
+        "--problem",
+        nargs="?",
+        default=f"{file_path}/problems/kitchen_problem.yaml",
+        help = "Use --problem to specify a .yaml problem file",
+    )
+    parser.add_argument(
+        "-m",
+        "--mode",
+        nargs = "?",
+        default = "normal",
+        choices=[
+            'normal',
+            'oracle',
+            'save'
+        ],
+        help =  ("normal mode will run ORACLE=False, DEFAULT_UNIQUE=False\n"
+                "save mode will run ORACLE=False, DEFAULT_UNIQUE=False and"
+                "copy the stats.json to ~/drake_tamp/learning/data\n"
+                "oracle mode will use the oracle with the latest stats.json")
+    )
+    return parser
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(
-        description="Use --url to specify the zmq_url for a meshcat server\nuse --problem to specify a .yaml problem file"
-    )
-    parser.add_argument("-u", "--url", nargs="?", default=None)
-    parser.add_argument(
-        "-p", "--problem", nargs="?", default=f"{file_path}/problems/kitchen_problem.yaml"
-    )
+    parser = setup_parser()
     args = parser.parse_args()
+    mode = args.mode.lower()
+
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         args.url, args.problem
     )
@@ -391,6 +423,15 @@ if __name__ == "__main__":
             sys.exit(0)
 
         make_plot(path + "stats.json", save_path = path + "plots.png")
+
+        if mode == "save":
+            subprocess.check_output(
+                [
+                    "cp",
+                    path + "stats.json",
+                    os.path.expanduser("~") + "/drake-tamp/learning/data/"
+                ]
+            )
 
         if meshcat_vis is None:
             sys.exit(0)

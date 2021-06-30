@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from typing import AnyStr
 from panda_station import (
     RigidTransformWrapper
@@ -135,17 +136,24 @@ def is_relevant(result, node_from_atom):
 file_path, _ = os.path.split(os.path.realpath(__file__))
 last_preimage = None
 atom_map = None
-with open(f"{file_path}/data/stats.json") as stream:
-    data = json.load(stream)
-    last_preimage = data["last_preimage"]
-    atom_map = item_to_dict(data["atom_map"])
-    to_add = set()
-    for fact in last_preimage:
-        fact = tuple(fact)
-        if fact not in atom_map:
-            print(f'Warning {fact} not in atom_map')
-            continue
-        to_add |= ancestors(fact, atom_map)
-    print(len(last_preimage))
-    last_preimage += list(to_add)
-    print(len(last_preimage))
+
+if os.path.isfile(f"{file_path}/data/stats.json"):
+    with open(f"{file_path}/data/stats.json") as stream:
+        data = json.load(stream)
+        last_preimage = data["last_preimage"]
+        atom_map = item_to_dict(data["atom_map"])
+        to_add = set()
+        for fact in last_preimage:
+            fact = tuple(fact)
+            if fact not in atom_map:
+                print(f'Warning {fact} not in atom_map')
+                continue
+            to_add |= ancestors(fact, atom_map)
+        print(len(last_preimage))
+        last_preimage += list(to_add)
+        print(len(last_preimage))
+else:
+    print(
+        (f"File {file_path}/data/stats.json does not exist\n"
+        "Not using oracle")
+    )
