@@ -1,10 +1,10 @@
 import json
 import os
+import sys
 from typing import AnyStr
 from panda_station import (
     RigidTransformWrapper
 )
-file_path, _ = os.path.split(os.path.realpath(__file__))
 
 def item_to_dict(atom_map):
     res = {}
@@ -13,14 +13,6 @@ def item_to_dict(atom_map):
         value = [tuple(i) for i in item[1]]
         res[key] = value
     return res
-
-last_preimage = None
-atom_map = None
-with open(f"{file_path}/data/stats.json") as stream:
-    data = json.load(stream)
-    last_preimage = data["last_preimage"]
-    atom_map = item_to_dict(data["atom_map"])
-
 
 def ancestors(fact, atom_map):
     """
@@ -68,7 +60,10 @@ def fact_to_pddl(fact):
     for obj in fact[1:]:
         new_fact.append(obj.pddl if isinstance(obj, Object) or isinstance(obj, OptimisticObject) else obj)
     return tuple(new_fact)
-    
+
+def apply_substitution(fact, substitution):
+    return tuple(substitution.get(arg, arg) for arg in fact)
+
 def is_matching(l, ans_l, preimage, atom_map):
     """
     returns True iff there exists a fact, g, in
@@ -80,7 +75,6 @@ def is_matching(l, ans_l, preimage, atom_map):
     A subsitution is defined as a mapping from variable to object
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
-
     for g in preimage:
         sub_map = {}
         g = tuple(g)
@@ -90,6 +84,10 @@ def is_matching(l, ans_l, preimage, atom_map):
         if not(g in atom_map):
             raise NotImplementedError("Something wrong here.")
         ans_g = ancestors(g, atom_map)
+        if not ans_g:
+            continue # never need to match initial conditions
+        if len(ans_g) != len(ans_l):
+            continue # avoid cost of unnecessary computation
         all = True
         for g_i in ans_g: # forall g_i in ans(g)
             l_exists = False # does there exists and l_i such that
@@ -102,8 +100,11 @@ def is_matching(l, ans_l, preimage, atom_map):
                 all = False
                 break # go to next g
         if all:
-            return True
-    return False
+            substituted_ancestors = {apply_substitution(fact, sub_map) for fact in ans_l}
+            if substituted_ancestors == ans_g:
+                return True, g
+            continue
+    return False, None
 
 
 def is_relevant(result, node_from_atom):
@@ -113,6 +114,7 @@ def is_relevant(result, node_from_atom):
     is_matching() (see above function)
     """
     can_atom_map = make_atom_map(node_from_atom)
+    # assert {x for x in atom_map if not atom_map[x]} == {x for x in can_atom_map if not can_atom_map[x]}
     can_ans = set()
     for domain_fact in result.domain:
         can_ans.add(fact_to_pddl(domain_fact))
@@ -120,8 +122,38 @@ def is_relevant(result, node_from_atom):
     for can_fact in result.get_certified():
         #print(f"candidate fact: {can_fact}")
         #print(f"ancestors: {can_ans}")
-        if is_matching(fact_to_pddl(can_fact), can_ans, last_preimage, atom_map):
-            #print("Relevant")
+        is_match, match = is_matching(fact_to_pddl(can_fact), can_ans, last_preimage, atom_map)
+        if is_match:
+            # print(f'Relevant: \n\t {fact_to_pddl(can_fact)}: {can_ans} \n\t {match}: {ancestors(match, atom_map)}')            
             return True
+        else:
+            pass
+            # print('no', fact_to_pddl(can_fact))
     #print("Irrelevant")
     return False
+
+
+file_path, _ = os.path.split(os.path.realpath(__file__))
+last_preimage = None
+atom_map = None
+
+if os.path.isfile(f"{file_path}/data/stats.json"):
+    with open(f"{file_path}/data/stats.json") as stream:
+        data = json.load(stream)
+        last_preimage = data["last_preimage"]
+        atom_map = item_to_dict(data["atom_map"])
+        to_add = set()
+        for fact in last_preimage:
+            fact = tuple(fact)
+            if fact not in atom_map:
+                print(f'Warning {fact} not in atom_map')
+                continue
+            to_add |= ancestors(fact, atom_map)
+        print(len(last_preimage))
+        last_preimage += list(to_add)
+        print(len(last_preimage))
+else:
+    print(
+        (f"File {file_path}/data/stats.json does not exist\n"
+        "Not using oracle")
+    )
