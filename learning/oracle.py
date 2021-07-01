@@ -8,7 +8,13 @@ from panda_station import (
 
 file_path, _ = os.path.split(os.path.realpath(__file__))
 
-def save_stats(str_init, str_goal, stats_path):
+def save_stats(
+    domain_pddl,
+    stream_pddl,
+    str_init,
+    str_goal,
+    stats_path
+):
     """
     Saves the file path to the stats.json to 
     index.json, with the key being the unique identifier
@@ -22,20 +28,40 @@ def save_stats(str_init, str_goal, stats_path):
         with open(f"{file_path}/data/index.json") as stream:
             index = json.load(stream)
 
-    index[str_init + str_goal] = stats_path
+    pddl = domain_pddl + stream_pddl
+    str_index = str_init + str_goal
+
+    if pddl not in index:
+        index[pddl] = {}
+
+    index[pddl][str_index] = stats_path
     with open(f"{file_path}/data/index.json", "w") as stream:
         json.dump(index, stream, indent = 4, sort_keys= True)
     
-def get_stats(str_index):
+def get_stats(
+    domain_pddl,
+    stream_pddl, 
+    str_init,
+    str_goal,
+):
     """
     Gets the stats.json given
     str_index = str_init + str_goal 
     """
     with open(f"{file_path}/data/index.json") as stream:
         index = json.load(stream)
-    if str_index not in index:
-        raise KeyError("Oracle does not have information of this problem")
-    filepath = index[str_index]
+    pddl = domain_pddl + stream_pddl
+    str_index = str_init+str_goal
+    if pddl not in index:
+        raise KeyError(
+            ("Oracle does not have information of this"
+            "domain.pddl/stream.pddl")
+        )
+    if str_index not in index[pddl]:
+        raise KeyError(
+            "Oracle does not have information of this problem.pddl"
+        )
+    filepath = index[pddl][str_index]
     return filepath
 
 def logical_to_string(logical):

@@ -132,7 +132,12 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode):
     str_goal = oracle.logical_to_string(goal)
 
     if mode == "oracle":
-        stats_path = oracle.get_stats(str_init + str_goal)
+        stats_path = oracle.get_stats(
+            domain_pddl,
+            stream_pddl,
+            str_init,
+            str_goal,
+        )
         subprocess.check_output(
             [
                 "cp",
@@ -446,7 +451,12 @@ if __name__ == "__main__":
         visualization.stats_to_graph(path + "stats.json", save_path = path + "preimage_graph.html")
 
         if mode == "save":
-            oracle.save_stats(str_init, str_goal, path + "stats.json")
+            oracle.save_stats(
+                domain_pddl,
+                stream_pddl,
+                str_init,
+                str_goal, path + "stats.json"
+            )
 
         if meshcat_vis is None:
             sys.exit(0)
