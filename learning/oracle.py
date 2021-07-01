@@ -193,21 +193,12 @@ def is_matching(l, ans_l, preimage, atom_map):
         if len(ans_g) != len(ans_l):
             continue # avoid cost of unnecessary computation
         all = True
-        for g_i in set(ans_g): # forall g_i in ans(g)
-            l_exists = False # does there exists and l_i such that
-            for l_i in ans_l:
-                if subsitution(l_i, g_i, sub_map):
-                    l_exists = True
-                    break
-                # Do we need the l_i, g_i matching to be bijective?
-            if not l_exists:
+        for g_i, l_i in zip(ans_g, ans_l): # forall g_i in ans(g)
+            if not subsitution(l_i, g_i, sub_map):
                 all = False
-                break # go to next g
+                break
         if all:
-            substituted_ancestors = tuple(apply_substitution(fact, sub_map) for fact in ans_l)
-            if substituted_ancestors == ans_g:
-                return True, g
-            continue
+            return True, g
     return False, None
 
 
@@ -276,3 +267,9 @@ def load_stats():
             (f"File {file_path}/data/stats.json does not exist\n"
             "Not using oracle")
         )
+
+if __name__ == '__main__':
+    load_stats()
+    l = ('motion', "#p3", "#t", "#p0")
+    ans_l = (('conf', '#p3'), ('worldpose', 'v1', '#x14'), ('item', 'v1'), ('region', 'v14'), ('handpose', 'v1', '#x0'), ('item', 'v1'), ('conf', '#p0'), ('worldpose', 'v1', 'v2'), ('handpose', 'v1', '#x0'), ('item', 'v1'))
+    print(is_matching(l, ans_l, last_preimage, atom_map))
