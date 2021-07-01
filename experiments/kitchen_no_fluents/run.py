@@ -22,6 +22,7 @@ from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
 #TODO(agro): see which of these are necessary
+from learning import oracle
 from panda_station import (
     ProblemInfo,
     parse_start_poses,
@@ -59,14 +60,18 @@ file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
 stream_pddl = open(f"{file_path}/stream.pddl", "r").read()
 
+str_init = ""
+str_goal = ""
+
 def lprint(string):
     if VERBOSE:
         print(string)
 
-def construct_problem_from_sim(simulator, stations, problem_info):
+def construct_problem_from_sim(simulator, stations, problem_info, mode):
     """
     Construct pddlstream problem from simulator
     """
+    global str_init, str_goal
     init = []
     main_station = stations["main"]
     simulator_context = simulator.get_context()
@@ -107,6 +112,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             if "burner" in link_name:
                 init += [("burner", region)]
 
+
     goal = ["and",
         #("in", "cabbage1", ("leftplate", "base_link")),
         #("cooked", "cabbage1"),
@@ -114,13 +120,26 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         #("cooked", "cabbage2"),
         ("clean", "glass1"),
         #("clean", "glass2"),
-        #("in", "glass1", ("leftplacemat", "leftside")),
+        ("in", "glass1", ("leftplacemat", "leftside")),
         #("in", "glass2", ("rightplacemat", "leftside")),
         #("in", "raddish1", ("tray", "base_link")),
         #("in", "raddish7", ("tray", "base_link")),
         #("in", "raddish4", ("tray", "base_link")),
         #("in", "raddish5", ("tray", "base_link")),
     ]
+
+    str_init = oracle.logical_to_string(init)
+    str_goal = oracle.logical_to_string(goal)
+
+    if mode == "oracle":
+        stats_path = oracle.get_stats(str_init + str_goal)
+        subprocess.check_output(
+            [
+                "cp",
+                stats_path,
+                os.path.expanduser("~") + "/drake-tamp/learning/data/"
+            ]
+        )
 
     def get_station(name):
         if name in stations:
@@ -396,7 +415,7 @@ if __name__ == "__main__":
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         args.url, args.problem
     )
-    problem = construct_problem_from_sim(sim, station_dict, prob_info)
+    problem = construct_problem_from_sim(sim, station_dict, prob_info, mode)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
@@ -427,13 +446,7 @@ if __name__ == "__main__":
         visualization.stats_to_graph(path + "stats.json", save_path = path + "preimage_graph.html")
 
         if mode == "save":
-            subprocess.check_output(
-                [
-                    "cp",
-                    path + "stats.json",
-                    os.path.expanduser("~") + "/drake-tamp/learning/data/"
-                ]
-            )
+            oracle.save_stats(str_init, str_goal, path + "stats.json")
 
         if meshcat_vis is None:
             sys.exit(0)

@@ -6,6 +6,71 @@ from panda_station import (
     RigidTransformWrapper
 )
 
+file_path, _ = os.path.split(os.path.realpath(__file__))
+
+def save_stats(str_init, str_goal, stats_path):
+    """
+    Saves the file path to the stats.json to 
+    index.json, with the key being the unique identifier
+    string for that problem 
+    """
+    if not os.path.isdir(f"{file_path}/data"):
+        os.mkdir(f"{file_path}/data")
+    index = {}
+    exists = os.path.isfile(f"{file_path}/data/index.json")
+    if exists:
+        with open(f"{file_path}/data/index.json") as stream:
+            index = json.load(stream)
+
+    index[str_init + str_goal] = stats_path
+    with open(f"{file_path}/data/index.json", "w") as stream:
+        json.dump(index, stream, indent = 4, sort_keys= True)
+    
+def get_stats(str_index):
+    """
+    Gets the stats.json given
+    str_index = str_init + str_goal 
+    """
+    with open(f"{file_path}/data/index.json") as stream:
+        index = json.load(stream)
+    if str_index not in index:
+        raise KeyError("Oracle does not have information of this problem")
+    filepath = index[str_index]
+    return filepath
+
+def logical_to_string(logical):
+    """
+    Turns an init/goal list for a
+    pddl problem into a consistent string
+    identifier
+    (ie. the order of the predicates will not
+    matter for the output string)
+    """
+    logical = sorted(
+        logical,
+        key = lambda x: str(x)
+    )
+    res = ""
+    num = 0
+    for item in logical:
+        num += 1
+        if isinstance(item, str):
+            res += item + ","
+            continue
+        res += "("
+        for i in range(len(item)):
+            s = item[i]
+            res += str(s)
+            if i < len(item) - 1:
+                res += ", "
+        res += ")"
+        if num < len(logical):
+            res += ", "
+    res += "\n"
+    return res
+            
+
+
 def item_to_dict(atom_map):
     res = {}
     for item in atom_map:
@@ -133,6 +198,8 @@ def is_relevant(result, node_from_atom, preimage):
     return False, None
 
 def make_is_relevant_checker(remove_matched=False):
+    if last_preimage is None or atom_map is None:
+        load_stats()
     preimage = last_preimage.copy()
     def unique_is_relevant(result, node_from_atom):
         is_match, match = is_relevant(result, node_from_atom, preimage)
@@ -143,26 +210,28 @@ def make_is_relevant_checker(remove_matched=False):
     return unique_is_relevant
 
 
-file_path, _ = os.path.split(os.path.realpath(__file__))
 last_preimage = None
 atom_map = None
 
-if os.path.isfile(f"{file_path}/data/stats.json"):
-    with open(f"{file_path}/data/stats.json") as stream:
-        data = json.load(stream)
-        last_preimage = list(map(tuple, data["last_preimage"]))
-        atom_map = item_to_dict(data["atom_map"])
-        to_add = set()
-        for fact in last_preimage:
-            if fact not in atom_map:
-                print(f'Warning {fact} not in atom_map')
-                continue
-            to_add |= ancestors(fact, atom_map)
-        print(len(last_preimage))
-        last_preimage += list(to_add)
-        print(len(last_preimage))
-else:
-    print(
-        (f"File {file_path}/data/stats.json does not exist\n"
-        "Not using oracle")
-    )
+def load_stats():
+    global last_preimage
+    global atom_map
+    if os.path.isfile(f"{file_path}/data/stats.json"):
+        with open(f"{file_path}/data/stats.json") as stream:
+            data = json.load(stream)
+            last_preimage = list(map(tuple, data["last_preimage"]))
+            atom_map = item_to_dict(data["atom_map"])
+            to_add = set()
+            for fact in last_preimage:
+                if fact not in atom_map:
+                    print(f'Warning {fact} not in atom_map')
+                    continue
+                to_add |= ancestors(fact, atom_map)
+            print(len(last_preimage))
+            last_preimage += list(to_add)
+            print(len(last_preimage))
+    else:
+        print(
+            (f"File {file_path}/data/stats.json does not exist\n"
+            "Not using oracle")
+        )
