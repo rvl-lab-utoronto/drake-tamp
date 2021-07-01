@@ -116,6 +116,19 @@ def ancestors(fact, atom_map):
         res |= ancestors(parent, atom_map)
     return set(res)
 
+def ancestors_tuple(fact, atom_map):
+    """
+    Given a fact, return a pre-order from bottom-up tuple of
+    that fact's branch
+    """
+    parents = atom_map[fact]
+    ancestors = tuple()
+    for parent in parents:
+        ancestors += (parent,)
+        ancestors += ancestors_tuple(parent, atom_map)
+
+    return ancestors
+
 def make_atom_map(node_from_atom):
     atom_map = {}
     for atom in node_from_atom:
@@ -173,14 +186,14 @@ def is_matching(l, ans_l, preimage, atom_map):
             continue
         
         if not(g in atom_map):
-            raise NotImplementedError("Something wrong here.")
-        ans_g = ancestors(g, atom_map)
+            raise NotImplementedError(f"Something wrong here. {g} is not in atom_map.")
+        ans_g = ancestors_tuple(g, atom_map)
         if not ans_g:
             continue # never need to match initial conditions
         if len(ans_g) != len(ans_l):
             continue # avoid cost of unnecessary computation
         all = True
-        for g_i in ans_g: # forall g_i in ans(g)
+        for g_i in set(ans_g): # forall g_i in ans(g)
             l_exists = False # does there exists and l_i such that
             for l_i in ans_l:
                 if subsitution(l_i, g_i, sub_map):
@@ -191,7 +204,7 @@ def is_matching(l, ans_l, preimage, atom_map):
                 all = False
                 break # go to next g
         if all:
-            substituted_ancestors = {apply_substitution(fact, sub_map) for fact in ans_l}
+            substituted_ancestors = tuple(apply_substitution(fact, sub_map) for fact in ans_l)
             if substituted_ancestors == ans_g:
                 return True, g
             continue
@@ -206,10 +219,11 @@ def is_relevant(result, node_from_atom, preimage):
     """
     can_atom_map = make_atom_map(node_from_atom)
     # assert {x for x in atom_map if not atom_map[x]} == {x for x in can_atom_map if not can_atom_map[x]}
-    can_ans = set()
+    can_ans = tuple()
     for domain_fact in result.domain:
-        can_ans.add(fact_to_pddl(domain_fact))
-        can_ans |= ancestors(fact_to_pddl(domain_fact), can_atom_map)
+        can_ans += (fact_to_pddl(domain_fact),)
+        can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
+    
     for can_fact in result.get_certified():
         #print(f"candidate fact: {can_fact}")
         #print(f"ancestors: {can_ans}")
@@ -223,12 +237,13 @@ def is_relevant(result, node_from_atom, preimage):
     #print("Irrelevant")
     return False, None
 
-def make_is_relevant_checker(remove_matched=False):
+def make_is_relevant_checker(remove_matched=True):
     if last_preimage is None or atom_map is None:
         load_stats()
     preimage = last_preimage.copy()
     def unique_is_relevant(result, node_from_atom):
         is_match, match = is_relevant(result, node_from_atom, preimage)
+        
         if remove_matched and is_match:
             lifted, grounded = match
             preimage.remove(grounded)
