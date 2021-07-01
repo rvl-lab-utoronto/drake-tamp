@@ -107,7 +107,7 @@ def is_matching(l, ans_l, preimage, atom_map):
     return False, None
 
 
-def is_relevant(result, node_from_atom):
+def is_relevant(result, node_from_atom, preimage):
     """
     returns True iff either one of the
     certified facts in result.get_certified()
@@ -122,15 +122,25 @@ def is_relevant(result, node_from_atom):
     for can_fact in result.get_certified():
         #print(f"candidate fact: {can_fact}")
         #print(f"ancestors: {can_ans}")
-        is_match, match = is_matching(fact_to_pddl(can_fact), can_ans, last_preimage, atom_map)
+        is_match, match = is_matching(fact_to_pddl(can_fact), can_ans, preimage, atom_map)
         if is_match:
             # print(f'Relevant: \n\t {fact_to_pddl(can_fact)}: {can_ans} \n\t {match}: {ancestors(match, atom_map)}')            
-            return True
+            return True, (can_fact, match)
         else:
             pass
             # print('no', fact_to_pddl(can_fact))
     #print("Irrelevant")
-    return False
+    return False, None
+
+def make_is_relevant_checker(remove_matched=False):
+    preimage = last_preimage.copy()
+    def unique_is_relevant(result, node_from_atom):
+        is_match, match = is_relevant(result, node_from_atom, preimage)
+        if remove_matched and is_match:
+            lifted, grounded = match
+            preimage.remove(grounded)
+        return is_match
+    return unique_is_relevant
 
 
 file_path, _ = os.path.split(os.path.realpath(__file__))
@@ -140,11 +150,10 @@ atom_map = None
 if os.path.isfile(f"{file_path}/data/stats.json"):
     with open(f"{file_path}/data/stats.json") as stream:
         data = json.load(stream)
-        last_preimage = data["last_preimage"]
+        last_preimage = list(map(tuple, data["last_preimage"]))
         atom_map = item_to_dict(data["atom_map"])
         to_add = set()
         for fact in last_preimage:
-            fact = tuple(fact)
             if fact not in atom_map:
                 print(f'Warning {fact} not in atom_map')
                 continue
