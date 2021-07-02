@@ -134,8 +134,11 @@ def make_atom_map(node_from_atom):
     for atom in node_from_atom:
         node = node_from_atom[atom]
         result = node.result
+        # TODO: Figure out how to deal with these bools? 
         if result is None:
             atom_map[fact_to_pddl(atom)] = []
+            continue
+        if isinstance(result, bool):
             continue
         atom_map[fact_to_pddl(atom)] = [fact_to_pddl(f) for f in result.domain]
     return atom_map
@@ -165,11 +168,15 @@ def apply_substitution(fact, substitution):
     return tuple(substitution.get(arg, arg) for arg in fact)
 
 def sub_map_from_init(init):
-    sub_map = {}
+    objects = objects_from_facts(init)
+    return {o:o for o in objects}
+
+def objects_from_facts(init):
+    objects = set()
     for fact in init:
         for arg in fact[1:]:
-            sub_map[arg] = arg
-    return sub_map
+            objects.add(arg)
+    return objects
 def is_matching(l, ans_l, preimage, atom_map, init):
     """
     returns True iff there exists a fact, g, in
@@ -211,8 +218,7 @@ def is_relevant(result, node_from_atom, preimage, init):
     is_matching() (see above function)
     """
     can_atom_map = make_atom_map(node_from_atom)
-    # x_init = {x for x in can_atom_map if not can_atom_map[x]}
-    # assert init == x_init, f"{init - x_init} and {x_init - init}"
+    assert objects_from_facts(init) == objects_from_facts({f for f in can_atom_map if not can_atom_map[f]})
     can_ans = tuple()
     for domain_fact in result.domain:
         can_ans += (fact_to_pddl(domain_fact),)
@@ -231,7 +237,7 @@ def is_relevant(result, node_from_atom, preimage, init):
     #print("Irrelevant")
     return False, None
 
-def make_is_relevant_checker(remove_matched=True):
+def make_is_relevant_checker(remove_matched=False):
     if last_preimage is None or atom_map is None:
         load_stats()
     preimage = last_preimage.copy()
