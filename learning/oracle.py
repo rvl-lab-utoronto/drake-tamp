@@ -145,12 +145,7 @@ def subsitution(l, g, sub_map):
     if (l[0] != g[0]) or (len(l) != len(g)):
         return False
     for can_o, o in zip(l[1:], g[1:]):
-        if not can_o.startswith('#'):
-            if can_o != o:
-                return False
-            continue
         if not (can_o in test_sub_map):
-            assert can_o.startswith('#'), "Expected substitution keys to only include variables"
             test_sub_map[can_o] = o
             continue
         if test_sub_map[can_o] != o:
@@ -162,13 +157,20 @@ from pddlstream.language.object import Object, OptimisticObject
 def fact_to_pddl(fact):
     new_fact = [fact[0]]
     for obj in fact[1:]:
-        new_fact.append(obj.pddl if isinstance(obj, Object) or isinstance(obj, OptimisticObject) else obj)
+        pddl_obj = obj.pddl if isinstance(obj, Object) or isinstance(obj, OptimisticObject) else obj
+        new_fact.append(pddl_obj)
     return tuple(new_fact)
 
 def apply_substitution(fact, substitution):
     return tuple(substitution.get(arg, arg) for arg in fact)
 
-def is_matching(l, ans_l, preimage, atom_map):
+def sub_map_from_init(init):
+    sub_map = {}
+    for fact in init:
+        for arg in fact[1:]:
+            sub_map[arg] = arg
+    return sub_map
+def is_matching(l, ans_l, preimage, atom_map, init):
     """
     returns True iff there exists a fact, g, in
     atom_map (global) and a substitution
@@ -180,7 +182,7 @@ def is_matching(l, ans_l, preimage, atom_map):
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
     for g in preimage:
-        sub_map = {}
+        sub_map = sub_map_from_init(init)
         g = tuple(g)
         if not subsitution(l, g, sub_map):  # facts are of same type
             continue
@@ -202,14 +204,15 @@ def is_matching(l, ans_l, preimage, atom_map):
     return False, None
 
 
-def is_relevant(result, node_from_atom, preimage):
+def is_relevant(result, node_from_atom, preimage, init):
     """
     returns True iff either one of the
     certified facts in result.get_certified()
     is_matching() (see above function)
     """
     can_atom_map = make_atom_map(node_from_atom)
-    # assert {x for x in atom_map if not atom_map[x]} == {x for x in can_atom_map if not can_atom_map[x]}
+    # x_init = {x for x in can_atom_map if not can_atom_map[x]}
+    # assert init == x_init, f"{init - x_init} and {x_init - init}"
     can_ans = tuple()
     for domain_fact in result.domain:
         can_ans += (fact_to_pddl(domain_fact),)
@@ -218,7 +221,7 @@ def is_relevant(result, node_from_atom, preimage):
     for can_fact in result.get_certified():
         #print(f"candidate fact: {can_fact}")
         #print(f"ancestors: {can_ans}")
-        is_match, match = is_matching(fact_to_pddl(can_fact), can_ans, preimage, atom_map)
+        is_match, match = is_matching(fact_to_pddl(can_fact), can_ans, preimage, atom_map, init)
         if is_match:
             # print(f'Relevant: \n\t {fact_to_pddl(can_fact)}: {can_ans} \n\t {match}: {ancestors(match, atom_map)}')            
             return True, (can_fact, match)
@@ -233,8 +236,7 @@ def make_is_relevant_checker(remove_matched=True):
         load_stats()
     preimage = last_preimage.copy()
     def unique_is_relevant(result, node_from_atom):
-        is_match, match = is_relevant(result, node_from_atom, preimage)
-        
+        is_match, match = is_relevant(result, node_from_atom, preimage, init)
         if remove_matched and is_match:
             lifted, grounded = match
             preimage.remove(grounded)
@@ -248,11 +250,13 @@ atom_map = None
 def load_stats():
     global last_preimage
     global atom_map
+    global init
     if os.path.isfile(f"{file_path}/data/stats.json"):
         with open(f"{file_path}/data/stats.json") as stream:
             data = json.load(stream)
             last_preimage = list(map(tuple, data["last_preimage"]))
             atom_map = item_to_dict(data["atom_map"])
+            init = {x for x in atom_map if not atom_map[x]}
             to_add = set()
             for fact in last_preimage:
                 if fact not in atom_map:
