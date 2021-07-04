@@ -13,13 +13,28 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Kitchen No Fluents",
+            "name": "Kitchen No Fluents: Normal",
             "type": "python",
             "request": "launch",
-            "program": "run.py",
+            "program": "${workspaceFolder}/experiments/kitchen_no_fluents/run.py",
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/",
+            "env": {
+                "ORACLE": "False",
+                "DEFAULT_UNIQUE": "False"
+            },
             "args": ["--mode", "save"]
+        },
+        {
+            "name": "Kitchen No Fluents: Oracle",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/experiments/kitchen_no_fluents/run.py",
+            "console": "integratedTerminal",
+            "env": {
+                "ORACLE": "True",
+                "DEFAULT_UNIQUE": "True"
+            },
+            "args": ["--mode", "oracle"]
         }
     ]
 }
