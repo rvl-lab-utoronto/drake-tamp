@@ -1,0 +1,166 @@
+<sdf version="1.7">
+  <model name="red_table">
+    <link name="base_link">
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.166667</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.166667</iyy>
+          <iyz>0</iyz>
+          <izz>0.166667</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0 0 0 0 -0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0.3125 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.4 0.75 0.025</size>
+          </box>
+        </geometry>
+        <material>
+          <diffuse>1 0.1 0.1 0.5</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <pose>0 0 0.3125 0 -0 0</pose>
+        <geometry>
+          <box>
+            <size>0.4 0.75 0.025</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <link name="leg1">
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.145833</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.145833</iyy>
+          <iyz>0</iyz>
+          <izz>0.125</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0.15 -0.325 0.15 0 -0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.3</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="leg2">
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.145833</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.145833</iyy>
+          <iyz>0</iyz>
+          <izz>0.125</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>-0.15 -0.325 0.15 0 -0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.3</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="leg3">
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.145833</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.145833</iyy>
+          <iyz>0</iyz>
+          <izz>0.125</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>0.15 0.325 0.15 0 -0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.3</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="leg4">
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.145833</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.145833</iyy>
+          <iyz>0</iyz>
+          <izz>0.125</izz>
+        </inertia>
+        <pose>0 0 0 0 -0 0</pose>
+      </inertial>
+      <pose>-0.15 0.325 0.15 0 -0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0 0 -0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.015</radius>
+            <length>0.3</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <joint name="link_0_JOINT_0" type="fixed">
+      <parent>base_link</parent>
+      <child>leg1</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <joint name="link_0_JOINT_1" type="fixed">
+      <parent>base_link</parent>
+      <child>leg2</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <joint name="link_0_JOINT_3" type="fixed">
+      <parent>base_link</parent>
+      <child>leg3</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+    <joint name="link_0_JOINT_4" type="fixed">
+      <parent>base_link</parent>
+      <child>leg4</child>
+      <pose>0 0 0 0 -0 0</pose>
+    </joint>
+  </model>
+</sdf>

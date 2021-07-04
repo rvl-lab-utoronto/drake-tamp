@@ -6,6 +6,7 @@ http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
 import matplotlib
 matplotlib.use("Agg")
+import time
 import os
 import copy
 from re import I
@@ -21,8 +22,6 @@ from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
 #TODO(agro): see which of these are necessary
-from learning import visualization
-from learning import oracle as ora
 from panda_station import (
     ProblemInfo,
     parse_start_poses,
@@ -53,11 +52,11 @@ random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
-DUMMY_STREAMS = False
 
+file = "five_action"
 file_path, _ = os.path.split(os.path.realpath(__file__))
-domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
-stream_pddl = open(f"{file_path}/stream.pddl", "r").read()
+domain_pddl = open(f"{file_path}/{file}/domain.pddl", "r").read()
+stream_pddl = open(f"{file_path}/{file}/stream.pddl", "r").read()
 
 def lprint(string):
     if VERBOSE:
@@ -82,8 +81,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     supports = []
     for name, pose in start_poses.items():
         start_poses[name] = RigidTransformWrapper(pose, name = f"X_W{name}")
-        if "on-block" in problem_info.objects[name]:
-            supports.append(problem_info.objects[name]["on-block"])
+        supports.append(problem_info.objects[name]["support"])
 
     for name, pose in start_poses.items():
         init += [
@@ -91,17 +89,15 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("worldpose", name, pose),
             ("atworldpose", name, pose),
         ]
-        if "on-table" in problem_info.objects[name]:
+        on = problem_info.objects[name]["support"] 
+        if on == "table":
             init += [
-                ("table-support", name, pose, tuple(problem_info.objects[name]["on-table"])),
-            ]
-        elif "on-block" in problem_info.objects[name]:
-            block = problem_info.objects[name]["on-block"]
-            init += [
-                ("block-support", name, pose, block, start_poses[block]),
+                ("table-support", name, pose),
             ]
         else:
-            raise SyntaxError(f"Object {name} needs to specify on-table or on-block")
+            init += [
+                ("block-support", on, start_poses[on], name, pose),
+            ]
         if not (name in supports):
             init += [
                 ("clear", name),
@@ -116,26 +112,20 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("atconf", arm, conf)
         ]
 
-
+    surfaces = []
     for object_name in problem_info.surfaces:
         for link_name in problem_info.surfaces[object_name]:
-            table = (object_name, link_name)
-            print(table)
-            init += [("table", table)]
+            surfaces.append((object_name, link_name))
+
 
     goal = ["and",
-        ("on-block", "orange_block", "blue_block"),
-        ("on-block", "green_block", "blocker1"),
-        ("on-table", "blocker1", ("blue_table", "base_link")),
-        ("on-table", "blue_block", ("green_table", "base_link")),
+        ("on-block", "orange_block", "green_block"),
     ]
 
-    oracle = ora.Oracle(
-        domain_pddl,
-        stream_pddl,
-        init,
-        goal,
-    )
+    #goal = ["and",
+    #    ("on-block", "red_block", "blue_block"),
+    #    ("on-block", "blue_block", "orange_block"),
+    #]
 
     def get_station(name, arm_name = None):
         if arm_name is None:
@@ -254,13 +244,13 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 set_others_to_inf = True
             )
 
-    def find_table_place(block, table):
-        lprint(f"{Colors.BLUE}Starting place stream for {block} on {table}{Colors.RESET}")
+    def find_table_place(block):
+        lprint(f"{Colors.BLUE}Starting place stream for {block}{Colors.RESET}")
         station, station_context = get_station("move_free")
         holding_object_info = station.object_infos[block][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
         while True:
-            object_name, link_name = table
+            object_name, link_name = random.choice(surfaces)
             target_object_info = station.object_infos[object_name][0]
             surface = update_surfaces(target_object_info, link_name, station, station_context)[0]
             yield RigidTransformWrapper(
@@ -312,6 +302,26 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             q
         )
 
+    def check_colfree_arms(arm1_name, q1, arm2_name, q2):
+        lprint(f"{Colors.BLUE}Checking for collisions between arms{Colors.RESET}")
+        if arm1_name == arm2_name:
+            return True
+        station, station_context = get_station("move_free")
+        update_station(
+            station,
+            station_context,
+            [],
+            set_others_to_inf = True
+        )
+        return blocks_world_streams.check_colfree_arms(
+            station,
+            station_context,
+            arm1_name,
+            q1,
+            arm2_name,
+            q2
+        )
+
     stream_map = {
         "find-traj": from_gen_fn(find_motion),
         "find-ik": from_gen_fn(find_ik),
@@ -319,9 +329,10 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         "find-table-place": from_gen_fn(find_table_place),
         "find-block-place": from_gen_fn(find_block_place),
         "check-colfree-block": from_test(check_colfree_block),
+        "check-colfree-arms": from_test(check_colfree_arms),
     }
 
-    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), oracle
+    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
 
 def make_and_init_simulation(zmq_url, prob):
     """
@@ -384,51 +395,21 @@ def make_and_init_simulation(zmq_url, prob):
     simulator.AdvanceTo(SIM_INIT_TIME)
     return simulator, stations, directors, meshcat, problem_info
 
-def setup_parser():
-    parser = argparse.ArgumentParser(
-        description= "Run the kitchen domain"
-    )
-    parser.add_argument(
-        "-u",
-        "--url",
-        nargs="?",
-        default=None,
-        help = "Specify the zmq_url for a meshcat server",
-    )
-    parser.add_argument(
-        "-p",
-        "--problem",
-        nargs="?",
-        default=f"{file_path}/problems/default_problem.yaml",
-        help = "Use --problem to specify a .yaml problem file",
-    )
-    parser.add_argument(
-        "-m",
-        "--mode",
-        nargs = "?",
-        default = "normal",
-        choices=[
-            'normal',
-            'oracle',
-            'save'
-        ],
-        help =  ("normal mode will run ORACLE=False, DEFAULT_UNIQUE=False\n"
-                "save mode will run ORACLE=False, DEFAULT_UNIQUE=False and"
-                "copy the stats.json to ~/drake_tamp/learning/data\n"
-                "oracle mode will use the oracle with the latest stats.json")
-    )
-    return parser
 
 if __name__ == "__main__":
 
-    parser = setup_parser()
+    parser = argparse.ArgumentParser(
+        description="Use --url to specify the zmq_url for a meshcat server\nuse --problem to specify a .yaml problem file"
+    )
+    parser.add_argument("-u", "--url", nargs="?", default=None)
+    parser.add_argument(
+        "-p", "--problem", nargs="?", default=f"{file_path}/problems/one_arm_problem.yaml"
+    )
     args = parser.parse_args()
-    mode = args.mode.lower()
-
     sim, station_dict, traj_directors, meshcat_vis, prob_info = make_and_init_simulation(
         args.url, args.problem
     )
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
+    problem = construct_problem_from_sim(sim, station_dict, prob_info)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
@@ -438,21 +419,15 @@ if __name__ == "__main__":
         time = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
 
         if not os.path.isdir("logs"):
-            os.mkdir(f"{file_path}/logs")
-        if not os.path.isdir(f"{file_path}/logs/{time}"):
-            os.mkdir(f"{file_path}/logs/{time}")
-
-        path = f"{file_path}/logs/{time}/"
+            os.mkdir("logs")
+        if not os.path.isdir(f"logs/{time}"):
+            os.mkdir(f"logs/{time}")
+        path = f"logs/{time}/"
         
-        given_oracle = oracle if mode == "oracle" else None
         solution = solve(
-            problem,
-            algorithm=algorithm,
-            verbose = VERBOSE,
-            logpath = path,
-            oracle = given_oracle,
-            use_unique = mode == "oracle",
+            problem, algorithm=algorithm, verbose=VERBOSE, logpath = path
         )
+
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
 
@@ -461,16 +436,7 @@ if __name__ == "__main__":
             print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
             sys.exit(0)
 
-        if mode == "save":
-            oracle.save_stats(
-                path + "stats.json"
-            )
-
-        if mode == "oracle":
-            oracle.save_labeled()
-
         make_plot(path + "stats.json", save_path = path + "plots.png")
-        visualization.stats_to_graph(path + "stats.json", save_path = path + "preimage_graph.html")
 
         if meshcat_vis is not None:
             action_map = {

@@ -64,7 +64,7 @@ def lprint(string):
     if VERBOSE:
         print(string)
 
-def construct_problem_from_sim(simulator, stations, problem_info, mode):
+def construct_problem_from_sim(simulator, stations, problem_info):
     """
     Construct pddlstream problem from simulator
     """
@@ -130,19 +130,6 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode):
         init,
         goal,
     )
-        #stats_path = oracle.get_stats(
-        #    domain_pddl,
-        #    stream_pddl,
-        #    str_init,
-        #    str_goal,
-        #)
-        #subprocess.check_output(
-        #    [
-        #        "cp",
-        #        stats_path,
-        #        os.path.expanduser("~") + "/drake-tamp/learning/data/"
-        #    ]
-        #)
 
     def get_station(name):
         if name in stations:
@@ -418,7 +405,7 @@ if __name__ == "__main__":
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         args.url, args.problem
     )
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info, mode)
+    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))

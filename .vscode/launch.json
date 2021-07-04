@@ -13,13 +13,31 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Kitchen No Fluents",
+            "name": "kitchen oracle",
             "type": "python",
             "request": "launch",
             "program": "run.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/",
             "args": ["--mode", "oracle"],
+        },
+        {
+            "name": "kitchen normal",
+            "type": "python",
+            "request": "launch",
+            "program": "run.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/",
+            "args": ["--mode", "normal"],
+        },
+        {
+            "name": "kitchen save",
+            "type": "python",
+            "request": "launch",
+            "program": "run.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/",
+            "args": ["--mode", "save"],
         }
     ]
 }

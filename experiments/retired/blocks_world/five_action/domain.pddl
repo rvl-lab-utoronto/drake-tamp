@@ -4,8 +4,8 @@
     (:predicates 
         ; type/static predicates
         (arm ?arm)
+        ;(table ?table) ; we do not care about specific tables in this world
         (block ?block)
-        (table ?table)
         ; find-table-place and find-block-place
         (worldpose ?block ?X_WB)
         ; find-grasp
@@ -25,9 +25,9 @@
         ; if arm1 is at q1, and arm2 is at q2, are there collisions?
         (colfree-arms ?arm1 ?q1 ?arm2 ?q2)
         ; find-table-place
-        (table-support ?block ?X_WB ?table)
+        (table-support ?block ?X_WB)
         ; find-block-place
-        (block-support ?upperblock ?X_WU ?lowerblock ?X_WL)
+        (block-support ?lowerblock ?X_WL ?upperblock ?X_WU)
 
         ; fluents 
         (empty ?arm)
@@ -38,26 +38,10 @@
 
         ;derived
         (block-safe ?arm ?q ?block)
-        (on-block ?upperblock ?lowerblock)
-        (on-table ?block ?table)
-        (on-any-table ?block ?X_WB)
+        (on-block ?lowerblock ?upperblock)
+        ;(arm-safe ?arm1 ?q1 ?arm2)
     )
 
-    (:derived (on-table ?block ?table) 
-        (exists (?X_WB) (and
-                (table-support ?block ?X_WB ?table) 
-                (atworldpose ?block ?X_WB)
-            )
-        )
-    )
-
-    ; if block was at X_WB, would it be on any table
-    (:derived (on-any-table ?block ?X_WB) 
-        (exists (?table) (and
-                (table-support ?block ?X_WB ?table)
-            )
-        )
-    )
 
     (:derived (block-safe ?arm ?q ?block) 
         (or
@@ -76,10 +60,19 @@
         )
     )
 
-    (:derived (on-block ?upperblock ?lowerblock)
+    ;(:derived (arm-safe ?arm ?q ?otherarm) 
+    ;    (exists (?q_other)
+    ;        (and
+    ;            (atconf ?otherarm ?q_other) 
+    ;            (colfree-arms ?arm ?q ?otherarm ?q_other)
+    ;        ) 
+    ;    ) 
+    ;)
+
+    (:derived (on-block ?lowerblock ?upperblock)
         (exists (?X_WL ?X_WU)
             (and
-                (block-support ?upperblock ?X_WU ?lowerblock ?X_WL)
+                (block-support ?lowerblock ?X_WL ?upperblock ?X_WU) 
                 (atworldpose ?lowerblock ?X_WL)
                 (atworldpose ?upperblock ?X_WU)
             )
@@ -94,13 +87,19 @@
             (atworldpose ?block ?X_WB)
             (empty ?arm)
             (atconf ?arm ?pre_q)
-            (on-any-table ?block ?X_WB)
+            (table-support ?block ?X_WB)
             (forall (?otherblock)
                 (imply 
                     (block ?otherblock) 
                     (block-safe ?arm ?q ?otherblock)
                 ) 
             )
+            ;(forall (?otherarm)
+            ;    (imply 
+            ;        (arm ?otherarm) 
+            ;        (arm-safe ?arm ?pre_q ?otherarm)
+            ;    ) 
+            ;)
         ) 
         :effect (and
             (athandpose ?arm ?block ?X_HB)
@@ -127,13 +126,19 @@
             (ik ?arm ?block ?X_WB ?X_HB ?pre_q ?q)
             (athandpose ?arm ?block ?X_HB)
             (atconf ?arm ?pre_q)
-            (on-any-table ?block ?X_WB)
+            (table-support ?block ?X_WB)
             (forall (?otherblock)
                 (imply 
                     (block ?otherblock) 
                     (block-safe ?arm ?q ?otherblock)
                 ) 
             )
+            ;(forall (?otherarm)
+            ;   (imply 
+            ;       (arm ?otherarm) 
+            ;       (arm-safe ?arm ?pre_q ?otherarm)
+            ;   ) 
+            ;) 
         ) 
         :effect (and
             (not (athandpose ?arm ?block ?X_HB))
@@ -150,7 +155,7 @@
             (athandpose ?arm ?block ?X_HB)
             (atworldpose ?lowerblock ?X_WL)
             (atconf ?arm ?pre_q)
-            (block-support ?block ?X_WB ?lowerblock ?X_WL)
+            (block-support ?lowerblock ?X_WL ?block ?X_WB)
             (forall (?otherblock)
                 (imply 
                     (block ?otherblock) 
@@ -180,7 +185,7 @@
             (atworldpose ?block ?X_WB)
             (empty ?arm)
             (atconf ?arm ?pre_q)
-            (on-block ?block ?lowerblock)
+            (on-block ?lowerblock ?block)
             (forall (?otherblock)
                 (imply 
                     (block ?otherblock) 

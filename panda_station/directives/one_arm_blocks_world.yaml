@@ -10,24 +10,72 @@ directives:
 
     - add_model:
         name: ground_plane
-        file: package://blocks_world/sdf/ground_plane.sdf
+        file: package://kitchen/sdf/ground_plane.sdf
 
     - add_weld:
         parent: world_origin
         child: ground_plane::base_link
 
-    # middle table
+    # +x table
     - add_frame:
-        name: middle_table_origin
+        name: red_table_origin
         X_PF:
             base_frame: world
             rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
             translation: [0.65, 0, 0]
 
     - add_model:
-        name: middle_table
-        file: package://blocks_world/sdf/square_table.sdf
+        name: red_table
+        file: package://blocks_world/sdf/red_table.sdf
 
     - add_weld:
-        parent: middle_table_origin
-        child: middle_table::base_link
+        parent: red_table_origin
+        child: red_table::base_link
+
+    # +y table
+    - add_frame:
+        name: green_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 90.0]}
+            translation: [0, 0.65, 0]
+
+    - add_model:
+        name: green_table
+        file: package://blocks_world/sdf/green_table.sdf
+
+    - add_weld:
+        parent: green_table_origin
+        child: green_table::base_link
+
+    # -x table
+    - add_frame:
+        name: blue_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [-0.65, 0, 0]
+
+    - add_model:
+        name: blue_table
+        file: package://blocks_world/sdf/blue_table.sdf
+
+    - add_weld:
+        parent: blue_table_origin
+        child: blue_table::base_link
+
+    # -y table
+    - add_frame:
+        name: purple_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 90.0]}
+            translation: [0, -0.65, 0]
+
+    - add_model:
+        name: purple_table
+        file: package://blocks_world/sdf/indigo_table.sdf
+
+    - add_weld:
+        parent: purple_table_origin
+        child: purple_table::base_link

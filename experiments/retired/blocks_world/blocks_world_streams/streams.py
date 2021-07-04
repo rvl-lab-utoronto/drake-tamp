@@ -88,7 +88,7 @@ def find_block_place(station, station_context, shape_info, surface):
     p_WS_W = X_WS.translation()
     R_WS = X_WS.rotation()
     p_WI_W = p_WS_W + R_WS.multiply(p_SI_S)
-    R_WI = RotationMatrix.MakeZRotation(np.random.uniform(0, 2*np.pi)) #RotationMatrix()
+    R_WI = RotationMatrix() #RotationMatrix.MakeZRotation(np.random.uniform(0, 2*np.pi))
     return RigidTransform(R_WI, p_WI_W)
 
 def find_ik_with_relaxed(

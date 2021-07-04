@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""
+Simple script to make cubes
+"""
+import xml.etree.ElementTree as ET
+
+COLORS = [
+    "1 0.1 0.1 0.5",
+    "1 0.623 0.1 0.5",
+    "0.956 1 0.1 0.5",
+    "0.1 1 0.1 0.5",
+    "0.1 0.1 1 0.5",
+    "0.733 0.101 1 0.5",
+]
+NAMES = [
+    "red_table",
+    "orange_table",
+    "yellow_table",
+    "green_table",
+    "blue_table",
+    "indigo_table",
+]
+
+
+for name, color in zip(NAMES,COLORS):
+
+    tree = ET.parse("template_table.sdf")
+    root = tree.getroot()
+    for model in root:
+        for child in model:
+            if child.attrib.get("name", "") == "base_link":
+                for diffuse in child.iter("diffuse"):
+                    diffuse.text = color
+    for model in root.iter("model"):
+        model.set("name", name)
+
+    tree.write(name + ".sdf")
