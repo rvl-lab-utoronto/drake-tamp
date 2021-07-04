@@ -111,7 +111,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode):
 
     goal = ["and",
         #("in", "cabbage1", ("leftplate", "base_link")),
-        #("cooked", "cabbage1"),
+        ("cooked", "cabbage1"),
         #("in", "cabbage2", ("rightplate", "base_link")),
         #("cooked", "cabbage2"),
         ("clean", "glass1"),
@@ -436,7 +436,12 @@ if __name__ == "__main__":
         
         given_oracle = oracle if mode == "oracle" else None
         solution = solve(
-            problem, algorithm=algorithm, verbose = VERBOSE, logpath = path, oracle = given_oracle
+            problem,
+            algorithm=algorithm,
+            verbose = VERBOSE,
+            logpath = path,
+            oracle = given_oracle,
+            use_unique = mode == "oracle",
         )
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
