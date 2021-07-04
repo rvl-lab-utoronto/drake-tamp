@@ -22,7 +22,7 @@ from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
 #TODO(agro): see which of these are necessary
-from learning import oracle
+from learning import oracle as ora
 from panda_station import (
     ProblemInfo,
     parse_start_poses,
@@ -60,9 +60,6 @@ file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
 stream_pddl = open(f"{file_path}/stream.pddl", "r").read()
 
-str_init = ""
-str_goal = ""
-
 def lprint(string):
     if VERBOSE:
         print(string)
@@ -71,7 +68,6 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode):
     """
     Construct pddlstream problem from simulator
     """
-    global str_init, str_goal
     init = []
     main_station = stations["main"]
     simulator_context = simulator.get_context()
@@ -128,23 +124,25 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode):
         #("in", "raddish5", ("tray", "base_link")),
     ]
 
-    str_init = oracle.logical_to_string(init)
-    str_goal = oracle.logical_to_string(goal)
-
-    if mode == "oracle":
-        stats_path = oracle.get_stats(
-            domain_pddl,
-            stream_pddl,
-            str_init,
-            str_goal,
-        )
-        subprocess.check_output(
-            [
-                "cp",
-                stats_path,
-                os.path.expanduser("~") + "/drake-tamp/learning/data/"
-            ]
-        )
+    oracle = ora.Oracle(
+        domain_pddl,
+        stream_pddl,
+        init,
+        goal,
+    )
+        #stats_path = oracle.get_stats(
+        #    domain_pddl,
+        #    stream_pddl,
+        #    str_init,
+        #    str_goal,
+        #)
+        #subprocess.check_output(
+        #    [
+        #        "cp",
+        #        stats_path,
+        #        os.path.expanduser("~") + "/drake-tamp/learning/data/"
+        #    ]
+        #)
 
     def get_station(name):
         if name in stations:
@@ -318,7 +316,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode):
         #"distance": dist_fn,
     }
 
-    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
+    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), oracle
 
 def make_and_init_simulation(zmq_url, prob):
     """
@@ -420,7 +418,7 @@ if __name__ == "__main__":
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         args.url, args.problem
     )
-    problem = construct_problem_from_sim(sim, station_dict, prob_info, mode)
+    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info, mode)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
@@ -436,8 +434,9 @@ if __name__ == "__main__":
 
         path = f"{file_path}/logs/{time}/"
         
+        given_oracle = oracle if mode == "oracle" else None
         solution = solve(
-            problem, algorithm=algorithm, verbose = VERBOSE, logpath = path
+            problem, algorithm=algorithm, verbose = VERBOSE, logpath = path, oracle = given_oracle
         )
         print(f"\n\n{algorithm} solution:")
         print_solution(solution)
@@ -452,11 +451,11 @@ if __name__ == "__main__":
 
         if mode == "save":
             oracle.save_stats(
-                domain_pddl,
-                stream_pddl,
-                str_init,
-                str_goal, path + "stats.json"
+                path + "stats.json"
             )
+
+        if mode == "oracle":
+            oracle.save_labeled()
 
         if meshcat_vis is None:
             sys.exit(0)

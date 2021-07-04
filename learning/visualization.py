@@ -1,7 +1,7 @@
 import os
 import json
 from pyvis.network import Network
-from . import oracle
+from . import oracle as ora
 
 
 class DirectedGraph:
@@ -60,7 +60,7 @@ class DirectedGraph:
 
     def num_ans(self, fact):
         if fact not in self.ans_cache:
-            self.ans_cache[fact] = oracle.ancestors(fact, self.atom_map)
+            self.ans_cache[fact] = ora.ancestors(fact, self.atom_map)
         return len(self.ans_cache[fact])
 
     def fact_to_color(self, fact):

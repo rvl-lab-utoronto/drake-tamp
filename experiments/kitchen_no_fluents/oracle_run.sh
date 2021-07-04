@@ -41,7 +41,7 @@ done
 echo "ORACLE=$oracle"
 echo "DEFAULT_UNIQUE=$default_unique"
 
-export ORACLE=$oracle
+#export ORACLE=$oracle
 export DEFAULT_UNIQUE=$default_unique
 
 if [[ ! $url ]]; then
