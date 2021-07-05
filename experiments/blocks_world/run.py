@@ -478,7 +478,7 @@ def run_blocks_world(
     print_solution(solution)
 
     plan, _, evaluations = solution
-    if plan is None:
+    if plan is None or len(plan) == 0:
         print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
         return False, problem_file
 
@@ -564,10 +564,9 @@ def generate_data(num_blocks, num_blockers, max_time = float("inf")):
 
 if __name__ == "__main__":
 
-
     for num_blocks in range(2, 5):
         for num_blockers in range(3):
-            generate_data(num_blocks, num_blockers)
+            generate_data(num_blocks, num_blockers, max_time = (num_blocks + num_blockers) * 10)
 
     """
     parser = setup_parser()
