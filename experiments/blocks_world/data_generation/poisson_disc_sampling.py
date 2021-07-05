@@ -1,13 +1,10 @@
-import random
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import matplotlib.animation as animation
 import itertools
-
-np.random.seed(seed = 0)
-random.seed(0)
-
-
+np.random.seed(seed = int(time.time()))
 
 class PoissonSampler:
     """
@@ -15,14 +12,14 @@ class PoissonSampler:
     https://www.cs.ubc.ca/~rbridson/docs/bridson-siggraph07-poissondisk.pdf
     """
 
-    def __init__(self, extent, r, k = 30):
+    def __init__(self, extent, r, k = 30, centered = False):
         """
         extent: an n dimensional array of the extent of the domain
         r: min distance between samples 
         k: maximum number of samples before rejection
         """
         self.n = len(extent)
-        self.extent = extent
+        self.extent = np.array(extent)
         self.r = r
         self.k = k
 
@@ -37,6 +34,7 @@ class PoissonSampler:
         self.first_sample = False
         self.active_list = []
         self.points = []
+        self.centered = centered
 
     def point_to_index(self, point):
         """
@@ -108,6 +106,8 @@ class PoissonSampler:
             inds = self.point_to_index(point)
             self.grid[inds] = len(self.points) - 1
             self.first_sample = True
+            if self.centered:
+                return point - self.extent/2
             return point
 
         while len(self.active_list) > 0:
@@ -118,36 +118,45 @@ class PoissonSampler:
                 if not self.is_colliding(rand_point, update_if_safe=len(self.points)):
                     self.active_list.append(rand_point)
                     self.points.append(rand_point)
+                    if self.centered:
+                        return rand_point - self.extent/2
                     return rand_point
             self.active_list.pop(center_ind)
 
         return None
 
+    def sample_gen(self):
+        while True:
+            point = self.sample()
+            if point is None:
+                return
+            yield point
 
 
 if __name__ == "__main__":
-    sampler = PoissonSampler([1, 1], 0.05)
+    w,h = 1,1
+    sampler = PoissonSampler([w, h], 0.02, centered = True)
 
     fig = plt.figure()
-    plt.xlim(0, 1)
-    plt.ylim(0, 1)
+    plt.xlim(0, w)
+    plt.ylim(0, h)
 
     x = []
     y = []
-    graph, = plt.plot(x, y, "o")
+    graph, = plt.plot(x, y, ".")
     
-    def animate(i):
-        point = sampler.sample()
-        if point is None:
-            ani.event_source.stop()
-            return
+    def animate(point):
+        print(point)
         x.append(point[0])
         y.append(point[1])
         graph.set_data(x,y)
         return graph,
 
+    Writer = animation.writers['ffmpeg']
+    writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
-    ani = FuncAnimation(fig, animate, frames = 20, interval = 10)
-    plt.show()
+    ani = FuncAnimation(fig, animate, frames = sampler.sample_gen, interval = 1)
+    ani.save('poisson_disc.mp4', writer=writer)
+    #plt.show()
 
 

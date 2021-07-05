@@ -2,15 +2,17 @@
 """
 Simple script to make cubes
 """
+import os
 import xml.etree.ElementTree as ET
 import numpy as np
 
 # SIZE = "0.045 0.045 0.045"
 TEMPLATE_NAME = "template_block.sdf"
+FILE_PATH, _ = os.path.split(os.path.realpath(__file__))
 
 
 def make_cube(name, color, size, buffer, ball_radius=1e-7):
-    tree = ET.parse(TEMPLATE_NAME)
+    tree = ET.parse(f"{FILE_PATH}/{TEMPLATE_NAME}")
     root = tree.getroot()
     for model in root.iter("model"):
         model.set("name", name)

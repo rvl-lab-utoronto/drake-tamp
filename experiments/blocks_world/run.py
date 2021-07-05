@@ -4,15 +4,19 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+import time
+import numpy as np
+import random
+np.random.seed(seed = int(time.time()))
+random.seed(int(time.time()))
 import matplotlib
+import yaml
 matplotlib.use("Agg")
 import os
 import copy
 from re import I
 import sys
 import argparse
-import numpy as np
-import random
 from datetime import datetime
 import pydrake.all
 from pydrake.all import Role
@@ -20,6 +24,7 @@ from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
+from pddlstream.algorithms.algorithm import reset_globals
 #TODO(agro): see which of these are necessary
 from learning import visualization
 from learning import oracle as ora
@@ -44,12 +49,11 @@ from tamp_statistics import (
     make_plot
 )
 import blocks_world_streams
+from data_generation import make_problem
 
 VERBOSE = False
 
 np.set_printoptions(precision=4, suppress=True)
-np.random.seed(seed = 0)
-random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.2
 GRASP_DIST = 0.04
@@ -67,7 +71,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     """
     Construct pddlstream problem from simulator
     """
+
     init = []
+    goal = problem_info.goal
     main_station = stations["main"]
     simulator_context = simulator.get_context()
     main_station_context = main_station.GetMyContextFromRoot(simulator_context)
@@ -120,15 +126,16 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     for object_name in problem_info.surfaces:
         for link_name in problem_info.surfaces[object_name]:
             table = (object_name, link_name)
-            print(table)
             init += [("table", table)]
 
+    """
     goal = ["and",
-        ("on-block", "orange_block", "blue_block"),
-        ("on-block", "green_block", "blocker1"),
-        ("on-table", "blocker1", ("blue_table", "base_link")),
-        ("on-table", "blue_block", ("green_table", "base_link")),
+        ("on-block", "block1", "block2"),
+        #("on-block", "green_block", "blocker1"),
+        #("on-table", "blocker1", ("blue_table", "base_link")),
+        #("on-table", "blue_block", ("green_table", "base_link")),
     ]
+    """
 
     oracle = ora.Oracle(
         domain_pddl,
@@ -328,6 +335,8 @@ def make_and_init_simulation(zmq_url, prob):
     Make the simulation, and let it run for 0.2 s to let all the objects
     settle into their stating positions
     """
+
+
     builder = pydrake.systems.framework.DiagramBuilder()
     problem_info = ProblemInfo(prob)
     station = problem_info.make_main_station(time_step = 1e-3)
@@ -399,7 +408,7 @@ def setup_parser():
         "-p",
         "--problem",
         nargs="?",
-        default=f"{file_path}/problems/default_problem.yaml",
+        default=None,
         help = "Use --problem to specify a .yaml problem file",
     )
     parser.add_argument(
@@ -419,103 +428,160 @@ def setup_parser():
     )
     return parser
 
-if __name__ == "__main__":
 
-    parser = setup_parser()
-    args = parser.parse_args()
-    mode = args.mode.lower()
+def run_blocks_world(
+    num_blocks = 2,
+    num_blockers = 2,
+    problem_file = None,
+    mode = "normal",
+    url = None,
+    max_time = float("inf"),
+    algorithm = "adaptive"
+):
+
+    time = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+
+    if not os.path.isdir(f"{file_path}/logs"):
+        os.mkdir(f"{file_path}/logs")
+    if not os.path.isdir(f"{file_path}/logs/{time}"):
+        os.mkdir(f"{file_path}/logs/{time}")
+
+    path = f"{file_path}/logs/{time}/"
+
+    if problem_file is None:
+        yaml_data = make_problem.make_random_problem(
+            num_blocks=num_blocks, num_blockers=num_blockers, colorize=True
+        )
+        with open(f"{path}problem.yaml", "w") as stream:
+            yaml.dump(yaml_data, stream, default_flow_style=False)
+        problem_file = f"{path}problem.yaml"
 
     sim, station_dict, traj_directors, meshcat_vis, prob_info = make_and_init_simulation(
-        args.url, args.problem
+        url, problem_file
     )
     problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
-    for algorithm in [
-        "adaptive",
-    ]:
-        time = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
-
-        if not os.path.isdir("logs"):
-            os.mkdir(f"{file_path}/logs")
-        if not os.path.isdir(f"{file_path}/logs/{time}"):
-            os.mkdir(f"{file_path}/logs/{time}")
-
-        path = f"{file_path}/logs/{time}/"
         
-        given_oracle = oracle if mode == "oracle" else None
-        solution = solve(
-            problem,
-            algorithm=algorithm,
-            verbose = VERBOSE,
-            logpath = path,
-            oracle = given_oracle,
-            use_unique = mode == "oracle",
+    given_oracle = oracle if mode == "oracle" else None
+    solution = solve(
+        problem,
+        algorithm=algorithm,
+        verbose = VERBOSE,
+        logpath = path,
+        oracle = given_oracle,
+        use_unique = mode == "oracle",
+        max_time = max_time,
+    )
+    print(f"\n\n{algorithm} solution:")
+    print_solution(solution)
+
+    plan, _, evaluations = solution
+    if plan is None:
+        print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
+        return False, problem_file
+
+    if mode == "save":
+        oracle.save_stats(
+            path + "stats.json"
         )
-        print(f"\n\n{algorithm} solution:")
-        print_solution(solution)
 
-        plan, _, evaluations = solution
-        if plan is None:
-            print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
-            sys.exit(0)
+    if mode == "oracle":
+        oracle.save_labeled()
 
-        if mode == "save":
-            oracle.save_stats(
-                path + "stats.json"
-            )
+    make_plot(path + "stats.json", save_path = path + "plots.png")
+    visualization.stats_to_graph(
+        path + "stats.json", save_path = path + "preimage_graph.html"
+    )
 
-        if mode == "oracle":
-            oracle.save_labeled()
+    if meshcat_vis is not None:
+        action_map = {
+            "move": {
+                "function": PlanToTrajectory.move,
+                "argument_indices": [2],
+                "arm_name": 0
+            },
+            "pick": {
+                "function": PlanToTrajectory.pick,
+                "argument_indices": [4,5,4],
+                "arm_name": 0
+            },
+            "place": {
+                "function": PlanToTrajectory.place,
+                "argument_indices": [4,5,4],
+                "arm_name": 0
+            },
+            "stack": {
+                "function": PlanToTrajectory.place,
+                "argument_indices": [6,7,6],
+                "arm_name": 0
+            },
+            "unstack": {
+                "function": PlanToTrajectory.pick,
+                "argument_indices": [5,6,5],
+                "arm_name": 0
+            },
+        }
 
-        make_plot(path + "stats.json", save_path = path + "plots.png")
-        visualization.stats_to_graph(path + "stats.json", save_path = path + "preimage_graph.html")
+        traj_maker = PlanToTrajectory(station_dict["main"])
+        traj_maker.make_trajectory(
+            plan, SIM_INIT_TIME, action_map
+        )
 
+        for panda_name in traj_directors:
+            traj_director = traj_directors[panda_name]
+            traj_director.add_panda_traj(traj_maker.trajectories[panda_name]["panda_traj"])
+            traj_director.add_hand_traj(traj_maker.trajectories[panda_name]["hand_traj"])
+
+        sim.AdvanceTo(traj_director.get_end_time())
         if meshcat_vis is not None:
-            action_map = {
-                "move": {
-                    "function": PlanToTrajectory.move,
-                    "argument_indices": [2],
-                    "arm_name": 0
-                },
-                "pick": {
-                    "function": PlanToTrajectory.pick,
-                    "argument_indices": [4,5,4],
-                    "arm_name": 0
-                },
-                "place": {
-                    "function": PlanToTrajectory.place,
-                    "argument_indices": [4,5,4],
-                    "arm_name": 0
-                },
-                "stack": {
-                    "function": PlanToTrajectory.place,
-                    "argument_indices": [6,7,6],
-                    "arm_name": 0
-                },
-                "unstack": {
-                    "function": PlanToTrajectory.pick,
-                    "argument_indices": [5,6,5],
-                    "arm_name": 0
-                },
-            }
+            meshcat_vis.stop_recording()
+            meshcat_vis.publish_recording()
 
-            traj_maker = PlanToTrajectory(station_dict["main"])
-            traj_maker.make_trajectory(
-                plan, SIM_INIT_TIME, action_map
-            )
+        file = open(path + "recording.html", "w")
+        file.write(meshcat_vis.vis.static_html())
+        file.close()
 
-            for panda_name in traj_directors:
-                traj_director = traj_directors[panda_name]
-                traj_director.add_panda_traj(traj_maker.trajectories[panda_name]["panda_traj"])
-                traj_director.add_hand_traj(traj_maker.trajectories[panda_name]["hand_traj"])
+    return True, problem_file
 
-            sim.AdvanceTo(traj_director.get_end_time())
-            if meshcat_vis is not None:
-                meshcat_vis.stop_recording()
-                meshcat_vis.publish_recording()
+def generate_data(num_blocks, num_blockers, max_time = float("inf")):
 
-            file = open(path + "recording.html", "w")
-            file.write(meshcat_vis.vis.static_html())
-            file.close()
+    res, problem_file = run_blocks_world(
+        num_blocks = num_blocks,
+        num_blockers = num_blockers,
+        mode = "save",
+        max_time = max_time,
+    )
+    if not res:
+        return
+    res, _ = run_blocks_world(
+        problem_file = problem_file,
+        mode = "oracle",
+        max_time = max_time,
+    )
+
+
+if __name__ == "__main__":
+
+
+    for num_blocks in range(2, 5):
+        for num_blockers in range(3):
+            generate_data(num_blocks, num_blockers)
+
+    """
+    parser = setup_parser()
+    args = parser.parse_args()
+    mode = args.mode.lower()
+    run_blocks_world(
+        num_blocks = 2,
+        num_blockers = 1,
+        problem_file = args.problem,
+        mode = "oracle",
+    )
+    #reset_globals()
+    run_blocks_world(
+        problem_file = args.problem,
+        mode = "oracle",
+    )
+    """
