@@ -33,6 +33,7 @@
         ;derived
         (in ?item ?region)
         (safe ?q ?item)
+        (grasped ?item)
         ;(safeplace ?q ?itemholding ?X_HI ?item)
     )
 
@@ -66,6 +67,7 @@
             )
         )
     )
+    (:derived (grasped ?item) (exists (?X_HI) (holding ?item ?X_HI)))
 
     (:action move
         :parameters(?q1 ?traj ?q2) 

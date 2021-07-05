@@ -186,6 +186,29 @@ class Oracle:
         self.atom_map = None
         self.init = None
         self.labels = []
+        self.goal_facts = []
+        self.domain = None
+        self.externals = None
+
+    def set_goal_facts(self, goal_exp):
+        if not goal_exp[0] == 'and':
+            raise NotImplementedError(f"Expected goal to be a conjunction of facts. Got {goal_exp}.Need to parse this correctly.")
+        self.goal_facts = tuple([fact_to_pddl(f) for f in goal_exp[1:]])
+
+    def set_domain(self, domain):
+        self.domain = domain
+
+    def set_externals(self, externals):
+        self.externals = []
+        for external in externals:
+            self.externals.append({
+                "certified": external.certified,
+                "domain": external.domain,
+                "fluents": external.fluents,
+                "inputs": external.inputs,
+                "outputs": external.outputs,
+                "name": external.name
+            })
 
     def save_labeled(self, path=None):
         if path is None:
@@ -200,7 +223,10 @@ class Oracle:
         data["stream_pddl"] = self.stream_pddl
         data["initial_conditions"] = tuple(self.initial_conditions)
         data["goal_conditions"] = tuple(self.goal_conditions)
+        data["goal_facts"] = tuple(self.goal_facts)
         data["labels"] = self.labels
+        data["domain"] = self.domain
+        data["externals"] = self.externals
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
 
@@ -275,12 +301,15 @@ class Oracle:
         is_matching() (see above function)
         """
         can_atom_map = make_atom_map(node_from_atom)
+        can_stream_map = make_stream_map(node_from_atom)
         assert objects_from_facts(self.init) == objects_from_facts(
             {f for f in can_atom_map if not can_atom_map[f]}
         )
         can_ans = tuple()
+        can_parents = tuple()
         for domain_fact in result.domain:
             can_ans += (fact_to_pddl(domain_fact),)
+            can_parents += (fact_to_pddl(domain_fact),)
             can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
 
         for can_fact in result.get_certified():
@@ -288,11 +317,10 @@ class Oracle:
                 fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init
             )
             if is_match:
-                self.labels.append((fact_to_pddl(can_fact), True, can_atom_map))
+                self.labels.append((fact_to_pddl(can_fact), can_parents, result.external.name, True, can_atom_map, can_stream_map))
                 return True, (can_fact, match)
             else:
-                pass
-        self.labels.append((fact_to_pddl(can_fact), False, can_atom_map))
+                self.labels.append((fact_to_pddl(can_fact), can_parents, result.external.name, False, can_atom_map, can_stream_map))
         return False, None
 
     def make_is_relevant_checker(self, remove_matched=False):
@@ -310,3 +338,17 @@ class Oracle:
             return is_match
 
         return unique_is_relevant
+
+def make_stream_map(node_from_atom):
+    stream_map = {}
+    for atom in node_from_atom:
+        node = node_from_atom[atom]
+        result = node.result
+        # TODO: Figure out how to deal with these bools?
+        if result is None:
+            stream_map[fact_to_pddl(atom)] = None
+            continue
+        if isinstance(result, bool):
+            continue
+        stream_map[fact_to_pddl(atom)] = result.external.name
+    return stream_map
