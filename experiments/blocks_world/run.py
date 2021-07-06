@@ -13,9 +13,7 @@ import matplotlib
 import yaml
 matplotlib.use("Agg")
 import os
-import copy
 from re import I
-import sys
 import argparse
 from datetime import datetime
 import pydrake.all
@@ -25,7 +23,6 @@ from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
 from pddlstream.algorithms.algorithm import reset_globals
-#TODO(agro): see which of these are necessary
 from learning import visualization
 from learning import oracle as ora
 from panda_station import (

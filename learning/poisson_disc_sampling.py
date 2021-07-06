@@ -27,6 +27,7 @@ class PoissonSampler:
         # grid is n dimensional
         # each dimension has 
         # extent[i]/(r/sqrt(n)) slots
+        self.centered = centered
         bin_width = r/np.sqrt(self.n)
         shape = np.ceil(extent/bin_width).astype(np.int)
         self.bin_width = extent/shape
@@ -34,7 +35,12 @@ class PoissonSampler:
         self.first_sample = False
         self.active_list = []
         self.points = []
-        self.centered = centered
+
+    def reset(self):
+        self.grid = (-1*np.ones(self.grid.shape)).astype(np.int)
+        self.first_sample = False
+        self.active_list = []
+        self.points = []
 
     def point_to_index(self, point):
         """
@@ -131,32 +137,5 @@ class PoissonSampler:
             if point is None:
                 return
             yield point
-
-
-if __name__ == "__main__":
-    w,h = 1,1
-    sampler = PoissonSampler([w, h], 0.02, centered = True)
-
-    fig = plt.figure()
-    plt.xlim(0, w)
-    plt.ylim(0, h)
-
-    x = []
-    y = []
-    graph, = plt.plot(x, y, ".")
-    
-    def animate(point):
-        print(point)
-        x.append(point[0])
-        y.append(point[1])
-        graph.set_data(x,y)
-        return graph,
-
-    Writer = animation.writers['ffmpeg']
-    writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
-
-    ani = FuncAnimation(fig, animate, frames = sampler.sample_gen, interval = 1)
-    ani.save('poisson_disc.mp4', writer=writer)
-    #plt.show()
 
 

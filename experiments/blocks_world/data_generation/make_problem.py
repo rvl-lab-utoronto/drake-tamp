@@ -2,9 +2,9 @@ import os
 import time
 import itertools
 from panda_station.models.blocks_world.sdf.make_blocks import TEMPLATE_NAME
+from learning.poisson_disc_sampling import PoissonSampler
 import numpy as np
 import yaml
-from .poisson_disc_sampling import PoissonSampler
 import xml.etree.ElementTree as ET
 np.random.seed(seed = int(time.time()))
 
@@ -14,7 +14,7 @@ DIRECTIVE = os.path.expanduser(
 
 TABLE_HEIGHT = 0.325
 BLOCK_DIMS = np.array([0.045, 0.045, 0.045])
-R = np.sqrt(2 * max(BLOCK_DIMS[:1]) ** 2)
+R = max(BLOCK_DIMS[:2]) * np.sqrt(2)
 X_TABLE_DIMS = np.array([0.4, 0.75]) - np.ones(2) * R
 Y_TABLE_DIMS = np.array([0.75, 0.4]) - np.ones(2) * R
 BLOCKER_DIMS = np.array([0.045, 0.045, 0.1])
@@ -94,6 +94,9 @@ def make_block(block_name, color, size, buffer, ball_radius=1e-7):
 
 
 def make_random_problem(num_blocks, num_blockers, colorize=False):
+
+    for item in TABLES.values():
+        item[1].reset()
 
     yaml_data = {
         "directive": "directives/one_arm_blocks_world.yaml",
