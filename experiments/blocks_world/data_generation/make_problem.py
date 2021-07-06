@@ -95,8 +95,11 @@ def make_block(block_name, color, size, buffer, ball_radius=1e-7):
 
 def make_random_problem(num_blocks, num_blockers, colorize=False):
 
-    for item in TABLES.values():
+    positions = {}
+    for name, item in TABLES.items():
         item[1].reset()
+        points = item[1].make_samples(num = num_blocks + num_blockers)
+        positions[name] = points
 
     yaml_data = {
         "directive": "directives/one_arm_blocks_world.yaml",
@@ -128,7 +131,9 @@ def make_random_problem(num_blocks, num_blockers, colorize=False):
     stacking = make_random_stacking(blocks)
     for stack in stacking:
         table = pick_random_table()
-        point = TABLES[table][1].sample() + TABLES[table][0]
+        if len(positions[table]) == 0:
+            positions[table].append(TABLES[table][1].sample())
+        point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
         point[-1] = np.random.uniform(0, 2*np.pi)
@@ -182,7 +187,9 @@ def make_random_problem(num_blocks, num_blockers, colorize=False):
 
     for blocker in blockers:
         table = pick_random_table()
-        point = TABLES[table][1].sample() + TABLES[table][0]
+        if len(positions[table]) == 0:
+            positions[table].append(TABLES[table][1].sample())
+        point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
         point[-1] = np.random.uniform(0, 2*np.pi)

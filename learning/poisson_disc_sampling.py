@@ -101,6 +101,15 @@ class PoissonSampler:
             self.grid[inds] = update_if_safe
         return res
 
+    def make_samples(self, num = 1):
+        samples = []
+        for i in range(num):
+            point = self.sample()
+            if point is None:
+                return
+            samples.append(self.sample())
+        return samples
+
     def sample(self):
         """
         Sample from the poisson disc distribution 
