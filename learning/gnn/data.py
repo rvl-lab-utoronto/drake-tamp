@@ -3,6 +3,7 @@ import itertools
 import torch
 from torch_geometric.data import Data
 import pickle
+from dataclasses import dataclass
 
 def construct_fact_graph(goal_facts, atom_map, stream_map):
     goal_objects = objects_from_facts(goal_facts)
@@ -61,23 +62,45 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
         edge_attributes_list.append(edge_attributes)
     return nodes, node_attributes_list, edges, edge_attributes_list
 
-def data_from_label(label, goal_facts, stream_to_index, predicate_to_index, node_feature_size, edge_feature_size):
-    fact, parents, candidate_stream, is_relevant, atom_map, stream_map = label
-    nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(goal_facts, atom_map, stream_map)
+@dataclass
+class ModelInfo:
+    goal_facts: list
+    predicates: list
+    streams: list
+    stream_input_sizes: list
+
+    @property
+    def node_feature_size(self):
+        return len(self.predicate_to_index) + 2
+    
+    @property
+    def edge_feature_size(self):
+        return len(self.stream_to_index) + 3
+
+    @property
+    def stream_to_index(self):
+        return {s:i for i,s in enumerate(self.streams)}
+    @property
+    def predicate_to_index(self):
+        return {s:i for i,s in enumerate(self.predicates)}
+
+
+def construct_input(parents, candidate_stream, atom_map, stream_map, model_info):
+    nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(model_info.goal_facts, atom_map, stream_map)
 
     parent_idxs = [nodes.index(p) for p in parents]
-    candidate = (stream_to_index[candidate_stream], ) + tuple(parent_idxs)
+    candidate = (model_info.stream_to_index[candidate_stream], ) + tuple(parent_idxs)
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-    node_features = torch.zeros((len(nodes), node_feature_size), dtype=torch.float)
+    node_features = torch.zeros((len(nodes), model_info.node_feature_size), dtype=torch.float)
     for i, (node, attr) in enumerate(zip(nodes, node_attributes_list)):
-        node_features[i, predicate_to_index[attr['predicate']]] = 1
+        node_features[i, model_info.predicate_to_index[attr['predicate']]] = 1
         node_features[i, -1] = len(attr['overlap_with_goal'])
         node_features[i, -2] = int(attr['is_initial'])
 
-    edge_features = torch.zeros((len(edges), edge_feature_size), dtype=torch.float)
+    edge_features = torch.zeros((len(edges), model_info.edge_feature_size), dtype=torch.float)
     for i, (edge, attr) in enumerate(zip(edges, edge_attributes_list)):
-        edge_features[i, stream_to_index[attr['stream']]] = 1
+        edge_features[i, model_info.stream_to_index[attr['stream']]] = 1
         edge_features[-3] = attr['domain_index']
         edge_features[-2] = int(attr['is_directed'])
         edge_features[-1] = len(attr['via_objects'])
@@ -87,9 +110,7 @@ def data_from_label(label, goal_facts, stream_to_index, predicate_to_index, node
         x=node_features,
         edge_attr=edge_features,
         edge_index=edge_index,
-        fact=fact,
-        candidate=candidate,
-        y=torch.tensor([int(is_relevant)])
+        candidate=candidate
     )
 
 
@@ -97,22 +118,21 @@ def parse_labels(pkl_path):
     with open(pkl_path, 'rb') as f:
         data = pickle.load(f)
     
-    predicates = [p.name for p in data['domain'].predicates]
-    predicate_to_index = {p:i for i,p in enumerate(predicates)}
-    streams = [None] + [e['name'] for e in data['externals']]
-    stream_input_sizes = [None] + [len(e['domain']) for e in data['externals']]
-    stream_to_index = {p:i for i,p in enumerate(streams)}
+    model_info = ModelInfo(
+        goal_facts=data['goal_facts'],
+        predicates=[p.name for p in data['domain'].predicates],
+        streams=[None] + [e['name'] for e in data['externals']],
+        stream_input_sizes=[None] + [len(e['domain']) for e in data['externals']]
+    )
 
-    node_feature_size = len(predicate_to_index) + 2 # one-hot for predicate, 1 for is_initial and 1 for goal overlap
-    edge_feature_size = len(predicate_to_index) + 3 # one-hot for stream, 1 for is_directed, 1 for object_overlap, and 1 for domain_index
-
-    goal_facts = data['goal_facts']
     dataset = []
     for label in data['labels']:
-        d = data_from_label(label, goal_facts, stream_to_index, predicate_to_index, node_feature_size, edge_feature_size)
+        fact, parents, candidate_stream, is_relevant, atom_map, stream_map = label
+        d = construct_input(parents, candidate_stream, atom_map, stream_map, model_info)
+        d.y = torch.tensor([float(is_relevant)])
         dataset.append(d)
 
-    return dataset, (stream_input_sizes, node_feature_size, edge_feature_size)
+    return dataset, model_info
 
 if __name__ == '__main__':
     dataset = parse_labels('/home/mohammed/drake-tamp/learning/data/labeled/2021-07-05-14:35:28.341.pkl')

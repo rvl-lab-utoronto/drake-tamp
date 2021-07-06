@@ -6,7 +6,7 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.nn import GCNConv
 
 class StreamInstanceClassifier(nn.Module):
-    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=2, use_gcn=False):
+    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=1, use_gcn=False):
         super(StreamInstanceClassifier, self).__init__()
         if use_gcn:
             self.graph_network = SimpleGCN(node_feature_size, feature_size)
@@ -28,8 +28,10 @@ class StreamInstanceClassifier(nn.Module):
         assert cand[0] > 0, "Considering an initial condition?"
         mlp = self.mlps[cand[0] - 1]
         parents = torch.cat([x[p] for p in  cand[1:]])
-        x = torch.unsqueeze(mlp(parents), 0)
-        return F.log_softmax(x, dim=1)
+        x = mlp(parents)
+        if self.training:
+            return x
+        return torch.sigmoid(x)
 
 class EdgeModel(nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, hidden_size, dropout=0.0):
