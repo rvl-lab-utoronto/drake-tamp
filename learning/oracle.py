@@ -3,6 +3,8 @@ import os
 import sys
 import pickle
 from typing import AnyStr
+
+import torch
 from panda_station import RigidTransformWrapper
 from datetime import datetime
 from pddlstream.language.object import Object, OptimisticObject
@@ -357,10 +359,11 @@ from learning.gnn.data import ModelInfo
 from learning.gnn.data import construct_input
 from learning.gnn.models import StreamInstanceClassifier
 class Model(Oracle):
-    def __init__(self, domain_pddl, stream_pddl, initial_conditions, goal_conditions):
+    def __init__(self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path):
         super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions)
         self.model = None
         self.model_info = None
+        self.model_path = model_path
 
     def load_model(self):
         self.model_info = ModelInfo(
@@ -370,6 +373,7 @@ class Model(Oracle):
             stream_input_sizes=[None] + [len(e['domain']) for e in self.externals]
         )
         self.model = StreamInstanceClassifier(self.model_info.node_feature_size, self.model_info.edge_feature_size, self.model_info.stream_input_sizes[1:], feature_size=4, use_gcn=False)
+        self.model.load_state_dict(torch.load(self.model_path))
         self.model.eval()
 
     def make_is_relevant_checker(self, remove_matched=False):
@@ -379,7 +383,11 @@ class Model(Oracle):
         oracle_checker = super().make_is_relevant_checker(remove_matched=remove_matched)
         def checker(result, node_from_atom):
             label = oracle_checker(result, node_from_atom)
-            return self.predict(result, node_from_atom)
+            logit = self.predict(result, node_from_atom)
+            pred = logit > 0.5
+            if pred != label:
+                print('Bad pred!', logit, label)
+            return True if label else pred
         return checker
     
     def predict(self, result, node_from_atom):
@@ -394,5 +402,5 @@ class Model(Oracle):
             can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
 
         data = construct_input(can_parents, result.external.name, can_atom_map, can_stream_map, self.model_info)
-        logit = self.model(data)
-        return logit > 0.5
+        logit = self.model(data).detach().numpy()[0]
+        return logit

@@ -129,7 +129,7 @@ def parse_labels(pkl_path):
     for label in data['labels']:
         fact, parents, candidate_stream, is_relevant, atom_map, stream_map = label
         d = construct_input(parents, candidate_stream, atom_map, stream_map, model_info)
-        d.y = torch.tensor([int(is_relevant)])
+        d.y = torch.tensor([float(is_relevant)])
         dataset.append(d)
 
     return dataset, model_info
