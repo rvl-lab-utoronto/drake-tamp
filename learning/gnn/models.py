@@ -29,7 +29,10 @@ class StreamInstanceClassifier(nn.Module):
         mlp = self.mlps[cand[0] - 1]
         parents = torch.cat([x[p] for p in  cand[1:]])
         x = torch.unsqueeze(mlp(parents), 0)
-        return F.log_softmax(x, dim=1)
+        x = F.log_softmax(x, dim=1)
+        if self.training:
+            return x
+        return torch.squeeze(torch.exp(x))[1]
 
 class EdgeModel(nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, hidden_size, dropout=0.0):

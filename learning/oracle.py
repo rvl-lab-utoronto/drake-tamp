@@ -352,3 +352,47 @@ def make_stream_map(node_from_atom):
             continue
         stream_map[fact_to_pddl(atom)] = result.external.name
     return stream_map
+
+from learning.gnn.data import ModelInfo
+from learning.gnn.data import construct_input
+from learning.gnn.models import StreamInstanceClassifier
+class Model(Oracle):
+    def __init__(self, domain_pddl, stream_pddl, initial_conditions, goal_conditions):
+        super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions)
+        self.model = None
+        self.model_info = None
+
+    def load_model(self):
+        self.model_info = ModelInfo(
+            goal_facts=self.goal_facts,
+            predicates=[p.name for p in self.domain.predicates],
+            streams=[None] + [e['name'] for e in self.externals],
+            stream_input_sizes=[None] + [len(e['domain']) for e in self.externals]
+        )
+        self.model = StreamInstanceClassifier(self.model_info.node_feature_size, self.model_info.edge_feature_size, self.model_info.stream_input_sizes[1:], feature_size=4, use_gcn=False)
+        self.model.eval()
+
+    def make_is_relevant_checker(self, remove_matched=False):
+        if self.model is None:
+            self.load_model()
+            assert self.model is not None
+        oracle_checker = super().make_is_relevant_checker(remove_matched=remove_matched)
+        def checker(result, node_from_atom):
+            label = oracle_checker(result, node_from_atom)
+            return self.predict(result, node_from_atom)
+        return checker
+    
+    def predict(self, result, node_from_atom):
+        can_atom_map = make_atom_map(node_from_atom)
+        can_stream_map = make_stream_map(node_from_atom)
+
+        can_ans = tuple()
+        can_parents = tuple()
+        for domain_fact in result.domain:
+            can_ans += (fact_to_pddl(domain_fact),)
+            can_parents += (fact_to_pddl(domain_fact),)
+            can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
+
+        data = construct_input(can_parents, result.external.name, can_atom_map, can_stream_map, self.model_info)
+        logit = self.model(data)
+        return logit > 0.5

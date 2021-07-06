@@ -14,8 +14,8 @@ def acc(model, dataset, sample_count=100):
     return acc_on_pos / len(dataset)
 
 if __name__ == '__main__':
-    dataset,  (stream_input_sizes, node_feature_size, edge_feature_size) = parse_labels('/home/mohammed/drake-tamp/learning/data/labeled/2021-07-05-14:35:28.341.pkl')
-    model = StreamInstanceClassifier(node_feature_size, edge_feature_size, stream_input_sizes[1:], feature_size=4, use_gcn=False)
+    dataset, model_info = parse_labels('/home/mohammed/drake-tamp/learning/data/labeled/2021-07-05-14:35:28.341.pkl')
+    model = StreamInstanceClassifier(model_info.node_feature_size, model_info.edge_feature_size, model_info.stream_input_sizes[1:], feature_size=4, use_gcn=False)
 
 
     neg = [d for d in dataset if d.y[0] == 0]
