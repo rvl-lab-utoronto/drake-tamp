@@ -6,13 +6,17 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.nn import GCNConv
 
 class StreamInstanceClassifier(nn.Module):
-    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=1, use_gcn=False):
+    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=1, use_gcn=False, predicates=None, object_names=None):
         super(StreamInstanceClassifier, self).__init__()
+        if predicates is not None or object_names is not None:
+            self.fact_model = FactModel(predicates, object_names, input_size=4, hidden_size=4)
+        else:
+            self.fact_model = None
         if use_gcn:
-            self.graph_network = SimpleGCN(node_feature_size, feature_size)
+            self.graph_network = SimpleGCN(node_feature_size + 4, feature_size)
         else:
             self.graph_network = GraphNetwork(
-                node_feature_size=node_feature_size,
+                node_feature_size=node_feature_size + 4,
                 edge_feature_size=edge_feature_size,
                 hidden_size=feature_size,
             )
@@ -22,6 +26,9 @@ class StreamInstanceClassifier(nn.Module):
 
 
     def forward(self, data):
+        if self.fact_model is not None:
+            nodes = self.fact_model(data)
+
         x = self.graph_network(data)
         # assert len(data.candidate) == 1, "Cant support batching yet"
         cand = data.candidate
@@ -127,3 +134,17 @@ def MLP(layers, input_dim, dropout=0.0):
         if dropout > 0:
             mlp_layers.append(torch.nn.Dropout(p=dropout))
     return torch.nn.Sequential(*mlp_layers)
+
+class FactModel(nn.Module):
+    def __init__(self, predicates, object_names, input_size=4, hidden_size=4):
+        self.to_index = {k:i for i, k in enumerate(predicates + object_names)}
+        self.unknown = len(self.to_index)
+        self.embedding = nn.Embedding(1 + len(predicates) +  len(object_names), input_size)
+        self.lstm = nn.LSTM(input_size, hidden_size=hidden_size, num_layers=1)
+    def forward(self, data):
+
+        data = torch.tensor([[self.to_index.get(arg, self.unknown) for arg in fact] for fact in data.nodes])
+        x = self.embedding(data)
+        x, _ = self.lstm(x)
+        x = x[-1] # select last output
+        return x
