@@ -4,24 +4,25 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+import time
+import numpy as np
+import random
+np.random.seed(seed = int(time.time()))
+random.seed(int(time.time()))
 import matplotlib
 matplotlib.use("Agg")
 import time
+import yaml
 import os
-import subprocess
-import copy
 from re import I
 import sys
 import argparse
-import numpy as np
-import random
 from datetime import datetime
 import pydrake.all
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
 from pddlstream.algorithms.meta import solve
-#TODO(agro): see which of these are necessary
 from learning import oracle as ora
 from panda_station import (
     ProblemInfo,
@@ -44,7 +45,7 @@ from tamp_statistics import (
 )
 from learning import visualization
 import kitchen_streamsv2
-#import cProfile, pstats, io
+from kitchen_data_generation import make_problem
 
 VERBOSE = False
 
@@ -69,6 +70,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     Construct pddlstream problem from simulator
     """
     init = []
+    goal = problem_info.goal
     main_station = stations["main"]
     simulator_context = simulator.get_context()
     main_station_context = main_station.GetMyContextFromRoot(simulator_context)
@@ -109,6 +111,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("burner", region)]
 
 
+    """
     goal = ["and",
         #("in", "cabbage1", ("leftplate", "base_link")),
         ("cooked", "cabbage1"),
@@ -123,6 +126,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         #("in", "raddish4", ("tray", "base_link")),
         #("in", "raddish5", ("tray", "base_link")),
     ]
+    """
 
     oracle = ora.Oracle(
         domain_pddl,
@@ -396,61 +400,74 @@ def setup_parser():
     )
     return parser
 
-if __name__ == "__main__":
 
-    parser = setup_parser()
-    args = parser.parse_args()
-    mode = args.mode.lower()
+def run_kitchen(
+    num_cabbages = 1,
+    num_raddishes = 0,
+    num_glasses = 2,
+    problem_file = None,
+    mode = "normal",
+    url = None,
+    max_time = float("inf"),
+    algorithm = "adaptive"
+):
+
+    time = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+    if not os.path.isdir(f"{file_path}/logs"):
+        os.mkdir(f"{file_path}/logs")
+    if not os.path.isdir(f"{file_path}/logs/{time}"):
+        os.mkdir(f"{file_path}/logs/{time}")
+
+    path = f"{file_path}/logs/{time}/"
+
+    if problem_file is None:
+        yaml_data = make_problem.make_random_problem(
+            num_cabbages, num_raddishes, num_glasses
+        )
+        with open(f"{path}problem.yaml", "w") as stream:
+            yaml.dump(yaml_data, stream, default_flow_style=False)
+        problem_file = f"{path}problem.yaml"
 
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
-        args.url, args.problem
+        url, problem_file
     )
     problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
-    for algorithm in [
-        "adaptive",
-    ]:
-        time = datetime.today().strftime('%Y-%m-%d-%H:%M:%S')
+    
+    given_oracle = oracle if mode == "oracle" else None
+    solution = solve(
+        problem,
+        algorithm=algorithm,
+        verbose = VERBOSE,
+        logpath = path,
+        oracle = given_oracle,
+        use_unique = mode == "oracle",
+        max_time = max_time
+    )
 
-        if not os.path.isdir(f"{file_path}/logs"):
-            os.mkdir(f"{file_path}/logs")
-        if not os.path.isdir(f"{file_path}/logs/{time}"):
-            os.mkdir(f"{file_path}/logs/{time}")
+    print(f"\n\n{algorithm} solution:")
+    print_solution(solution)
 
-        path = f"{file_path}/logs/{time}/"
-        
-        given_oracle = oracle if mode == "oracle" else None
-        solution = solve(
-            problem,
-            algorithm=algorithm,
-            verbose = VERBOSE,
-            logpath = path,
-            oracle = given_oracle,
-            use_unique = mode == "oracle",
+    plan, _, evaluations = solution
+    if plan is None:
+        print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
+        return False, problem_file
+        #sys.exit(0)
+
+    make_plot(path + "stats.json", save_path = path + "plots.png")
+    visualization.stats_to_graph(path + "stats.json", save_path = path + "preimage_graph.html")
+
+    if mode == "save":
+        oracle.save_stats(
+            path + "stats.json"
         )
-        print(f"\n\n{algorithm} solution:")
-        print_solution(solution)
 
-        plan, _, evaluations = solution
-        if plan is None:
-            print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
-            sys.exit(0)
+    if mode == "oracle":
+        oracle.save_labeled()
 
-        make_plot(path + "stats.json", save_path = path + "plots.png")
-        visualization.stats_to_graph(path + "stats.json", save_path = path + "preimage_graph.html")
-
-        if mode == "save":
-            oracle.save_stats(
-                path + "stats.json"
-            )
-
-        if mode == "oracle":
-            oracle.save_labeled()
-
-        if meshcat_vis is None:
-            sys.exit(0)
+    if meshcat_vis is not None:
 
         action_map = {
             "move": {
@@ -484,13 +501,51 @@ if __name__ == "__main__":
         file = open(path + "recording.html", "w")
         file.write(meshcat_vis.vis.static_html())
         file.close()
+    
+    return True, problem_file
 
 
-        #save = input(
-        #    (
-        #        f"{Colors.BOLD}\nType ENTER to exit without saving.\n"
-        #        "Type any key to save the video to the file\n"
-        #        f"logs/<todays_date>/recording.html\n"
-        #    )
-        #)
-        #if save != "":
+
+def generate_data(num_cabbages, num_raddishes, num_glasses, max_time = float("inf")):
+
+    res, problem_file = run_kitchen(
+        num_cabbages=num_cabbages,
+        num_raddishes= num_raddishes,
+        num_glasses = num_glasses,
+        max_time = max_time,
+        mode = "save",
+    )
+    if not res:
+        return
+    res, _ = run_kitchen(
+        problem_file = problem_file,
+        mode = "oracle",
+        max_time = max_time,
+    )
+
+if __name__ == "__main__":
+
+    for num_cabbages in range(1,4):
+        for num_raddishes in range(5):
+            for num_glasses in range(5):
+                generate_data(
+                    num_cabbages = num_cabbages,
+                    num_raddishes= num_raddishes,
+                    num_glasses = num_glasses,
+                    max_time = (num_cabbages + num_raddishes + num_glasses)*10
+                )
+            
+
+    """
+    parser = setup_parser()
+    args = parser.parse_args()
+    mode = args.mode.lower()
+    run_kitchen(
+        num_cabbages=2,
+        num_raddishes= 2,
+        num_glasses = 2,
+        url = args.url
+    )
+    """
+
+
