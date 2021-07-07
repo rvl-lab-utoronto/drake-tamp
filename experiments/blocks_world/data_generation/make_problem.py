@@ -132,7 +132,9 @@ def make_random_problem(num_blocks, num_blockers, colorize=False):
     for stack in stacking:
         table = pick_random_table()
         if len(positions[table]) == 0:
-            positions[table].append(TABLES[table][1].sample())
+            res = TABLES[table][1].sample()
+            if res is None: 
+                continue
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
@@ -188,7 +190,10 @@ def make_random_problem(num_blocks, num_blockers, colorize=False):
     for blocker in blockers:
         table = pick_random_table()
         if len(positions[table]) == 0:
-            positions[table].append(TABLES[table][1].sample())
+            res = TABLES[table][1].sample()
+            if res is None:
+                continue
+            positions[table].append(res)
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
