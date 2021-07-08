@@ -6,17 +6,13 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.nn import GCNConv
 
 class StreamInstanceClassifier(nn.Module):
-    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=1, use_gcn=False, predicates=None, object_names=None):
+    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=1, use_gcn=False):
         super(StreamInstanceClassifier, self).__init__()
-        if predicates is not None or object_names is not None:
-            self.fact_model = FactModel(predicates, object_names, input_size=4, hidden_size=4)
-        else:
-            self.fact_model = None
         if use_gcn:
-            self.graph_network = SimpleGCN(node_feature_size + 4, feature_size)
+            self.graph_network = SimpleGCN(node_feature_size, feature_size)
         else:
             self.graph_network = GraphNetwork(
-                node_feature_size=node_feature_size + 4,
+                node_feature_size=node_feature_size,
                 edge_feature_size=edge_feature_size,
                 hidden_size=feature_size,
             )
@@ -26,9 +22,6 @@ class StreamInstanceClassifier(nn.Module):
 
 
     def forward(self, data):
-        if self.fact_model is not None:
-            nodes = self.fact_model(data)
-
         x = self.graph_network(data)
         # assert len(data.candidate) == 1, "Cant support batching yet"
         cand = data.candidate
