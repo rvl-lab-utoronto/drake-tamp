@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-The module for running the kitchen TAMP problem.
-See `problem 5` at this link for details:
+The module for running the blocks world TAMP problem.
+See `problem 2` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
 import time
@@ -127,6 +127,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     """
     goal = ["and",
+
         ("on-block", "block1", "block2"),
         #("on-block", "green_block", "blocker1"),
         #("on-table", "blocker1", ("blue_table", "base_link")),

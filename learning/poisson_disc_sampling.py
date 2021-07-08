@@ -106,8 +106,8 @@ class PoissonSampler:
         for i in range(num):
             point = self.sample()
             if point is None:
-                return
-            samples.append(self.sample())
+                return samples
+            samples.append(point)
         return samples
 
     def sample(self):
