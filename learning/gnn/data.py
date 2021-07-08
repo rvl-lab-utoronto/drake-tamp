@@ -58,7 +58,7 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
         }
         edges.append((i, j))
         edge_attributes_list.append(edge_attributes)
-        edges.append((j, j))
+        edges.append((j, i))
         edge_attributes_list.append(edge_attributes)
     return nodes, node_attributes_list, edges, edge_attributes_list
 
@@ -101,9 +101,9 @@ def construct_input(parents, candidate_stream, atom_map, stream_map, model_info)
     edge_features = torch.zeros((len(edges), model_info.edge_feature_size), dtype=torch.float)
     for i, (edge, attr) in enumerate(zip(edges, edge_attributes_list)):
         edge_features[i, model_info.stream_to_index[attr['stream']]] = 1
-        edge_features[-3] = attr['domain_index']
-        edge_features[-2] = int(attr['is_directed'])
-        edge_features[-1] = len(attr['via_objects'])
+        edge_features[i, -3] = attr['domain_index']
+        edge_features[i, -2] = int(attr['is_directed'])
+        edge_features[i, -1] = len(attr['via_objects'])
 
     return Data(
         nodes=nodes,
@@ -130,6 +130,7 @@ def parse_labels(pkl_path):
         fact, parents, candidate_stream, is_relevant, atom_map, stream_map = label
         d = construct_input(parents, candidate_stream, atom_map, stream_map, model_info)
         d.y = torch.tensor([float(is_relevant)])
+        d.fact = fact
         dataset.append(d)
 
     return dataset, model_info

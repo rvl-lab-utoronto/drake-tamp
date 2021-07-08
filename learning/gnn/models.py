@@ -6,11 +6,12 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.nn import GCNConv
 
 class StreamInstanceClassifier(nn.Module):
-    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=1, use_gcn=False):
+    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, feature_size=8, mlp_out=1, use_gcn=True):
         super(StreamInstanceClassifier, self).__init__()
         if use_gcn:
             self.graph_network = SimpleGCN(node_feature_size, feature_size)
         else:
+            raise NotImplementedError("There is something wrong with this implementation of meta layers.")
             self.graph_network = GraphNetwork(
                 node_feature_size=node_feature_size,
                 edge_feature_size=edge_feature_size,
@@ -21,7 +22,7 @@ class StreamInstanceClassifier(nn.Module):
             setattr(self, f'mlp{i}', mlp)
 
 
-    def forward(self, data):
+    def forward(self, data, score=False):
         x = self.graph_network(data)
         # assert len(data.candidate) == 1, "Cant support batching yet"
         cand = data.candidate
@@ -29,9 +30,9 @@ class StreamInstanceClassifier(nn.Module):
         mlp = self.mlps[cand[0] - 1]
         parents = torch.cat([x[p] for p in  cand[1:]])
         x = mlp(parents)
-        if self.training:
-            return x
-        return torch.sigmoid(x)
+        if score:
+            return torch.sigmoid(x)
+        return x
 
 class EdgeModel(nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, hidden_size, dropout=0.0):
@@ -122,8 +123,22 @@ def MLP(layers, input_dim, dropout=0.0):
     for layer_num in range(0, len(layers) - 1):
         mlp_layers.append(torch.nn.ReLU())
         mlp_layers.append(torch.nn.Linear(layers[layer_num], layers[layer_num + 1]))
-    if len(layers) > 1:
-        mlp_layers.append(torch.nn.LayerNorm(mlp_layers[-1].weight.size()[:-1]))
-        if dropout > 0:
-            mlp_layers.append(torch.nn.Dropout(p=dropout))
+    # if len(layers) > 1:
+    #     mlp_layers.append(torch.nn.LayerNorm(mlp_layers[-1].weight.size()[:-1]))
+    #     if dropout > 0:
+    #         mlp_layers.append(torch.nn.Dropout(p=dropout))
     return torch.nn.Sequential(*mlp_layers)
+
+class FactModel(nn.Module):
+    def __init__(self, predicates, object_names, input_size=4, hidden_size=4):
+        self.to_index = {k:i for i, k in enumerate(predicates + object_names)}
+        self.unknown = len(self.to_index)
+        self.embedding = nn.Embedding(1 + len(predicates) +  len(object_names), input_size)
+        self.lstm = nn.LSTM(input_size, hidden_size=hidden_size, num_layers=1)
+    def forward(self, data):
+
+        data = torch.tensor([[self.to_index.get(arg, self.unknown) for arg in fact] for fact in data.nodes])
+        x = self.embedding(data)
+        x, _ = self.lstm(x)
+        x = x[-1] # select last output
+        return x
