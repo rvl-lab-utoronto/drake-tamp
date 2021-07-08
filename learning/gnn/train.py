@@ -99,7 +99,7 @@ if __name__ == '__main__':
     dataset, model_info = parse_labels('/home/mohammed/drake-tamp/learning/data/labeled/2021-07-06-14:24:22.064.pkl')
     dataset2, _ = parse_labels('/home/mohammed/drake-tamp/learning/data/labeled/2021-07-06-14:54:42.372.pkl')
     dataset += dataset2
-    model = StreamInstanceClassifier(model_info.node_feature_size, model_info.edge_feature_size, model_info.stream_input_sizes[1:], feature_size=4, use_gcn=False)
+    model = StreamInstanceClassifier(model_info.node_feature_size, model_info.edge_feature_size, model_info.stream_input_sizes[1:], feature_size=4, use_gcn=True)
     neg = [d for d in dataset if d.y[0] == 0]
     pos = [d for d in dataset if d.y[0] == 1]
     data = dict(train=StratifiedRandomSampler(pos, neg, prop=0.5), val=StratifiedRandomSampler(pos, neg, prop=0.5))

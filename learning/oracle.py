@@ -402,5 +402,5 @@ class Model(Oracle):
             can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
 
         data = construct_input(can_parents, result.external.name, can_atom_map, can_stream_map, self.model_info)
-        logit = self.model(data).detach().numpy()[0]
+        logit = self.model(data, score=True).detach().numpy()[0]
         return logit
