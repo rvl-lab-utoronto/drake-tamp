@@ -1,4 +1,3 @@
-#%%
 import numpy as np
 from learning.oracle import objects_from_facts
 import itertools
@@ -175,12 +174,53 @@ def parse_labels(pkl_path):
 
     dataset = []
     for label in data['labels']:
-        _, parents, candidate_stream, is_relevant, atom_map, stream_map = label
+        _, parents, candidate_stream, is_relevant, atom_map, stream_map, _ = label
         d = construct_input(parents, candidate_stream, atom_map, stream_map, model_info)
         d.y = torch.tensor([float(is_relevant)])
         dataset.append(d)
     return dataset, model_info
 
+def fact_to_relevant_actions(fact, domain, indices = True):
+    """
+    Given a fact, determine which actions it is part of the
+    preconditions and effects of.
+
+    params:
+        fact: A pddl stream fact represented as a tuple
+        domain: a pddlstream.algorithms.downward.Domain object
+        indices (optional): if true, return multi-hot encoding,
+        else return a tuple of list of action names 
+        ([appears in precondition of ], [appears in postcondition of])
+    """
+
+    assert len(fact) > 0, "must input a non-empty fact tuple"
+    fact_name = fact[0]
+    actions = domain.actions
+
+    in_prec = []
+    in_eff = []
+    multi_hot = np.zeros(len(actions*2))
+
+    action_index = 0
+    for action in actions:
+        for precondition in action.precondition.parts:
+            precondition = precondition.predicate
+            if fact_name == precondition:
+                multi_hot[action_index] = 1
+                in_prec.append(action.name)
+                break
+        for effect in action.effects:
+            effect = effect.literal.predicate
+            if fact_name == effect:
+                in_eff.append(action.name)
+                multi_hot[action_index + len(actions)] = 1
+                break 
+        action_index += 1
+
+    if indices:
+        return multi_hot
+
+    return in_prec, in_eff
 
 if __name__ == '__main__':
-    dataset = parse_labels('/home/mohammed/drake-tamp/learning/data/labeled/2021-07-05-14:35:28.341.pkl')
+    dataset = parse_labels('/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-08-23:15:35.172.pkl')

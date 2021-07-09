@@ -73,7 +73,11 @@ USER $user
 
 # other requirements
 COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+RUN pip3 install -r requirements.txt
+RUN pip3 install torch
+RUN pip3 install torch-geometric
+RUN pip3 install torch-scatter
+RUN pip3 install torch-sparse
 ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
 ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/
 
