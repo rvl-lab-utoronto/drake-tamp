@@ -94,13 +94,18 @@ def make_atom_map(node_from_atom):
 def fact_to_pddl(fact):
     new_fact = [fact[0]]
     for obj in fact[1:]:
-        pddl_obj = (
-            obj.pddl
-            if isinstance(obj, Object) or isinstance(obj, OptimisticObject)
-            else obj
-        )
+        pddl_obj = obj_to_pddl(obj)
         new_fact.append(pddl_obj)
     return tuple(new_fact)
+
+
+def obj_to_pddl(obj):
+    pddl_obj = (
+        obj.pddl
+        if isinstance(obj, Object) or isinstance(obj, OptimisticObject)
+        else obj
+    )
+    return pddl_obj
 
 
 def apply_substitution(fact, substitution):
@@ -193,8 +198,10 @@ class Oracle:
         self.externals = None
 
     def set_goal_facts(self, goal_exp):
-        if not goal_exp[0] == 'and':
-            raise NotImplementedError(f"Expected goal to be a conjunction of facts. Got {goal_exp}.Need to parse this correctly.")
+        if not goal_exp[0] == "and":
+            raise NotImplementedError(
+                f"Expected goal to be a conjunction of facts. Got {goal_exp}.Need to parse this correctly."
+            )
         self.goal_facts = tuple([fact_to_pddl(f) for f in goal_exp[1:]])
 
     def set_domain(self, domain):
@@ -203,14 +210,16 @@ class Oracle:
     def set_externals(self, externals):
         self.externals = []
         for external in externals:
-            self.externals.append({
-                "certified": external.certified,
-                "domain": external.domain,
-                "fluents": external.fluents,
-                "inputs": external.inputs,
-                "outputs": external.outputs,
-                "name": external.name
-            })
+            self.externals.append(
+                {
+                    "certified": external.certified,
+                    "domain": external.domain,
+                    "fluents": external.fluents,
+                    "inputs": external.inputs,
+                    "outputs": external.outputs,
+                    "name": external.name,
+                }
+            )
 
     def save_labeled(self, path=None):
         if path is None:
@@ -318,11 +327,20 @@ class Oracle:
             is_match, match = is_matching(
                 fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init
             )
+            res = []
+            self.labels.append(
+                (
+                    fact_to_pddl(can_fact),
+                    can_parents,
+                    result.external.name,
+                    is_match,
+                    can_atom_map,
+                    can_stream_map,
+                    tuple([obj_to_pddl(r) for r in result.output_objects]),
+                )
+            )
             if is_match:
-                self.labels.append((fact_to_pddl(can_fact), can_parents, result.external.name, True, can_atom_map, can_stream_map))
                 return True, (can_fact, match)
-            else:
-                self.labels.append((fact_to_pddl(can_fact), can_parents, result.external.name, False, can_atom_map, can_stream_map))
         return False, None
 
     def make_is_relevant_checker(self, remove_matched=False):
@@ -341,6 +359,7 @@ class Oracle:
 
         return unique_is_relevant
 
+
 def make_stream_map(node_from_atom):
     stream_map = {}
     for atom in node_from_atom:
@@ -355,11 +374,16 @@ def make_stream_map(node_from_atom):
         stream_map[fact_to_pddl(atom)] = result.external.name
     return stream_map
 
+
 from learning.gnn.data import ModelInfo
 from learning.gnn.data import construct_input
 from learning.gnn.models import StreamInstanceClassifier
+
+
 class Model(Oracle):
-    def __init__(self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path):
+    def __init__(
+        self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path
+    ):
         super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions)
         self.model = None
         self.model_info = None
@@ -369,10 +393,16 @@ class Model(Oracle):
         self.model_info = ModelInfo(
             goal_facts=self.goal_facts,
             predicates=[p.name for p in self.domain.predicates],
-            streams=[None] + [e['name'] for e in self.externals],
-            stream_input_sizes=[None] + [len(e['domain']) for e in self.externals]
+            streams=[None] + [e["name"] for e in self.externals],
+            stream_input_sizes=[None] + [len(e["domain"]) for e in self.externals],
         )
-        self.model = StreamInstanceClassifier(self.model_info.node_feature_size, self.model_info.edge_feature_size, self.model_info.stream_input_sizes[1:], feature_size=4, use_gcn=False)
+        self.model = StreamInstanceClassifier(
+            self.model_info.node_feature_size,
+            self.model_info.edge_feature_size,
+            self.model_info.stream_input_sizes[1:],
+            feature_size=4,
+            use_gcn=False,
+        )
         self.model.load_state_dict(torch.load(self.model_path))
         self.model.eval()
 
@@ -381,15 +411,17 @@ class Model(Oracle):
             self.load_model()
             assert self.model is not None
         oracle_checker = super().make_is_relevant_checker(remove_matched=remove_matched)
+
         def checker(result, node_from_atom):
             label = oracle_checker(result, node_from_atom)
             logit = self.predict(result, node_from_atom)
             pred = logit > 0.5
             if pred != label:
-                print('Bad pred!', logit, label)
+                print("Bad pred!", logit, label)
             return True if label else pred
+
         return checker
-    
+
     def predict(self, result, node_from_atom):
         can_atom_map = make_atom_map(node_from_atom)
         can_stream_map = make_stream_map(node_from_atom)
@@ -401,6 +433,12 @@ class Model(Oracle):
             can_parents += (fact_to_pddl(domain_fact),)
             can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
 
-        data = construct_input(can_parents, result.external.name, can_atom_map, can_stream_map, self.model_info)
+        data = construct_input(
+            can_parents,
+            result.external.name,
+            can_atom_map,
+            can_stream_map,
+            self.model_info,
+        )
         logit = self.model(data, score=True).detach().numpy()[0]
         return logit
