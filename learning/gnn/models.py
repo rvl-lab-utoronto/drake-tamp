@@ -7,7 +7,7 @@ from torch_geometric.nn import GCNConv
 from torch.nn.utils.rnn import pad_sequence
 
 class StreamInstanceClassifier(nn.Module):
-    def __init__(self, node_feature_size, edge_feature_size, stream_input_sizes, num_predicates, object_node_feature_size, feature_size=8, lstm_size=10,  mlp_out=1, use_gcn=True, use_object_model=True):
+    def __init__(self, node_feature_size, edge_feature_size, stream_num_domain_facts, num_predicates, object_node_feature_size, feature_size=8, lstm_size=10,  mlp_out=1, use_gcn=True, use_object_model=True):
         super(StreamInstanceClassifier, self).__init__()
         self.use_object_model = use_object_model
         self.use_gcn = use_gcn
@@ -24,7 +24,7 @@ class StreamInstanceClassifier(nn.Module):
                 edge_feature_size=edge_feature_size,
                 hidden_size=feature_size,
             )
-        self.mlps = tuple([MLP([16, mlp_out], feature_size*s)  for s in stream_input_sizes])
+        self.mlps = tuple([MLP([16, mlp_out], feature_size*s)  for s in stream_num_domain_facts])
         for i, mlp in enumerate(self.mlps):
             setattr(self, f'mlp{i}', mlp)
 

@@ -1,128 +1,16 @@
 import json
 import os
-import sys
 import pickle
-from typing import AnyStr
+from datetime import datetime
 
 import torch
-from panda_station import RigidTransformWrapper
-from datetime import datetime
-from pddlstream.language.object import Object, OptimisticObject
+
+from learning.data_models import InvocationInfo, ModelInfo, ProblemInfo
+from learning.gnn.data import construct_input
+from learning.gnn.models import StreamInstanceClassifier
+from learning.pddlstream_utils import *
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
-
-
-def logical_to_string(logical):
-    """
-    Turns an init/goal list for a
-    pddl problem into a consistent string
-    identifier
-    (ie. the order of the predicates will not
-    matter for the output string)
-    """
-    logical = sorted(logical, key=lambda x: str(x))
-    res = ""
-    num = 0
-    for item in logical:
-        num += 1
-        if isinstance(item, str):
-            res += item + ","
-            continue
-        res += "("
-        for i in range(len(item)):
-            s = item[i]
-            res += str(s)
-            if i < len(item) - 1:
-                res += ", "
-        res += ")"
-        if num < len(logical):
-            res += ", "
-    res += "\n"
-    return res
-
-
-def item_to_dict(atom_map):
-    res = {}
-    for item in atom_map:
-        key = tuple(item[0])
-        value = [tuple(i) for i in item[1]]
-        res[key] = value
-    return res
-
-
-def ancestors(fact, atom_map):
-    """
-    Given a fact, return a set of
-    that fact's ancestors
-    """
-    parents = atom_map[fact]
-    res = set(parents)
-    for parent in parents:
-        res |= ancestors(parent, atom_map)
-    return set(res)
-
-
-def ancestors_tuple(fact, atom_map):
-    """
-    Given a fact, return a pre-order from bottom-up tuple of
-    that fact's branch
-    """
-    parents = atom_map[fact]
-    ancestors = tuple()
-    for parent in parents:
-        ancestors += (parent,)
-        ancestors += ancestors_tuple(parent, atom_map)
-
-    return ancestors
-
-
-def make_atom_map(node_from_atom):
-    atom_map = {}
-    for atom in node_from_atom:
-        node = node_from_atom[atom]
-        result = node.result
-        # TODO: Figure out how to deal with these bools?
-        if result is None:
-            atom_map[fact_to_pddl(atom)] = []
-            continue
-        if isinstance(result, bool):
-            continue
-        atom_map[fact_to_pddl(atom)] = [fact_to_pddl(f) for f in result.domain]
-    return atom_map
-
-
-def fact_to_pddl(fact):
-    new_fact = [fact[0]]
-    for obj in fact[1:]:
-        pddl_obj = obj_to_pddl(obj)
-        new_fact.append(pddl_obj)
-    return tuple(new_fact)
-
-
-def obj_to_pddl(obj):
-    pddl_obj = (
-        obj.pddl
-        if isinstance(obj, Object) or isinstance(obj, OptimisticObject)
-        else obj
-    )
-    return pddl_obj
-
-
-def apply_substitution(fact, substitution):
-    return tuple(substitution.get(arg, arg) for arg in fact)
-
-
-def sub_map_from_init(init):
-    objects = objects_from_facts(init)
-    return {o: o for o in objects}
-
-
-def objects_from_facts(init):
-    objects = set()
-    for fact in init:
-        for arg in fact[1:]:
-            objects.add(arg)
-    return objects
 
 
 def is_matching(l, ans_l, preimage, atom_map, init):
@@ -172,7 +60,6 @@ def subsitution(l, g, sub_map):
     sub_map.update(test_sub_map)
     return True
 
-
 class Oracle:
     def __init__(self, domain_pddl, stream_pddl, initial_conditions, goal_conditions):
         self.domain_pddl = domain_pddl
@@ -193,24 +80,21 @@ class Oracle:
         self.atom_map = None
         self.init = None
         self.labels = []
-        self.goal_facts = []
-        self.domain = None
-        self.externals = None
+        self.model_info = None
+        self.problem_info = None
 
-    def set_goal_facts(self, goal_exp):
+    def set_problem_info(self, goal_exp):
         if not goal_exp[0] == "and":
             raise NotImplementedError(
                 f"Expected goal to be a conjunction of facts. Got {goal_exp}.Need to parse this correctly."
             )
-        self.goal_facts = tuple([fact_to_pddl(f) for f in goal_exp[1:]])
+        self.problem_info = ProblemInfo(goal_facts=tuple([fact_to_pddl(f) for f in goal_exp[1:]]))
 
-    def set_domain(self, domain):
-        self.domain = domain
 
-    def set_externals(self, externals):
-        self.externals = []
+    def set_model_info(self, domain, externals):
+        new_externals = []
         for external in externals:
-            self.externals.append(
+            new_externals.append(
                 {
                     "certified": external.certified,
                     "domain": external.domain,
@@ -220,6 +104,11 @@ class Oracle:
                     "name": external.name,
                 }
             )
+        self.model_info = ModelInfo(
+            predicates=[p.name for p in domain.predicates],
+            streams=[None] + [e["name"] for e in new_externals],
+            stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
+        )
 
     def save_labeled(self, path=None):
         if path is None:
@@ -234,10 +123,9 @@ class Oracle:
         data["stream_pddl"] = self.stream_pddl
         data["initial_conditions"] = tuple(self.initial_conditions)
         data["goal_conditions"] = tuple(self.goal_conditions)
-        data["goal_facts"] = tuple(self.goal_facts)
         data["labels"] = self.labels
-        data["domain"] = self.domain
-        data["externals"] = self.externals
+        data["model_info"] = self.model_info
+        data["problem_info"] = self.problem_info
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
 
@@ -327,21 +215,13 @@ class Oracle:
             is_match, match = is_matching(
                 fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init
             )
-            res = []
-            self.labels.append(
-                (
-                    fact_to_pddl(can_fact),
-                    can_parents,
-                    result.external.name,
-                    is_match,
-                    can_atom_map,
-                    can_stream_map,
-                    tuple([obj_to_pddl(r) for r in result.output_objects]),
-                )
-            )
+
             if is_match:
-                return True, (can_fact, match)
-        return False, None
+                break
+        self.labels.append(InvocationInfo(result, node_from_atom, label=is_match))
+
+        return is_match
+
 
     def make_is_relevant_checker(self, remove_matched=False):
         if self.last_preimage is None or self.atom_map is None:
@@ -351,7 +231,7 @@ class Oracle:
             raise NotImplementedError("Removed matched does not work ... yet")
 
         def unique_is_relevant(result, node_from_atom):
-            is_match, _ = self.is_relevant(result, node_from_atom, preimage)
+            is_match = self.is_relevant(result, node_from_atom, preimage)
             # if remove_matched and is_match:
             #    lifted, grounded = match
             #    preimage.remove(grounded)
@@ -360,46 +240,18 @@ class Oracle:
         return unique_is_relevant
 
 
-def make_stream_map(node_from_atom):
-    stream_map = {}
-    for atom in node_from_atom:
-        node = node_from_atom[atom]
-        result = node.result
-        # TODO: Figure out how to deal with these bools?
-        if result is None:
-            stream_map[fact_to_pddl(atom)] = None
-            continue
-        if isinstance(result, bool):
-            continue
-        stream_map[fact_to_pddl(atom)] = result.external.name
-    return stream_map
-
-
-from learning.gnn.data import ModelInfo
-from learning.gnn.data import construct_input
-from learning.gnn.models import StreamInstanceClassifier
-
-
 class Model(Oracle):
     def __init__(
         self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path
     ):
         super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions)
-        self.model = None
-        self.model_info = None
         self.model_path = model_path
 
     def load_model(self):
-        self.model_info = ModelInfo(
-            goal_facts=self.goal_facts,
-            predicates=[p.name for p in self.domain.predicates],
-            streams=[None] + [e["name"] for e in self.externals],
-            stream_input_sizes=[None] + [len(e["domain"]) for e in self.externals],
-        )
         self.model = StreamInstanceClassifier(
             self.model_info.node_feature_size,
             self.model_info.edge_feature_size,
-            self.model_info.stream_input_sizes[1:],
+            self.model_info.stream_num_domain_facts[1:],
             feature_size=4,
             use_gcn=False,
         )
@@ -423,21 +275,10 @@ class Model(Oracle):
         return checker
 
     def predict(self, result, node_from_atom):
-        can_atom_map = make_atom_map(node_from_atom)
-        can_stream_map = make_stream_map(node_from_atom)
-
-        can_ans = tuple()
-        can_parents = tuple()
-        for domain_fact in result.domain:
-            can_ans += (fact_to_pddl(domain_fact),)
-            can_parents += (fact_to_pddl(domain_fact),)
-            can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
-
+        invocation_info = InvocationInfo(result, node_from_atom)
         data = construct_input(
-            can_parents,
-            result.external.name,
-            can_atom_map,
-            can_stream_map,
+            invocation_info,
+            self.problem_info,
             self.model_info,
         )
         logit = self.model(data, score=True).detach().numpy()[0]

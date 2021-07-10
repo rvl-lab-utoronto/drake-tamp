@@ -1,10 +1,9 @@
 import numpy as np
-from learning.oracle import objects_from_facts
+from learning.pddlstream_utils import objects_from_facts
 import itertools
 import torch
 from torch_geometric.data import Data
 import pickle
-from dataclasses import dataclass
 
 def construct_fact_graph(goal_facts, atom_map, stream_map):
     goal_objects = objects_from_facts(goal_facts)
@@ -71,40 +70,12 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
         edge_attributes_list.append(edge_attributes)
     return nodes, node_attributes_list, edges, edge_attributes_list
 
-@dataclass
-class ModelInfo:
-    goal_facts: list
-    predicates: list
-    streams: list
-    stream_input_sizes: list
 
-    @property
-    def node_feature_size(self):
-        return len(self.predicate_to_index) + 2
+def construct_input(data_obj, problem_info, model_info):
+    nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(problem_info.goal_facts, data_obj.atom_map, data_obj.stream_map)
 
-    @property
-    def edge_feature_size(self):
-        return len(self.stream_to_index) + 3
-
-    @property
-    def stream_to_index(self):
-        return {s:i for i,s in enumerate(self.streams)}
-    @property
-    def predicate_to_index(self):
-        return {s:i for i,s in enumerate(self.predicates)}
-
-    @property
-    def object_node_feature_size(self):
-        return len(self.predicates)
-
-
-
-
-def construct_input(parents, candidate_stream, atom_map, stream_map, model_info):
-    nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(model_info.goal_facts, atom_map, stream_map)
-
-    parent_idxs = [nodes.index(p) for p in parents]
-    candidate = (model_info.stream_to_index[candidate_stream], ) + tuple(parent_idxs)
+    parent_idxs = [nodes.index(p) for p in data_obj.result.domain]
+    candidate = (model_info.stream_to_index[data_obj.result.name], ) + tuple(parent_idxs)
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
     node_features = torch.zeros((len(nodes), model_info.node_feature_size), dtype=torch.float)
@@ -120,7 +91,7 @@ def construct_input(parents, candidate_stream, atom_map, stream_map, model_info)
         edge_features[i, -2] = int(attr['is_directed'])
         edge_features[i, -1] = len(attr['via_objects'])
 
-    objects_data = get_object_graph(atom_map, model_info)
+    objects_data = get_object_graph(data_obj.atom_map, model_info)
 
     nodes_ind = []
     for n in nodes:
@@ -165,18 +136,13 @@ def parse_labels(pkl_path):
     with open(pkl_path, 'rb') as f:
         data = pickle.load(f)
 
-    model_info = ModelInfo(
-        goal_facts=data['goal_facts'],
-        predicates=[p.name for p in data['domain'].predicates],
-        streams=[None] + [e['name'] for e in data['externals']],
-        stream_input_sizes=[None] + [len(e['domain']) for e in data['externals']],
-    )
+    model_info = data['model_info']
+    problem_info = data['problem_info']
 
     dataset = []
-    for label in data['labels']:
-        _, parents, candidate_stream, is_relevant, atom_map, stream_map, _ = label
-        d = construct_input(parents, candidate_stream, atom_map, stream_map, model_info)
-        d.y = torch.tensor([float(is_relevant)])
+    for invocation_info in data['labels']: # label is now an instance of learning.gnn.oracle.Data
+        d = construct_input(invocation_info, problem_info, model_info)
+        d.y = torch.tensor([float(invocation_info.label)])
         dataset.append(d)
     return dataset, model_info
 
@@ -223,4 +189,8 @@ def fact_to_relevant_actions(fact, domain, indices = True):
     return in_prec, in_eff
 
 if __name__ == '__main__':
-    dataset = parse_labels('/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-08-23:15:35.172.pkl')
+    import sys
+    if len(sys.argv) != 2:
+        print('Usage error: Pass in a pkl path.')
+        sys.exit(1)
+    dataset = parse_labels(sys.argv[1])

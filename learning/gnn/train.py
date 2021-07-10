@@ -106,7 +106,7 @@ if __name__ == '__main__':
     model = StreamInstanceClassifier(
         node_feature_size=model_info.node_feature_size,
         edge_feature_size=model_info.edge_feature_size,
-        stream_input_sizes=model_info.stream_input_sizes[1:],
+        stream_num_domain_facts=model_info.stream_num_domain_facts[1:],
         num_predicates=len(model_info.predicates),
         object_node_feature_size=model_info.object_node_feature_size,
         lstm_size=5, feature_size=4, use_gcn=False, use_object_model=True)
