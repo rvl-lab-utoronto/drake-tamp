@@ -38,14 +38,14 @@ REGIONS = {
     "rightplate": {
         "name": "rightplate",
         "X_WR": RigidTransform(RollPitchYaw(0, 0, 0), np.array([-0.15, 0.45, 0.34])),
-        "valid_positions": [np.array([0, 0, 0.05])],
+        "valid_positions": [np.array([0, 0, 1e-3])],
         "max_goal": 1,
         "main_link": "base_link",
     },
     "leftplate": {
         "name": "leftplate",
         "X_WR": RigidTransform(RollPitchYaw(0, 0, 0), np.array([-0.45, 0.15, 0.34])),
-        "valid_positions": [np.array([0, 0, 0.05])],
+        "valid_positions": [np.array([0, 0, 1e-3])],
         "max_goal": 1,
         "main_link": "base_link",
     },
@@ -55,8 +55,8 @@ REGIONS = {
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.45, 0.15, 0.325])
         ),
         "valid_positions": [
-            np.array([-0.15, 0.1, 0.05]),
-            np.array([-0.15, -0.1, 0.05]),
+            np.array([-0.15, 0.1, 1e-3]),
+            np.array([-0.15, -0.1, 1e-3]),
         ],
         "max_goal": 1,
         "main_link": "leftside",
@@ -66,7 +66,7 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.45, 0.15, 0.325])
         ),
-        "valid_positions": [np.array([0.15, 0.1, 0.05]), np.array([0.15, -0.1, 0.05])],
+        "valid_positions": [np.array([0.15, 0.1, 1e-3]), np.array([0.15, -0.1, 1e-3])],
         "max_goal": 1,
         "main_link": "rightside",
     },
@@ -76,8 +76,8 @@ REGIONS = {
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.15, 0.45, 0.325])
         ),
         "valid_positions": [
-            np.array([-0.15, 0.1, 0.05]),
-            np.array([-0.15, -0.1, 0.05]),
+            np.array([-0.15, 0.1, 1e-3]),
+            np.array([-0.15, -0.1, 1e-3]),
         ],
         "max_goal": 2,
         "main_link": "leftside",
@@ -87,7 +87,7 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.15, 0.45, 0.325])
         ),
-        "valid_positions": [np.array([0.15, 0.1, 0.05]), np.array([0.15, -0.1, 0.05])],
+        "valid_positions": [np.array([0.15, 0.1, 1e-3]), np.array([0.15, -0.1, 1e-3])],
         "max_goal": 2,
         "main_link": "rightside",
     },
@@ -124,7 +124,7 @@ class RegionInfo:
             p_RO_O = self.sampler.sample()
             if p_RO_O is None:
                 return None
-            p_RO_O = np.append(p_RO_O, 0.05)
+            p_RO_O = np.append(p_RO_O, 1e-3)
         else:
             if len(self.valid_positions) == 0:
                 return None

@@ -52,7 +52,7 @@ VERBOSE = False
 
 np.set_printoptions(precision=4, suppress=True)
 ARRAY = tuple
-SIM_INIT_TIME = 0.2
+SIM_INIT_TIME = 0.0
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
 
@@ -585,7 +585,7 @@ def generate_data(
             in the start or goal states.
             The having many blocks stacked ontop of one another becomes very 
             computatinoaly expensive to simulate even the first 0.2 s during
-            the initialization phase.
+            the initialization phase (if SIM_INIT_TIME > 0).
 
         url: zmq_url where meshcat server is running. 
             Use drake-tamp/experiments/start_meshcat_server.py to create one
@@ -614,11 +614,16 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    num_blocks = 20
-    num_blockers = 10
+    num_blocks = 3
+    num_blockers = 0
     url = "tcp://127.0.0.1:6000"
     generate_data(
-        num_blocks, num_blockers, buffer_radius=0, url=url, max_stack_num=4
+        num_blocks,
+        num_blockers,
+        buffer_radius=0,
+        url=url,
+        max_stack_num=None,
+        simulate = False
     )
 
     """

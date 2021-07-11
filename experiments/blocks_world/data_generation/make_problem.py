@@ -15,7 +15,7 @@ DIRECTIVE = os.path.expanduser(
 
 TABLE_HEIGHT = 0.325
 BLOCK_DIMS = np.array([0.045, 0.045, 0.045])
-R = max(BLOCK_DIMS[:2]) * np.sqrt(2)
+R = max(BLOCK_DIMS[:2]) * np.sqrt(2) + 0.01
 X_TABLE_DIMS = np.array([0.4, 0.75]) - np.ones(2) * R
 Y_TABLE_DIMS = np.array([0.75, 0.4]) - np.ones(2) * R
 BLOCKER_DIMS = np.array([0.045, 0.045, 0.1])
@@ -165,7 +165,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
         }
         prev_block = block
         for block in stack[1:]:
-            point[2] += BLOCK_DIMS[2] + 0.01
+            point[2] += BLOCK_DIMS[2] + 1e-3
             point[-1] = yaw
             path = TEMPLATE_PATH
             if colorize:

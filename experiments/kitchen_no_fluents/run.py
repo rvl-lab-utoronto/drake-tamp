@@ -53,7 +53,7 @@ np.set_printoptions(precision=4, suppress=True)
 np.random.seed(seed=0)
 random.seed(0)
 ARRAY = tuple
-SIM_INIT_TIME = 0.2
+SIM_INIT_TIME = 0.0
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
 
@@ -589,11 +589,11 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    url = None#"tcp://127.0.0.1:6000"
+    url = "tcp://127.0.0.1:6000"
 
-    num_cabbages = 3
-    num_raddishes = 3
-    num_glasses = 3
+    num_cabbages = 2
+    num_raddishes = 1
+    num_glasses = 1
 
     generate_data(
         num_cabbages=num_cabbages,
@@ -602,7 +602,7 @@ if __name__ == "__main__":
         prob_tray=0.4,
         prob_sink=0.1,
         prob_goal = 0.5,
-        buffer_radius=0,
+        buffer_radius=0.05,
         url=url,
         simulate=False,
         # max_time = (num_cabbages + num_raddishes + num_glasses)*10
