@@ -1,9 +1,106 @@
+from learning.data_models import InvocationInfo, ProblemInfo, ModelInfo
 import numpy as np
 from learning.pddlstream_utils import objects_from_facts
 import itertools
 import torch
 from torch_geometric.data import Data
 import pickle
+
+
+
+def construct_object_hypergraph(
+    model_info: ModelInfo, problem_info: ProblemInfo, label: InvocationInfo
+):
+    """
+    Construct an object hypergraph where nodes are pddl objects and edges are
+    the facts that relate them. The hypergraph is represente as a normal graph
+    with the hyperedges turned into multiple normal edges (HypergraphConv does
+    not work)
+
+    node attributes:
+        - overlap_with_goal (bool)
+        - stream (string)
+        - level: the number of stream instantiations required to create this object (int)
+
+    edge_attributes: 
+        - predicate (string)
+        - overlap_with_goal (bool)
+        - is_initial (bool) 
+        - stream (string)
+        - actions it is precondition of (list[string])
+        - actions it is poscondition of (list[string])
+        - level: the number of stream insantiations required to certify this fact (int)
+
+    TODO(agro): level vs initial?
+    """
+
+    def obj_level(obj):
+        if obj not in label.object_stream_map:
+            return 0
+        else:
+            return 1 + max(
+                [obj_level(o) for o in label.object_stream_map[obj]["input_objects"]]
+            )
+
+    def fact_level(fact):
+        if len(label.atom_map[fact]) == 0:
+            return 0
+        else:
+            return 1 + max([fact_level(d) for d in label.atom_map[fact]])
+
+    goal_facts = problem_info.goal_facts
+    nodes, edges = [], []
+    node_attr, edge_attr = [], []
+    initial_objects = {}
+    node_to_ind = {}
+    goal_objects = objects_from_facts(goal_facts)
+
+    for fact in label.atom_map:
+        fact_objects = objects_from_facts([fact])
+        for o in fact_objects:
+            if o in nodes:
+                continue
+            node_to_ind[o] = len(nodes)
+            nodes.append(o)
+            node_attr.append(
+                {
+                    "overlap_with_goal": o in goal_objects,
+                    "stream": label.object_stream_map.get(o, None),
+                    "level": obj_level(o)
+                }
+            )
+        
+        if len(fact_objects) == 1: #unary
+            o = fact_objects.pop()
+            edges.append((node_to_ind[o], node_to_ind[o]))
+            edge_attr.append(
+                {
+                    "predicate": fact[0],
+                    "overlap_with_goal": fact_objects.intersection(goal_objects),
+                    "level": obj_level(fact),
+                    "stream": label.stream_map[fact],
+                    "relevant_actions": fact_to_relevant_actions(
+                        fact, model_info.domain, indices = False
+                    ),
+                }
+            )
+        else:
+            for e_objs in itertools.combinations(fact_objects, 2):
+                edges.append(
+                    (node_to_ind[e_objs[0]], node_to_ind[e_objs[1]])
+                )
+                edge_attr.append(
+                    {
+                        "predicate": fact[0],
+                        "overlap_with_goal": fact_objects.intersection(goal_objects),
+                        "level": obj_level(fact),
+                        "stream": label.stream_map[fact],
+                        "relevant_actions": fact_to_relevant_actions(
+                            fact, model_info.domain, indices = False
+                        )
+                    }
+                )
+    return nodes, node_attr, edges, edge_attr
 
 def construct_fact_graph(goal_facts, atom_map, stream_map):
     goal_objects = objects_from_facts(goal_facts)

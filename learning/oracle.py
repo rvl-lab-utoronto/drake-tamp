@@ -108,6 +108,7 @@ class Oracle:
             predicates=[p.name for p in domain.predicates],
             streams=[None] + [e["name"] for e in new_externals],
             stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
+            domain = domain
         )
 
     def save_labeled(self, path=None):

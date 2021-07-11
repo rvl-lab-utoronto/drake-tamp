@@ -1,7 +1,7 @@
 from collections import namedtuple
 from learning.pddlstream_utils import make_atom_map, make_stream_map, fact_to_pddl, obj_to_pddl
-
 from dataclasses import dataclass
+from pddlstream.algorithms.downward import Domain
 
 @dataclass
 class ModelInfo:
@@ -9,6 +9,7 @@ class ModelInfo:
     predicates: list
     streams: list
     stream_num_domain_facts: list
+    domain: Domain
 
     @property
     def node_feature_size(self):
@@ -28,6 +29,7 @@ class ModelInfo:
     @property
     def object_node_feature_size(self):
         return len(self.predicates)
+
 
 @dataclass
 class ProblemInfo:
@@ -66,5 +68,8 @@ class InvocationInfo:
             if result is None or isinstance(result, bool):
                 continue
             for r in result.output_objects:
-                obj_to_stream_map[obj_to_pddl(r)] = result.external.name
+                obj_to_stream_map[obj_to_pddl(r)] = {
+                    "name": result.name, 
+                    "input_objects": [obj_to_pddl(f) for f in result.input_objects]
+                }
         return obj_to_stream_map

@@ -525,15 +525,15 @@ def generate_data(num_cabbages, num_raddishes, num_glasses, max_time = float("in
 
 if __name__ == "__main__":
 
-    for num_cabbages in range(1,4):
-        for num_raddishes in range(5):
-            for num_glasses in range(5):
-                generate_data(
-                    num_cabbages = num_cabbages,
-                    num_raddishes= num_raddishes,
-                    num_glasses = num_glasses,
-                    max_time = (num_cabbages + num_raddishes + num_glasses)*10
-                )
+    num_cabbages = 1
+    num_raddishes = 1
+    num_glasses = 1
+    generate_data(
+        num_cabbages = num_cabbages,
+        num_raddishes= num_raddishes,
+        num_glasses = num_glasses,
+        #max_time = (num_cabbages + num_raddishes + num_glasses)*10
+    )
             
 
     """
