@@ -98,16 +98,50 @@ class StratifiedRandomSampler:
 
 
 if __name__ == '__main__':
-    from learning.gnn.data import parse_labels
-    from learning.gnn.models import StreamInstanceClassifier
-    dataset, model_info = parse_labels('/home/mohammed/drake-tamp/learning/data/labeled/2021-07-10-16:32:04.000.pkl')
-    model = StreamInstanceClassifier(
-        model_info=model_info,
-        lstm_size=5, feature_size=4, use_gcn=False, use_object_model=True
+    from learning.gnn.data import parse_hyper_labels, HyperModelInfo, TrainingDataset, construct_hypermodel_input
+    from learning.gnn.models import HyperClassifier
+    dataset = TrainingDataset(construct_hypermodel_input, HyperModelInfo, augment=True)
+    dataset.from_pkl_files(
+        '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:26:29.452.pkl',
+        '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:27:25.578.pkl'
     )
-    neg = [d for d in dataset if d.y[0] == 0]
-    pos = [d for d in dataset if d.y[0] == 1]
-    data = dict(train=StratifiedRandomSampler(pos, neg, prop=0.5), val=StratifiedRandomSampler(pos, neg, prop=0.5))
+    dataset.prepare()
+
+    model = HyperClassifier(
+        node_feature_size=dataset.model_info.node_feature_size,
+        edge_feature_size=dataset.model_info.edge_feature_size,
+        stream_domains=dataset.model_info.stream_domains[1:],
+        stream_num_inputs=dataset.model_info.stream_num_inputs[1:],
+    )
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=.8*torch.ones([1]))
-    train_model_graphnetwork(model, data, criterion=criterion, optimizer=optimizer, save_every=10, epochs=100)
+    train_model_graphnetwork(
+        model,
+        dict(train=dataset, val=dataset),
+        criterion=criterion,
+        optimizer=optimizer,
+        save_every=10,
+        epochs=1000
+    )
+
+    import numpy as np
+
+    logits = []
+    labels = []
+    model.eval()
+    for d in dataset:
+        logit = torch.sigmoid(model(d)).detach().numpy()[0]
+        logits.append(logit)
+        labels.append(d.y.detach().numpy().item())
+        # print(d.certified, logit, d.y)
+    logits = np.array(logits)
+    labels = np.array(labels)
+    inds = np.argsort(logits)
+    labels = labels[inds]
+    scores = logits[inds]
+    num_irrelevant_excluded = best_threshold_index = list(labels).index(1)
+    best_threshold = scores[best_threshold_index]
+    num_irrelevant_included = np.sum(labels[best_threshold_index:] == 0)
+    #for ind in inds[best_threshold_index:]:
+        #print(dataset[ind].certified, dataset[ind].y)
+    print(num_irrelevant_excluded/(num_irrelevant_excluded + num_irrelevant_included))

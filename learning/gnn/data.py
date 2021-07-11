@@ -405,9 +405,138 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
     return in_prec, in_eff
 
+class TrainingDataset:
+    def __init__(self, construct_input_fn, model_info_class, augment=False):
+        self.construct_input_fn = construct_input_fn
+        self.model_info_class = model_info_class
+        self.problem_labels = [] 
+        self.problem_infos = []
+        self.problem_labels_partitions = []
+        self.input_result_mappings = []
+        self.model_info = None
+        self.num_examples = 0
+        self.augment = augment
+        self.epoch_size = 200
+        self.prop = .5
+    
+    def load_pkl(self, file_path):
+        with open(file_path, 'rb') as f:
+            data = pickle.load(f)
+
+        model_info = self.model_info_class(**data['model_info'].__dict__)
+        problem_info = data['problem_info']
+        if self.model_info is None:
+            self.model_info = model_info
+        else:
+            # TODO: this assertion doesnt work due to model_info.domain 
+            # assert self.model_info == model_info
+            print("Warning: Make sure the model infos in these pkls are identical!")
+
+        self.problem_infos.append(problem_info)
+        self.problem_labels.append(data['labels'])
+        self.num_examples += len(data['labels'])
+
+    def from_pkl_files(self, *file_paths):
+        for file_path in file_paths:
+            self.load_pkl(file_path)
+
+    def construct_input_result_map(self):
+        self.input_result_mappings = []
+        for labels in self.problem_labels:
+            self.input_result_mappings.append(self.compute_possible_pairings(labels))
+    
+    def compute_possible_pairings(self, invocations):
+        possible_pairs = {i:[i] for i in range(len(invocations))}
+
+        if not self.augment:
+            return possible_pairs
+
+        for i, j in itertools.permutations(range(len(invocations)), 2):
+            invocation1 = invocations[i]
+            invocation2 = invocations[j]
+            if invocation1.result == invocation2.result:
+                continue
+            # the atom map of invocation1 could support addition of result from invocation2
+            if all(fact not in invocation1.atom_map for fact in invocation2.result.certified) \
+                and all(fact in invocation1.atom_map for fact in invocation2.result.domain):
+                    possible_pairs[j].append(i)
+        return possible_pairs
+    
+    def construct_label_partition_map(self):
+        self.problem_labels_partitions = []
+        for labels in self.problem_labels:
+            partitions = ([], [])
+            self.problem_labels_partitions.append(partitions)
+            for i,label in enumerate(labels):
+                if not label.label:
+                    partitions[0].append(i)
+                else:
+                    partitions[1].append(i)
+
+    def construct_global_index(self):
+        all_pos = []
+        all_neg = []
+        for i, (neg, pos) in enumerate(self.problem_labels_partitions):
+            all_pos.extend([(i, j) for j in pos])
+            all_neg.extend([(i, j) for j in neg])
+        self.pos = all_pos
+        self.neg = all_neg
+
+    def __getitem__(self, index):
+        if not (isinstance(index, tuple) and len(index) == 2):
+            raise IndexError
+        i, j = index
+        return dict(invocation=self.problem_labels[i][j], possible_pairings=[(i, k) for k in self.input_result_mappings[i][j]])
+
+    def prepare(self):
+        self.construct_input_result_map()
+        self.construct_label_partition_map()
+        self.construct_global_index()
+
+    def __iter__(self):
+        self.i = 0
+        return self
+    def __len__(self):
+        return self.epoch_size
+    def __next__(self):
+        self.i += 1
+        if self.i > self.epoch_size:
+            raise StopIteration
+        if np.random.random() < self.prop:
+            example_idx = self.pos[np.random.choice(len(self.pos))]
+        else:
+            example_idx = self.neg[np.random.choice(len(self.neg))]
+
+        run_idx, _ = example_idx
+        example = self[example_idx]
+        result_invocation = example['invocation']
+        pairings = example['possible_pairings']
+        idx = pairings[np.random.choice(len(pairings))]
+        graph_invocation = self[idx]['invocation']
+
+        invocation = copy(graph_invocation)
+        invocation.result = result_invocation.result
+        invocation.label = result_invocation.label
+        d = self.construct_input_fn(invocation, self.problem_infos[run_idx], self.model_info)
+        d.y = torch.tensor([float(result_invocation.label)])
+        return d
+
+
+    def __len__(self):
+        return self.num_examples
+    
+    
+
+
+
+
 if __name__ == '__main__':
     import sys
-    if len(sys.argv) != 2:
+    if len(sys.argv) < 2:
         print('Usage error: Pass in a pkl path.')
         sys.exit(1)
-    dataset = parse_labels(sys.argv[1], True)
+    dataset = TrainingDataset(construct_hypermodel_input, HyperModelInfo, augment=True)
+    dataset.from_pkl_files(*sys.argv[1:])
+    dataset.prepare()
+    for x in dataset:
+        print(x)
