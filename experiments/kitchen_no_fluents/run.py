@@ -535,7 +535,6 @@ def generate_data(
     prob_goal = 1,
 ):
     """
-    
     params:
         num_cabbage: number of cabbages added 
 

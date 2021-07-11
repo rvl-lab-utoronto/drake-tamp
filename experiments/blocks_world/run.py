@@ -439,7 +439,8 @@ def run_blocks_world(
     max_time=float("inf"),
     algorithm="adaptive",
     buffer_radius=0,
-    simulate = False,
+    simulate=False,
+    max_stack_num = None
 ):
 
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
@@ -457,6 +458,7 @@ def run_blocks_world(
             num_blockers=num_blockers,
             colorize=True,
             buffer_radius=buffer_radius,
+            max_stack_num=max_stack_num
         )
         with open(f"{path}problem.yaml", "w") as stream:
             yaml.dump(yaml_data, stream, default_flow_style=False)
@@ -556,8 +558,40 @@ def run_blocks_world(
 
 
 def generate_data(
-    num_blocks, num_blockers, max_time=float("inf"), buffer_radius=0, url=None, simulate = False
+    num_blocks,
+    num_blockers,
+    max_time=float("inf"),
+    buffer_radius=0,
+    url=None,
+    simulate=False,
+    max_stack_num=None,
 ):
+
+    """
+    params: 
+        num_blocks: the number of blocks that will be used for stacking
+
+        num_blockers: the number of larger blocks that will be extraneous,
+        but possibly obstructive
+
+        max_time: the maximum time until pddlstream times out
+
+        buffer_radius: An addition to the minimum distance between objects
+            in the world (both manipulands and static objects). This is provided
+            in meters.
+
+        max_stack_num:
+            The maximum number of blocks that will be stacked ontop of one another
+            in the start or goal states.
+            The having many blocks stacked ontop of one another becomes very 
+            computatinoaly expensive to simulate even the first 0.2 s during
+            the initialization phase.
+
+        url: zmq_url where meshcat server is running. 
+            Use drake-tamp/experiments/start_meshcat_server.py to create one
+
+        simulate: whether or not the plan should be simulated
+    """
 
     res, problem_file = run_blocks_world(
         num_blocks=num_blocks,
@@ -566,7 +600,8 @@ def generate_data(
         max_time=max_time,
         buffer_radius=buffer_radius,
         url=url,
-        simulate = simulate,
+        simulate=simulate,
+        max_stack_num=max_stack_num,
     )
     if not res:
         return
@@ -579,14 +614,11 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    num_blocks = 5
-    num_blockers = 2
+    num_blocks = 20
+    num_blockers = 10
     url = "tcp://127.0.0.1:6000"
     generate_data(
-        num_blocks,
-        num_blockers,
-        buffer_radius=0,
-        url=url,
+        num_blocks, num_blockers, buffer_radius=0, url=url, max_stack_num=4
     )
 
     """

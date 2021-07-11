@@ -6,7 +6,8 @@ from learning.poisson_disc_sampling import PoissonSampler
 import numpy as np
 import yaml
 import xml.etree.ElementTree as ET
-np.random.seed(seed = int(time.time()))
+
+np.random.seed(seed=int(time.time()))
 
 DIRECTIVE = os.path.expanduser(
     "~/drake-tamp/panda_station/directives/one_arm_blocks_world.yaml"
@@ -93,7 +94,7 @@ def make_block(block_name, color, size, buffer, ball_radius=1e-7):
     return tree
 
 
-def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius = 0):
+def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_stack_num = None):
     """
     buffer_radius is an addition to the minimum distance (in the same units as the extent
     - for our purposes it is meters)
@@ -107,7 +108,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius 
             item[1].r + buffer_radius,
             centered=True,
         )
-        points = sampler.make_samples(num = (num_blocks + num_blockers)*10)
+        points = sampler.make_samples(num=(num_blocks + num_blockers) * 10)
         np.random.shuffle(points)
         positions[name] = points
 
@@ -138,26 +139,24 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius 
 
     blocks = [f"block{i}" for i in range(num_blocks)]
     blockers = [f"blocker{i}" for i in range(num_blockers)]
-    stacking = make_random_stacking(blocks)
+    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
     for stack in stacking:
         table = pick_random_table()
         if len(positions[table]) == 0:
             res = TABLES[table][1].sample()
-            if res is None: 
+            if res is None:
                 continue
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
-        point[-1] = np.random.uniform(0, 2*np.pi)
+        yaw = point[-1] = np.random.uniform(0, 2 * np.pi)
         block = stack[0]
         path = TEMPLATE_PATH
         if colorize:
             color = np.random.uniform(np.zeros(3), np.ones(3))
             color = f"{color[0]} {color[1]} {color[2]} 1"
             path = MODELS_PATH + block + ".sdf"
-            make_block(
-                block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001
-            )
+            make_block(block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001)
         yaml_data["objects"][block] = {
             "path": path,
             "X_WO": point.tolist(),
@@ -167,15 +166,13 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius 
         prev_block = block
         for block in stack[1:]:
             point[2] += BLOCK_DIMS[2] + 0.01
-            point[-1] = np.random.uniform(0, 2*np.pi)
+            point[-1] = yaw
             path = TEMPLATE_PATH
             if colorize:
                 color = np.random.uniform(np.zeros(3), np.ones(3))
                 color = f"{color[0]} {color[1]} {color[2]} 1"
                 path = MODELS_PATH + block + ".sdf"
-                make_block(
-                    block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001
-                )
+                make_block(block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001)
             yaml_data["objects"][block] = {
                 "path": path,
                 "X_WO": point.tolist(),
@@ -184,7 +181,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius 
             }
             prev_block = block
 
-    stacking = make_random_stacking(blocks)
+    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
     goal = ["and"]
     for stack in stacking:
         table = pick_random_table()
@@ -207,7 +204,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius 
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
-        point[-1] = np.random.uniform(0, 2*np.pi)
+        point[-1] = np.random.uniform(0, 2 * np.pi)
         yaml_data["objects"][blocker] = {
             "path": "models/blocks_world/sdf/blocker_block.sdf",
             "X_WO": point.tolist(),
@@ -218,12 +215,18 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius 
     return yaml_data
 
 
-def make_random_stacking(blocks, num_stacks=None):
+def make_random_stacking(blocks, num_stacks=None, max_stack_num=None):
     num_blocks = len(blocks)
     block_perm = blocks.copy()
     np.random.shuffle(block_perm)
+    lower_num = 0
+    if max_stack_num is not None:
+        assert (
+            0 < max_stack_num <= num_blocks
+        ), "Max stack height must be a integer greater than 0 and less than the number of blocks"
+        lower_num = len(blocks) - max_stack_num
     if num_stacks is None:
-        num_splits = np.random.randint(0, num_blocks)
+        num_splits = np.random.randint(lower_num, num_blocks)
     else:
         assert num_stacks >= 0 and num_stacks < num_blocks, "Invalid stack number"
         num_splits = num_stacks - 1
