@@ -21,22 +21,22 @@ BLOCKER_DIMS = np.array([0.045, 0.045, 0.1])
 
 # table_name: (center point, extent)
 TABLES = {
-    "red_table": (
+    "red_table": [
         np.array([0.6, 0]),
         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
-    ),
-    "blue_table": (
+    ],
+    "blue_table": [
         np.array([-0.6, 0]),
         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
-    ),
-    "green_table": (
+    ],
+    "green_table": [
         np.array([0, 0.6]),
         PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
-    ),
-    "purple_table": (
+    ],
+    "purple_table": [
         np.array([0, -0.6]),
         PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
-    ),
+    ],
 }
 
 TEMPLATE_PATH = "models/blocks_world/sdf/red_block.sdf"
@@ -93,12 +93,22 @@ def make_block(block_name, color, size, buffer, ball_radius=1e-7):
     return tree
 
 
-def make_random_problem(num_blocks, num_blockers, colorize=False):
+def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius = 0):
+    """
+    buffer_radius is an addition to the minimum distance (in the same units as the extent
+    - for our purposes it is meters)
+    between two objects (which is currently ~1cm).
+    """
 
     positions = {}
     for name, item in TABLES.items():
-        item[1].reset()
-        points = item[1].make_samples(num = num_blocks + num_blockers)
+        sampler = PoissonSampler(
+            np.clip(item[1].extent - buffer_radius, 0, np.inf),
+            item[1].r + buffer_radius,
+            centered=True,
+        )
+        points = sampler.make_samples(num = (num_blocks + num_blockers)*10)
+        np.random.shuffle(points)
         positions[name] = points
 
     yaml_data = {
