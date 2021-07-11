@@ -8,7 +8,6 @@ class ModelInfo:
     """This class is intended to keep all the information that should remain constant for a single model"""
     predicates: list
     streams: list
-    actions: list
     stream_num_domain_facts: list
     domain: Domain
 
@@ -25,7 +24,7 @@ class ModelInfo:
 
     @property
     def action_to_index(self):
-        return {a.name:i for a, i in enumerate(self.domain.actions)}
+        return {a.name:i for i, a in enumerate(self.domain.actions)}
     
     @property
     def num_streams(self):
