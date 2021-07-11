@@ -100,7 +100,7 @@ class StratifiedRandomSampler:
 if __name__ == '__main__':
     from learning.gnn.data import parse_hyper_labels, HyperModelInfo, TrainingDataset, construct_hypermodel_input
     from learning.gnn.models import HyperClassifier
-    dataset = TrainingDataset(construct_hypermodel_input, HyperModelInfo, augment=True)
+    dataset = TrainingDataset(construct_hypermodel_input, HyperModelInfo, augment=False)
     dataset.from_pkl_files(
         '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:26:29.452.pkl',
         '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:27:25.578.pkl'

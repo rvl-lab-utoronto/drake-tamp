@@ -182,11 +182,10 @@ def construct_hypermodel_input(
 
     # indices of input objects to latest stream result
     input_node_inds = [nodes.index(p) for p in label.result.input_objects]
-    dom_edge_inds = []
-    for dom_fact in label.result.domain:
-        for i, attr in enumerate(edge_attr):
-            if attr["full_fact"] == dom_fact:
-                dom_edge_inds.append(i)
+    fact_to_edge_ind = {}
+    for i, attr in enumerate(edge_attr):
+        fact_to_edge_ind.setdefault(attr['full_fact'], []).append(i)
+    dom_edge_inds = [i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]]
 
     # indices of domain facts of latest stream result
     node_features = torch.zeros(
@@ -236,6 +235,7 @@ def construct_hypermodel_input(
         edge_attr=edge_features,
         edge_index=edge_index,
         candidate=candidate,
+        fact_to_edge_ind=fact_to_edge_ind
     )
 
 
@@ -486,12 +486,45 @@ class TrainingDataset:
         if not (isinstance(index, tuple) and len(index) == 2):
             raise IndexError
         i, j = index
-        return dict(invocation=self.problem_labels[i][j], possible_pairings=[(i, k) for k in self.input_result_mappings[i][j]])
+        return dict(
+            invocation=self.problem_labels[i][j],
+            data=self.datas[i][j],
+            possible_pairings=[(i, k) for k in self.input_result_mappings[i][j]]
+        )
+
+    def construct_datas(self):
+        datas = []
+        for problem_info, labels in zip(self.problem_infos, self.problem_labels):
+            data = []
+            for invocation in labels:
+                d = self.construct_input_fn(invocation, problem_info, self.model_info)
+                d.y = torch.tensor([float(invocation.label)])
+                data.append(d)
+            datas.append(data)
+        self.datas = datas
+        
 
     def prepare(self):
         self.construct_input_result_map()
         self.construct_label_partition_map()
         self.construct_global_index()
+        self.construct_datas()
+
+    def combine_pair(self, graph_data, result_data, invocation):
+        model_info = self.model_info
+        # use the graph from data1 and result from data2
+        input_node_inds = [graph_data.nodes.index(p) for p in invocation.result.input_objects]
+        dom_edge_inds = [i for dom_fact in invocation.result.domain for i in graph_data.fact_to_edge_ind[dom_fact]]
+        assert model_info.stream_to_index[invocation.result.name] == result_data.candidate[0]
+        return Data(
+            nodes=graph_data.nodes,
+            x=graph_data.x,
+            edge_attr=graph_data.edge_attr,
+            edge_index=graph_data.edge_index,
+            candidate=(model_info.stream_to_index[invocation.result.name], )  \
+            + tuple(input_node_inds) + tuple(dom_edge_inds)
+        )
+
 
     def __iter__(self):
         self.i = 0
@@ -507,18 +540,19 @@ class TrainingDataset:
         else:
             example_idx = self.neg[np.random.choice(len(self.neg))]
 
-        run_idx, _ = example_idx
-        example = self[example_idx]
-        result_invocation = example['invocation']
-        pairings = example['possible_pairings']
+        result_example = self[example_idx]
+        pairings = result_example['possible_pairings']
         idx = pairings[np.random.choice(len(pairings))]
-        graph_invocation = self[idx]['invocation']
+        if idx == example_idx:
+            return result_example['data']
+        graph_example = self[idx]
 
-        invocation = copy(graph_invocation)
-        invocation.result = result_invocation.result
-        invocation.label = result_invocation.label
-        d = self.construct_input_fn(invocation, self.problem_infos[run_idx], self.model_info)
-        d.y = torch.tensor([float(result_invocation.label)])
+        d = self.combine_pair(
+            graph_data=graph_example['data'],
+            result_data=result_example['data'],
+            invocation=result_example['invocation']
+        )
+        d.y = torch.tensor([float(result_example['invocation'].label)])
         return d
 
 
