@@ -6,6 +6,75 @@ from torch_geometric.nn import MetaLayer
 from torch_geometric.nn import GCNConv
 from torch.nn.utils.rnn import pad_sequence
 
+class HyperClassifier(nn.Module):
+    """
+    Stream result classifier based on object hypergraph.
+
+    params:
+        node_feature_size: the length of the node feature vectors
+        edge_feature_size: the length of the edge feature vectors
+        stream_num_domain_facts: the number of domain facts of the stream
+        stream_num_inputs: the number of inputs to the stream
+        feature_size: the output feature size
+    """
+    def __init__(
+        self,
+        node_feature_size,
+        edge_feature_size,
+        stream_domains,
+        stream_num_inputs,
+        feature_size=8,
+        mlp_out=1,
+    ):
+        super(HyperClassifier, self).__init__()
+        self.graph_network = GraphNetwork(
+            node_feature_size = node_feature_size,
+            edge_feature_size = edge_feature_size,
+            hidden_size = feature_size
+        )
+        assert len(stream_domains) == len(stream_num_inputs), "Inequal number of streams"
+        self.stream_num_inputs = stream_num_inputs
+        # each domain fact and stream input has its own input feature vector
+
+        self.mlps = []
+        for domain, num_inputs in zip(stream_domains, stream_num_inputs):
+            inp_size = num_inputs
+            for fact in domain:
+                if len(fact) == 2: # unary facts have one edge
+                    inp_size += 1
+                else:
+                    # every non-unary fact has two edges (bidirectional)
+                    inp_size += 2 
+            inp_size *= feature_size
+            self.mlps.append(
+                MLP([16, mlp_out], inp_size)
+            )
+
+        for i, mlp in enumerate(self.mlps):
+            setattr(self, f"mlp{i}", mlp)
+
+    def forward(self, data, score = False):
+        # first get node and edge embeddings from GNN
+        x, edge_attr = self.graph_network(data, return_edge_attr = True)
+        # candidate object embeddings, and candidate fact embeddings to mlp
+        cand = data.candidate
+        assert cand[0] > 0, "Considering an initial condition"
+        ind = cand[0] - 1
+        stream_mlp = self.mlps[ind]
+        stream_num_inp = self.stream_num_inputs[ind]
+        input_node_inds = cand[1:1 + stream_num_inp]
+        dom_edge_inds = cand[1+ stream_num_inp:]
+
+        input_node_embeddings = [x[i] for i in input_node_inds]
+        dom_edge_embeddings = [edge_attr[i] for i in dom_edge_inds]
+        input_and_domain = torch.cat(
+            input_node_embeddings + dom_edge_embeddings
+        )
+        x = stream_mlp(input_and_domain)
+        if score:
+            return torch.sigmoid(x)
+        return x
+
 class StreamInstanceClassifier(nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, stream_num_domain_facts, num_predicates, object_node_feature_size, feature_size=8, lstm_size=10,  mlp_out=1, use_gcn=True, use_object_model=True):
         super(StreamInstanceClassifier, self).__init__()
@@ -105,11 +174,13 @@ class GraphNetwork(nn.Module):
             node_model=NodeModel(node_feature_size, hidden_size, n_targets, dropout=dropout),
         )
 
-    def forward(self, data, attr='x'):
+    def forward(self, data, return_edge_attr = False, attr='x'):
         x, edge_idx, edge_attr = getattr(data, attr), data.edge_index, data.edge_attr
         x, edge_attr, _ = self.meta_layer_1(x, edge_idx, edge_attr)
         x, edge_attr, _ = self.meta_layer_2(x, edge_idx, edge_attr)
         x, edge_attr, _ = self.meta_layer_3(x, edge_idx, edge_attr)
+        if return_edge_attr:
+            return x, edge_attr
         return x
 
 class SimpleGCN(nn.Module):

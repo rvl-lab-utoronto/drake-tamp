@@ -1,4 +1,4 @@
-from learning.data_models import HyperModelInfo, InvocationInfo, ProblemInfo, ModelInfo
+from learning.data_models import HyperModelInfo, InvocationInfo, ProblemInfo, ModelInfo, StreamInstanceClassifierInfo
 import numpy as np
 from learning.pddlstream_utils import objects_from_facts
 import itertools
@@ -181,11 +181,13 @@ def construct_hypermodel_input(
 
     # indices of input objects to latest stream result
     input_node_inds = [nodes.index(p) for p in label.result.input_objects]
-    # indices of domain facts of latest stream result
     dom_edge_inds = []
-    for i, attr in enumerate(edge_attr):
-        if attr["full_fact"] in label.result.domain:
-            dom_edge_inds.append(i)
+    for dom_fact in label.result.domain:
+        for i, attr in enumerate(edge_attr):
+            if attr["full_fact"] == dom_fact:
+                dom_edge_inds.append(i)
+
+    # indices of domain facts of latest stream result
     node_features = torch.zeros(
         (len(nodes), model_info.node_feature_size), dtype=torch.float
     )
@@ -201,6 +203,7 @@ def construct_hypermodel_input(
         node_features[i, -1] = attr["level"]
     num_preds = model_info.num_predicates
     num_actions = model_info.num_actions
+
     for i, attr in enumerate(edge_attr):
         ind = num_preds
         # predicate one hot
@@ -304,6 +307,15 @@ def parse_labels(pkl_path):
     model_info = data['model_info']
     problem_info = data['problem_info']
 
+    model_info = StreamInstanceClassifierInfo(
+        predicates = model_info.predicates,
+        streams = model_info.streams,
+        stream_num_domain_facts=model_info.stream_num_domain_facts,
+        stream_num_inputs=model_info.stream_num_inputs,
+        stream_domains = model_info.stream_domains,
+        domain = model_info.domain
+    )
+
     dataset = []
     for invocation_info in data['labels']: # label is now an instance of learning.gnn.oracle.Data
         d = construct_input(invocation_info, problem_info, model_info)
@@ -322,6 +334,8 @@ def parse_hyper_labels(pkl_path):
         predicates = model_info.predicates,
         streams = model_info.streams,
         stream_num_domain_facts=model_info.stream_num_domain_facts,
+        stream_num_inputs=model_info.stream_num_inputs,
+        stream_domains = model_info.stream_domains,
         domain = model_info.domain
     )
 

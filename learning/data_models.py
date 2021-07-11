@@ -9,7 +9,13 @@ class ModelInfo:
     predicates: list
     streams: list
     stream_num_domain_facts: list
+    stream_num_inputs: list
+    stream_domains: list
     domain: Domain
+
+    #TODO(agro)
+    #@property
+    #def stream_num_domain_facts(self):
 
     @property
     def stream_to_index(self):
