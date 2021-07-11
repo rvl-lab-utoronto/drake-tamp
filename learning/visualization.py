@@ -1,4 +1,3 @@
-import os
 import json
 from pyvis.network import Network
 from . import oracle as ora
@@ -175,4 +174,48 @@ def stats_to_graph(path_to_stats, save_path, verbose = False):
     )
     # net.show(name = "graph.html")
     #net.show_buttons(filter_ = ["layout"])
+    net.save_graph(save_path)
+
+
+def plot_simple_graph(nodes, edges, save_path, edge_names = None, levels = None):
+    """
+    Make a simple graph
+
+    nodes: list of node names
+    edges: list of tuples of node indicies the edges are connecting 
+    """
+    if levels is not None:
+        net = Network(width="100%", height="100%", layout = "hierarchy")
+        net.set_options(
+            """
+            var options = {
+                "layout": {
+                    "hierarchical": {
+                    "enabled": true,
+                    "nodeSpacing": 250,
+                    "treeSpacing": 225
+                    }
+                }
+            }
+            """ 
+        )
+        assert len(levels) == len(nodes)
+    else:
+        net = Network(width="100%", height="100%")
+    if edge_names is not None:
+        assert len(edge_names) == len(edges)
+    for i, node in enumerate(nodes):
+        if levels is None:
+            net.add_node(node)
+        else:
+            net.add_node(
+                node, level = levels[i], label = node, shape = "box"
+            )
+    if edge_names is None:
+        for edge in edges:
+            net.add_edge(nodes[edge[0]], nodes[edge[1]])
+    else:
+        for edge, title in zip(edges, edge_names):
+            net.add_edge(nodes[edge[0]], nodes[edge[1]], title = title)
+
     net.save_graph(save_path)
