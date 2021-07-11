@@ -8,16 +8,9 @@ class ModelInfo:
     """This class is intended to keep all the information that should remain constant for a single model"""
     predicates: list
     streams: list
+    actions: list
     stream_num_domain_facts: list
     domain: Domain
-
-    @property
-    def node_feature_size(self):
-        return len(self.predicate_to_index) + 2
-
-    @property
-    def edge_feature_size(self):
-        return len(self.stream_to_index) + 3
 
     @property
     def stream_to_index(self):
@@ -29,6 +22,43 @@ class ModelInfo:
     @property
     def object_node_feature_size(self):
         return len(self.predicates)
+
+    @property
+    def action_to_index(self):
+        return {a.name:i for a, i in enumerate(self.domain.actions)}
+    
+    @property
+    def num_streams(self):
+        return len(self.streams)
+
+    @property
+    def num_predicates(self):
+        return len(self.predicates)
+
+    @property
+    def num_actions(self):
+        return len(self.domain.actions)
+
+class StreamInstanceClassifierInfo(ModelInfo):
+
+    @property
+    def node_feature_size(self):
+        return self.num_predicates + 2
+
+    @property
+    def edge_feature_size(self):
+        return self.num_streams + 3
+
+class HyperModelInfo(ModelInfo):
+
+    @property
+    def node_feature_size(self):
+        return self.num_streams + 2
+
+    @property
+    def edge_feature_size(self):
+        return self.num_predicates + self.num_actions * 2 + self.num_streams + 2
+
 
 
 @dataclass

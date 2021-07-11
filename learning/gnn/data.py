@@ -1,4 +1,4 @@
-from learning.data_models import InvocationInfo, ProblemInfo, ModelInfo
+from learning.data_models import HyperModelInfo, InvocationInfo, ProblemInfo, ModelInfo
 import numpy as np
 from learning.pddlstream_utils import objects_from_facts
 import itertools
@@ -25,7 +25,7 @@ def construct_object_hypergraph(
     edge_attributes: 
         - predicate (string)
         - overlap_with_goal (bool)
-        - is_initial (bool) 
+        - level (int) 
         - stream (string)
         - actions it is precondition of (list[string])
         - actions it is poscondition of (list[string])
@@ -51,7 +51,6 @@ def construct_object_hypergraph(
     goal_facts = problem_info.goal_facts
     nodes, edges = [], []
     node_attr, edge_attr = [], []
-    initial_objects = {}
     node_to_ind = {}
     goal_objects = objects_from_facts(goal_facts)
 
@@ -102,6 +101,7 @@ def construct_object_hypergraph(
                 )
     return nodes, node_attr, edges, edge_attr
 
+
 def construct_fact_graph(goal_facts, atom_map, stream_map):
     goal_objects = objects_from_facts(goal_facts)
     nodes = []
@@ -127,7 +127,8 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
             "predicate": fact[0],
             "concerns": fact_objects,
             "overlap_with_goal": fact_objects.intersection(goal_objects),
-            "is_initial": not atom_map[fact]
+            "is_initial": not atom_map[fact],
+            "full_fact": fact # not used as an attribute, but for indexing
         }
         node_attributes_list.append(node_attributes)
 
@@ -142,7 +143,8 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
                     "is_directed": True,
                     "stream": stream_map[fact],
                     "via_objects": objects_from_facts([parent]).intersection(fact_objects),
-                    "domain_index": domain_idx # meant to encode the position in which
+                    "domain_index": domain_idx, # meant to encode the position in which
+                    "full_fact": fact # not used as an attribute, but for indexing
                 }
                 edge_attributes_list.append(edge_attributes)
 
@@ -166,6 +168,76 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
         edges.append((j, i))
         edge_attributes_list.append(edge_attributes)
     return nodes, node_attributes_list, edges, edge_attributes_list
+
+
+def construct_hypermodel_input(
+    model_info: ModelInfo, problem_info: ProblemInfo, label: InvocationInfo
+):
+    nodes, node_attr, edges, edge_attr = construct_object_hypergraph(
+        model_info,
+        problem_info,
+        label
+    )
+
+    model_info = HyperModelInfo(
+        predicates = model_info.predicates,
+        streams = model_info.streams,
+        stream_num_domain_facts=model_info.stream_num_domain_facts,
+        domain = model_info.domain
+    )
+
+    # indices of input objects to latest stream result
+    input_node_inds = [nodes.index(p) for p in label.result.input_objects]
+    # indices of domain facts of latest stream result
+    dom_edge_inds = []
+    for i, attr in enumerate(edge_attr):
+        if attr["full_fact"] in label.result.domain:
+            dom_edge_inds.append(i)
+    node_features = torch.zeros(
+        (len(nodes), model_info.node_feature_size), dtype=torch.float
+    )
+    edge_features = torch.zeros(
+        (len(edges), model_info.edge_feature_size), dtype=torch.float
+    )
+    for i, attr in enumerate(node_attr):
+        node_features[i, model_info.stream_to_index[attr["stream"]]] = 1
+        node_features[i, -2] = int(attr["overlap_with_goal"])
+        node_features[i, -1] = attr["level"]
+    num_preds = model_info.num_predicates
+    num_actions = model_info.num_actions
+    for i, attr in enumerate(edge_attr):
+        ind = num_preds
+        # predicate one hot
+        edge_features[i, model_info.predicate_to_index[attr["predicate"]]] = 1
+        # action precondition multi hot
+        for action in attr["relevant_actions"][0]:
+            edge_features[i, ind + model_info.action_to_index[action]] = 1
+        ind += num_actions
+        # action effect multi hot
+        for action in attr["relevant_actions"][1]:
+            edge_features[i, ind + model_info.action_to_index[action]] = 1
+        ind += num_actions
+        # stream one hot
+        edge_features[i, ind + model_info.stream_to_index[attr["stream"]]] = 1
+        ind += len(model_info.stream_to_index)
+        # level
+        edge_features[i, ind] = attr['level']
+        # overlap_with_goal
+        edge_features[i, ind + 1] = len(attr["overlap_with_goal"])
+
+    candidate = (model_info.stream_to_index[label.result.name], ) \
+        + tuple(input_node_inds) + tuple(dom_edge_inds)
+
+    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+
+    return Data(
+        nodes=nodes,
+        x=node_features,
+        edge_attr=edge_features,
+        edge_index=edge_index,
+        candidate=candidate,
+    )
+
 
 
 def construct_input(data_obj, problem_info, model_info):
@@ -239,6 +311,20 @@ def parse_labels(pkl_path):
     dataset = []
     for invocation_info in data['labels']: # label is now an instance of learning.gnn.oracle.Data
         d = construct_input(invocation_info, problem_info, model_info)
+        d.y = torch.tensor([float(invocation_info.label)])
+        dataset.append(d)
+    return dataset, model_info
+
+def parse_hyper_labels(pkl_path):
+    with open(pkl_path, 'rb') as f:
+        data = pickle.load(f)
+
+    model_info = data['model_info']
+    problem_info = data['problem_info']
+
+    dataset = []
+    for invocation_info in data['labels']: 
+        d = construct_hypermodel_input(invocation_info, problem_info, model_info)
         d.y = torch.tensor([float(invocation_info.label)])
         dataset.append(d)
     return dataset, model_info
