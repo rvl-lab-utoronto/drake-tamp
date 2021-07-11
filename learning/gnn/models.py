@@ -23,7 +23,7 @@ class HyperClassifier(nn.Module):
         edge_feature_size,
         stream_domains,
         stream_num_inputs,
-        feature_size=8,
+        feature_size=16,
         mlp_out=1,
     ):
         super(HyperClassifier, self).__init__()
@@ -93,7 +93,7 @@ class StreamInstanceClassifier(nn.Module):
                 edge_feature_size=edge_feature_size,
                 hidden_size=feature_size,
             )
-        self.mlps = tuple([MLP([16, mlp_out], feature_size*s)  for s in stream_num_domain_facts])
+        self.mlps = tuple([MLP([32, mlp_out], feature_size*s)  for s in stream_num_domain_facts])
         for i, mlp in enumerate(self.mlps):
             setattr(self, f'mlp{i}', mlp)
 
