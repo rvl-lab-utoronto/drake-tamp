@@ -47,10 +47,10 @@ class InvocationInfo:
     def result_to_serializable(result):
         return SerializedResult(
             name=result.name,
-            certified=[fact_to_pddl(f) for f in result.certified],
-            domain=[fact_to_pddl(f) for f in result.domain],
-            input_objects=[obj_to_pddl(f) for f in result.input_objects],
-            output_objects=[obj_to_pddl(f) for f in result.output_objects],
+            certified=tuple([fact_to_pddl(f) for f in result.certified]),
+            domain=tuple([fact_to_pddl(f) for f in result.domain]),
+            input_objects=tuple([obj_to_pddl(f) for f in result.input_objects]),
+            output_objects=tuple([obj_to_pddl(f) for f in result.output_objects]),
         )
 
     @staticmethod

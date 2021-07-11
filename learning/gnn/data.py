@@ -4,6 +4,7 @@ import itertools
 import torch
 from torch_geometric.data import Data
 import pickle
+from copy import copy
 
 def construct_fact_graph(goal_facts, atom_map, stream_map):
     goal_objects = objects_from_facts(goal_facts)
@@ -131,16 +132,30 @@ def get_object_graph(atom_map, model_info):
                 edges.add((object_to_index[dest], object_to_index[source]))
     return Data(object_to_index=object_to_index,x=torch.tensor(embs, dtype=torch.float), edge_index=torch.tensor(list(edges), dtype=torch.long).t().contiguous())
 
+def augment_labels(invocations):
+    positive_results = {invocation.result for invocation in invocations if invocation.label == True}
+    new_invocations = []
+    for invocation in invocations:
+        for result in positive_results:
+            if invocation.result != result:
+                if all(fact not in invocation.atom_map for fact in result.certified) \
+                    and all(fact in invocation.atom_map for fact in result.domain):
+                        new_invocation = copy(invocation)
+                        new_invocation.result = result
+                        new_invocation.label = True
+                        new_invocations.append(new_invocation)
+    print('New Invocations', len(new_invocations))
+    return invocations + new_invocations
 
-def parse_labels(pkl_path):
+def parse_labels(pkl_path, augment=False):
     with open(pkl_path, 'rb') as f:
         data = pickle.load(f)
 
     model_info = data['model_info']
     problem_info = data['problem_info']
-
+    labels = data['labels'] if not augment else augment_labels(data['labels'])
     dataset = []
-    for invocation_info in data['labels']: # label is now an instance of learning.gnn.oracle.Data
+    for invocation_info in labels: # label is now an instance of learning.gnn.oracle.Data
         d = construct_input(invocation_info, problem_info, model_info)
         d.y = torch.tensor([float(invocation_info.label)])
         dataset.append(d)
@@ -193,4 +208,4 @@ if __name__ == '__main__':
     if len(sys.argv) != 2:
         print('Usage error: Pass in a pkl path.')
         sys.exit(1)
-    dataset = parse_labels(sys.argv[1])
+    dataset = parse_labels(sys.argv[1], True)
