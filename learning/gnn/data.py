@@ -511,6 +511,7 @@ class TrainingDataset:
         self.construct_datas()
 
     def combine_pair(self, graph_data, result_data, invocation):
+        # TODO: currently this is the only bit that ties this class to the hypergraph input fn - need a way to abstract that
         model_info = self.model_info
         # use the graph from data1 and result from data2
         input_node_inds = [graph_data.nodes.index(p) for p in invocation.result.input_objects]
