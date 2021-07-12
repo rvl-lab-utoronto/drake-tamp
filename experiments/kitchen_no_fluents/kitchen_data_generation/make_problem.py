@@ -31,21 +31,21 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([0.45, -0.4, 0.325])
         ),
-        "sampler": PoissonSampler(np.array([0.34, 0.24]) - 2*R, r=R, centered=True),
+        "sampler": PoissonSampler(np.array([0.34, 0.24]) - R, r=R, centered=True),
         "max_goal": np.inf,
         "main_link": "base_link",
     },
     "rightplate": {
         "name": "rightplate",
         "X_WR": RigidTransform(RollPitchYaw(0, 0, 0), np.array([-0.15, 0.45, 0.34])),
-        "valid_positions": [np.array([0, 0, 0.05])],
+        "valid_positions": [np.array([0, 0, 1e-3])],
         "max_goal": 1,
         "main_link": "base_link",
     },
     "leftplate": {
         "name": "leftplate",
         "X_WR": RigidTransform(RollPitchYaw(0, 0, 0), np.array([-0.45, 0.15, 0.34])),
-        "valid_positions": [np.array([0, 0, 0.05])],
+        "valid_positions": [np.array([0, 0, 1e-3])],
         "max_goal": 1,
         "main_link": "base_link",
     },
@@ -54,7 +54,10 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.45, 0.15, 0.325])
         ),
-        "valid_positions": [np.array([-0.15, 0.1, 0.05]), np.array([-0.15, -0.1, 0.05])],
+        "valid_positions": [
+            np.array([-0.15, 0.1, 1e-3]),
+            np.array([-0.15, -0.1, 1e-3]),
+        ],
         "max_goal": 1,
         "main_link": "leftside",
     },
@@ -63,7 +66,7 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.45, 0.15, 0.325])
         ),
-        "valid_positions": [np.array([0.15, 0.1, 0.05]), np.array([0.15, -0.1, 0.05])],
+        "valid_positions": [np.array([0.15, 0.1, 1e-3]), np.array([0.15, -0.1, 1e-3])],
         "max_goal": 1,
         "main_link": "rightside",
     },
@@ -72,7 +75,10 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.15, 0.45, 0.325])
         ),
-        "valid_positions": [np.array([-0.15, 0.1, 0.05]), np.array([-0.15, -0.1, 0.05])],
+        "valid_positions": [
+            np.array([-0.15, 0.1, 1e-3]),
+            np.array([-0.15, -0.1, 1e-3]),
+        ],
         "max_goal": 2,
         "main_link": "leftside",
     },
@@ -81,7 +87,7 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([-0.15, 0.45, 0.325])
         ),
-        "valid_positions": [np.array([0.15, 0.1, 0.05]), np.array([0.15, -0.1, 0.05])],
+        "valid_positions": [np.array([0.15, 0.1, 1e-3]), np.array([0.15, -0.1, 1e-3])],
         "max_goal": 2,
         "main_link": "rightside",
     },
@@ -118,7 +124,7 @@ class RegionInfo:
             p_RO_O = self.sampler.sample()
             if p_RO_O is None:
                 return None
-            p_RO_O = np.append(p_RO_O, 0.05)
+            p_RO_O = np.append(p_RO_O, 1e-3)
         else:
             if len(self.valid_positions) == 0:
                 return None
@@ -142,7 +148,7 @@ def X_to_np(X):
 
 
 class KitchenProblemMaker:
-    def __init__(self, num_cabbages, num_raddishes, num_glasses):
+    def __init__(self, num_cabbages, num_raddishes, num_glasses, buffer_radius=0):
         self.num_cabbages = num_cabbages
         self.num_glasses = num_glasses
         self.num_raddishes = num_raddishes
@@ -158,13 +164,20 @@ class KitchenProblemMaker:
                     info["X_WR"],
                     info["max_goal"],
                     sampler=PoissonSampler(
-                        info["sampler"].extent,
-                        r=info["sampler"].r,
-                        centered= True
+                        np.clip(
+                            info["sampler"].extent - buffer_radius,
+                            a_min=0,
+                            a_max=np.inf,
+                        ),
+                        r=info["sampler"].r + buffer_radius,
+                        centered=True,
                     ),
                 )
+
                 self.X_WOs[region_name] = []
-                for i in range(self.num_objects):
+                for i in range(
+                    self.num_objects * 10
+                ):  # make many more points than objects
                     X_WO = self.regions[region_name].get_X_WO()
                     if X_WO is None:
                         break
@@ -192,33 +205,33 @@ class KitchenProblemMaker:
         region_list[0] = name
         region_list[ind] = s
 
-    def get_random_region_and_point(self):
+    def get_random_region_and_point(self, prob_tray=0.4, prob_sink=0.1):
 
         region_list = list(self.X_WOs.keys())
 
         np.random.shuffle(region_list)
-        tp = np.random.uniform(0,10)
+        tp = np.random.uniform(0, 1)
 
-        if tp < 4:
+        if tp < prob_tray:
             self.put_at_start(region_list, "tray")
-        if 4 < tp < 6:
+        elif prob_tray < tp < prob_tray + prob_sink:
             self.put_at_start(region_list, "sink")
 
         for region in region_list:
             region_name = self.regions[region].name
-            main_link =  self.regions[region].main_link
+            main_link = self.regions[region].main_link
             if len(self.X_WOs[region]) == 0:
                 X_WO = self.regions[region].get_X_WO()
                 if X_WO is None:
                     continue
                 self.X_WOs[region].append(X_WO)
             return [str(region_name), str(main_link)], self.X_WOs[region].pop(-1)
-        return None
+        return None, None
 
     def get_random_region(self):
         region = np.random.choice(list(self.X_WOs.keys()))
         region_name = self.regions[region].name
-        main_link =  self.regions[region].main_link
+        main_link = self.regions[region].main_link
         return [str(region_name), str(main_link)]
 
     def get_random_goal_region(self):
@@ -233,7 +246,7 @@ class KitchenProblemMaker:
             return [str(region_name), str(main_link)]
         return None
 
-    def make_problem(self):
+    def make_problem(self, prob_tray=0.4, prob_sink=0.1, prob_goal = 1):
         yaml_data = {
             "directive": "directives/kitchen.yaml",
             "planning_directive": "directives/kitchen_planning.yaml",
@@ -281,7 +294,9 @@ class KitchenProblemMaker:
         glasses = [f"glass{i}" for i in range(self.num_glasses)]
 
         for cabbage in cabbages:
-            region, X_WO = self.get_random_region_and_point()
+            region, X_WO = self.get_random_region_and_point(
+                prob_tray=prob_tray, prob_sink=prob_sink
+            )
             if X_WO is None:
                 print(f"failed to add {cabbage}")
                 continue
@@ -292,15 +307,18 @@ class KitchenProblemMaker:
                 "main_link": "base_link",
                 "contained": region,
             }
-            goal_region = self.get_random_goal_region()
-            if goal_region is None:
-                continue
-            goal.append(["in", cabbage, goal_region])
-            if np.random.randint(0, 2):
-                goal.append(["cooked", cabbage])
+            if np.random.uniform(0,1) < prob_goal:
+                goal_region = self.get_random_goal_region()
+                if goal_region is None:
+                    continue
+                goal.append(["in", cabbage, goal_region])
+                if np.random.randint(0, 2):
+                    goal.append(["cooked", cabbage])
 
         for raddish in raddishes:
-            region, X_WO = self.get_random_region_and_point()
+            region, X_WO = self.get_random_region_and_point(
+                prob_tray=prob_tray, prob_sink=prob_sink
+            )
             if X_WO is None:
                 print(f"failed to add {raddish}")
                 continue
@@ -311,16 +329,19 @@ class KitchenProblemMaker:
                 "main_link": "base_link",
                 "contained": region,
             }
-            # rarely: make a goal that cooks the raddish
-            if np.random.randint(0, 10) == 1:
-                goal.append(["cooked", raddish])
-                goal_region = self.get_random_goal_region()
-                if goal_region is None:
-                    continue
-                goal.append(["in", raddish, goal_region])
+            if np.random.uniform(0,1) < prob_goal:
+                # rarely: make a goal that cooks the raddish
+                if np.random.randint(0, 10) == 1:
+                    goal.append(["cooked", raddish])
+                    goal_region = self.get_random_goal_region()
+                    if goal_region is None:
+                        continue
+                    goal.append(["in", raddish, goal_region])
 
         for glass in glasses:
-            region, X_WO = self.get_random_region_and_point()
+            region, X_WO = self.get_random_region_and_point(
+                prob_tray=prob_tray, prob_sink=prob_sink
+            )
             if X_WO is None:
                 print(f"failed to add {glass}")
                 continue
@@ -330,21 +351,40 @@ class KitchenProblemMaker:
                 "main_link": "base_link",
                 "contained": region,
             }
-            goal_region = self.get_random_goal_region()
-            if goal_region is None:
-                continue
-            goal.append(["in", glass, goal_region])
-            if np.random.randint(0, 2):
-                goal.append(["clean", glass])
+            if np.random.uniform(0,1) < prob_goal:
+                goal_region = self.get_random_goal_region()
+                if goal_region is None:
+                    continue
+                goal.append(["in", glass, goal_region])
+                if np.random.randint(0, 2):
+                    goal.append(["clean", glass])
 
         yaml_data["goal"] = goal
         return yaml_data
 
 
-def make_random_problem(num_cabbages, num_raddishes, num_glasses):
+def make_random_problem(
+    num_cabbages,
+    num_raddishes,
+    num_glasses,
+    buffer_radius=0,
+    prob_tray=0.4,
+    prob_sink=0.1,
+    prob_goal = 1,
+):
+    """
+    buffer_radius is an addition to the minimum distance (in the same units as the extent
+    - for our purposes it is meters)
+    between two objects (which is currently ~1cm).
+    """
 
-    maker = KitchenProblemMaker(num_cabbages, num_raddishes, num_glasses)
-    return maker.make_problem()
+    maker = KitchenProblemMaker(
+        num_cabbages, num_raddishes, num_glasses, buffer_radius=buffer_radius
+    )
+    return maker.make_problem(
+        prob_tray=prob_tray, prob_sink=prob_sink, prob_goal = prob_goal
+    )
+
 
 def pick_random_region():
     regions = list(REGIONS.keys())

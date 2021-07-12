@@ -8,6 +8,57 @@ import pickle
 from copy import copy
 
 
+def construct_scene_graph(model_poses):
+    """
+    Construct a scene graph where the nodes are objects in the world and
+    the edges are the relative transformations between those objects.
+
+    params:
+        model_poses: is a list of tuples of the form
+        (<name>, X_WG), where X_WG is a pydrake RigidTransform
+
+    node attributes:
+        - is static or a manipuland (boolean)
+    edge_attributes:
+        - a length 3 vector representing the relative translation between
+            the nodes the edge connects
+            #TODO(agro): is rotation nessecary?
+
+    #TODO(agro): how to encode object identity?
+    """
+    nodes = []
+    node_attr = []
+    edges = []
+    edge_attr = []
+
+    node_to_ind = {}
+    for i, model_info in enumerate(model_poses):
+        name = model_info["name"]
+        node_to_ind[name] = i
+        nodes.append(name)
+        node_attr.append(
+            {
+                "static": model_info["static"],
+                "name": name,
+                "worldpose": model_info["X"]
+            }
+        )
+    
+    for o1, o2 in itertools.combinations(nodes, r= 2):
+        i = node_to_ind[o1]
+        j = node_to_ind[o2]
+        Xi = model_poses[i]["X"]
+        Xj = model_poses[j]["X"]
+        edges.append((i,j))
+        edge_attr.append({
+            "p": Xj.translation() - Xi.translation()
+        })
+        edges.append((j,i))
+        edge_attr.append({
+            "p": Xi.translation() - Xj.translation()
+        })
+
+    return nodes, node_attr, edges, edge_attr
 
 def construct_object_hypergraph(
     label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo

@@ -1,4 +1,5 @@
 import json
+import numpy as np
 from pyvis.network import Network
 from . import oracle as ora
 
@@ -218,4 +219,35 @@ def plot_simple_graph(nodes, edges, save_path, edge_names = None, levels = None)
         for edge, title in zip(edges, edge_names):
             net.add_edge(nodes[edge[0]], nodes[edge[1]], title = title)
 
+    net.save_graph(save_path)
+
+def visualize_scene_graph(
+    nodes,
+    node_attr,
+    edges,
+    edge_attr,
+    save_path
+):
+    net = Network(width="100%", height="100%")
+
+    xs = []
+    ys = []
+    for attr in node_attr:
+        xs.append(attr["worldpose"].translation()[0])
+        ys.append(attr["worldpose"].translation()[1])
+
+    x_shift = -min(xs)
+    y_shift = -min(ys)
+    scale = 1000
+
+    for attr in node_attr:
+        net.add_node(
+            attr["name"],
+            lbel = attr["name"],
+            shape = "box",
+            x = scale*(attr["worldpose"].translation()[0] + x_shift),
+            y = scale*(attr["worldpose"].translation()[1] + y_shift),
+            physics = False
+        )
+    
     net.save_graph(save_path)
