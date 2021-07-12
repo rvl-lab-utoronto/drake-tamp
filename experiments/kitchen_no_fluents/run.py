@@ -488,7 +488,7 @@ def run_kitchen(
     prob_tray=0.4,
     prob_sink=0.1,
     buffer_radius=0,
-    prob_goal = 1,
+    num_goal = None,
 ):
 
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
@@ -507,7 +507,7 @@ def run_kitchen(
             prob_tray=prob_tray,
             prob_sink=prob_sink,
             buffer_radius=buffer_radius,
-            prob_goal = prob_goal,
+            num_goal = num_goal,
         )
         with open(f"{path}problem.yaml", "w") as stream:
             yaml.dump(yaml_data, stream, default_flow_style=False)
@@ -599,7 +599,7 @@ def generate_data(
     prob_sink=0.1,
     prob_tray=0.4,
     buffer_radius=0,
-    prob_goal = 1,
+    num_goal = None,
 ):
     """
     params:
@@ -626,10 +626,9 @@ def generate_data(
             in the world (both manipulands and static objects). This is provided
             in meters.
 
-        prob_goal: Approximately the probabilty of an item appearing in the goal state.
-        The raddishes by default have only a 10% chance of being part of a goal, so making
-        this value lower than one will given them a prob_goal * 0.1 percent chance of having
-        a goal
+        num_goal: The maximum number of objects that will have a goal associated with
+        them. If num_goal = None, then all objects will have a goal associated with
+        them. Otherwise, max_goal_num must be greater than 0.
     """
 
     res, problem_file = run_kitchen(
@@ -643,7 +642,7 @@ def generate_data(
         prob_sink=prob_sink,
         prob_tray=prob_tray,
         buffer_radius=buffer_radius,
-        prob_goal = prob_goal
+        num_goal = num_goal
     )
     if not res:
         return
@@ -666,10 +665,8 @@ if __name__ == "__main__":
         num_cabbages=num_cabbages,
         num_raddishes=num_raddishes,
         num_glasses=num_glasses,
-        prob_tray=0.4,
-        prob_sink=0.1,
-        prob_goal = 0.5,
-        buffer_radius=0.05,
+        num_goal = 4,
+        buffer_radius=0.0,
         url=url,
         simulate=False,
         # max_time = (num_cabbages + num_raddishes + num_glasses)*10

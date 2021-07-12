@@ -31,7 +31,7 @@ REGIONS = {
         "X_WR": RigidTransform(
             RollPitchYaw(0, 0, np.pi / 4), np.array([0.45, -0.4, 0.325])
         ),
-        "sampler": PoissonSampler(np.array([0.34, 0.24]) - R, r=R, centered=True),
+        "sampler": PoissonSampler(np.array([0.34, 0.24]) - 2*R, r=R, centered=True),
         "max_goal": np.inf,
         "main_link": "base_link",
     },
@@ -209,6 +209,8 @@ class KitchenProblemMaker:
 
         region_list = list(self.X_WOs.keys())
 
+        assert prob_tray + prob_sink <= 1, f"prob_tray = {prob_tray} and prob_sink {prob_sink} add up to greater than one!"
+
         np.random.shuffle(region_list)
         tp = np.random.uniform(0, 1)
 
@@ -246,7 +248,7 @@ class KitchenProblemMaker:
             return [str(region_name), str(main_link)]
         return None
 
-    def make_problem(self, prob_tray=0.4, prob_sink=0.1, prob_goal = 1):
+    def make_problem(self, prob_tray=0.4, prob_sink=0.1, num_goal = None):
         yaml_data = {
             "directive": "directives/kitchen.yaml",
             "planning_directive": "directives/kitchen_planning.yaml",
@@ -293,6 +295,18 @@ class KitchenProblemMaker:
         raddishes = [f"raddish{i}" for i in range(self.num_raddishes)]
         glasses = [f"glass{i}" for i in range(self.num_glasses)]
 
+
+        num_objs = self.num_glasses + self.num_cabbages + self.num_raddishes
+        if num_goal is not None:
+            assert num_goal > 0, "num_goal must be greater than 0"
+            assert num_goal <= num_objs, f"num_goal={num_goal} must be less than the number total of objects = {num_objs}"
+        else:
+            num_goal = num_objs
+
+        all_objs = cabbages + raddishes + glasses
+        np.random.shuffle(all_objs)
+        goal_objs = all_objs[:num_goal]
+
         for cabbage in cabbages:
             region, X_WO = self.get_random_region_and_point(
                 prob_tray=prob_tray, prob_sink=prob_sink
@@ -307,7 +321,7 @@ class KitchenProblemMaker:
                 "main_link": "base_link",
                 "contained": region,
             }
-            if np.random.uniform(0,1) < prob_goal:
+            if cabbage in goal_objs:
                 goal_region = self.get_random_goal_region()
                 if goal_region is None:
                     continue
@@ -329,14 +343,14 @@ class KitchenProblemMaker:
                 "main_link": "base_link",
                 "contained": region,
             }
-            if np.random.uniform(0,1) < prob_goal:
+            if raddish in goal_objs:
                 # rarely: make a goal that cooks the raddish
+                goal_region = self.get_random_goal_region()
+                if goal_region is None:
+                    continue
+                goal.append(["in", raddish, goal_region])
                 if np.random.randint(0, 10) == 1:
                     goal.append(["cooked", raddish])
-                    goal_region = self.get_random_goal_region()
-                    if goal_region is None:
-                        continue
-                    goal.append(["in", raddish, goal_region])
 
         for glass in glasses:
             region, X_WO = self.get_random_region_and_point(
@@ -351,7 +365,7 @@ class KitchenProblemMaker:
                 "main_link": "base_link",
                 "contained": region,
             }
-            if np.random.uniform(0,1) < prob_goal:
+            if glass in goal_objs:
                 goal_region = self.get_random_goal_region()
                 if goal_region is None:
                     continue
@@ -370,7 +384,7 @@ def make_random_problem(
     buffer_radius=0,
     prob_tray=0.4,
     prob_sink=0.1,
-    prob_goal = 1,
+    num_goal = None,
 ):
     """
     buffer_radius is an addition to the minimum distance (in the same units as the extent
@@ -382,7 +396,7 @@ def make_random_problem(
         num_cabbages, num_raddishes, num_glasses, buffer_radius=buffer_radius
     )
     return maker.make_problem(
-        prob_tray=prob_tray, prob_sink=prob_sink, prob_goal = prob_goal
+        prob_tray=prob_tray, prob_sink=prob_sink, num_goal = num_goal
     )
 
 
