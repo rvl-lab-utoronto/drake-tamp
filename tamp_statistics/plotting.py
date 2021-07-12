@@ -94,6 +94,9 @@ def make_plot(filepath, save_path=None, show=False):
         label="Complexity",
     )
 
+    if len(data["sampling_intervals"]) == 0:
+        print("No real plan, cannot plot")
+        return 
     curr_interval = data["sampling_intervals"][0]
     for next_interval in data["sampling_intervals"][1:]:
         if np.isclose(next_interval[0], curr_interval[1], rtol=0, atol=RESOLUTION):
@@ -135,3 +138,5 @@ def make_plot(filepath, save_path=None, show=False):
         plt.savefig(save_path, dpi=300)
     if show:
         plt.show()
+
+    plt.close(fig)
