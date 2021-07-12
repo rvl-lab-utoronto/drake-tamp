@@ -61,7 +61,16 @@ def subsitution(l, g, sub_map):
     return True
 
 class Oracle:
-    def __init__(self, domain_pddl, stream_pddl, initial_conditions, goal_conditions):
+    def __init__(
+        self,
+        domain_pddl,
+        stream_pddl,
+        initial_conditions,
+        goal_conditions,
+        model_poses = None 
+    ):
+        # model_poses is for scene graph, optional list of ["model_name", X_WM]
+        # where X_WM is a RigidTransform
         self.domain_pddl = domain_pddl
         self.stream_pddl = stream_pddl
         self.initial_conditions = initial_conditions
@@ -82,6 +91,7 @@ class Oracle:
         self.labels = []
         self.model_info = None
         self.problem_info = None
+        self.model_poses = model_poses
 
     def set_problem_info(self, goal_exp):
         if not goal_exp[0] == "and":
@@ -129,6 +139,7 @@ class Oracle:
         data["labels"] = self.labels
         data["model_info"] = self.model_info
         data["problem_info"] = self.problem_info
+        data["model_poses"] = self.model_poses
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
 

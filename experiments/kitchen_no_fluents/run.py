@@ -21,6 +21,7 @@ import sys
 import argparse
 from datetime import datetime
 import pydrake.all
+from pydrake.all import RigidTransform
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
@@ -66,6 +67,35 @@ def lprint(string):
     if VERBOSE:
         print(string)
 
+def retrieve_model_poses(
+    main_station, main_station_context, model_names, link_names,
+):
+    """
+    For each model = model_names[i], return the worldpose of main_link_name[i]
+
+  
+    where X_WM is a RigidTransform reprsenting the model worldpose
+    """
+
+    plant = main_station.get_multibody_plant()
+    plant_context = main_station.GetSubsystemContext(plant, main_station_context)
+
+    res = []
+
+    for model_name, link_name in zip(model_names, link_names):
+        body = plant.GetBodyByName(
+            link_name,
+            plant.GetModelInstanceByName(model_name)
+        )
+        X_WB = plant.EvalBodyPoseInWorld(plant_context, body)
+        res.append(
+            {
+                "name": f"{model_name}-{link_name}",
+                "X": X_WB,
+            }
+        )
+
+    return res
 
 def construct_problem_from_sim(simulator, stations, problem_info):
     """
@@ -81,6 +111,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         station_contexts[name] = stations[name].CreateDefaultContext()
     # start poses of all manipulands
     start_poses = parse_start_poses(main_station, main_station_context)
+
+
     for name, pose in start_poses.items():
         X_wrapper = RigidTransformWrapper(pose, name=f"X_W{name}")
         init += [
@@ -107,6 +139,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     for arm, conf in arms.items():
         init += [("empty",), ("conf", conf), ("atconf", conf)]
 
+    static_model_names = []
+    static_link_names = []
+
     for object_name in problem_info.surfaces:
         for link_name in problem_info.surfaces[object_name]:
             region = (object_name, link_name)
@@ -115,6 +150,37 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 init += [("sink", region)]
             if "burner" in link_name:
                 init += [("burner", region)]
+            static_model_names.append(object_name)
+            static_link_names.append(link_name)
+
+    static_model_poses = retrieve_model_poses(
+        main_station,
+        main_station_context,
+        static_model_names,
+        static_link_names
+    )
+
+    for s in static_model_poses:
+        s["static"] = True
+    
+    start_poses_d = []
+    for s in start_poses.items():
+        start_poses_d.append(
+            {
+                "name": s[0],
+                "X": s[1],
+                "static": False
+            }
+        )
+
+    model_poses = start_poses_d + static_model_poses
+    model_poses.append(
+        {
+            "name": "panda",
+            "X": RigidTransform(),
+            "static": True,
+        }
+    )
 
     """
     goal = ["and",
@@ -138,6 +204,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         stream_pddl,
         init,
         goal,
+        model_poses = model_poses
     )
 
     def get_station(name):
