@@ -137,9 +137,13 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
         },
     }
 
+
     blocks = [f"block{i}" for i in range(num_blocks)]
     blockers = [f"blocker{i}" for i in range(num_blockers)]
     stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    max_start_stack = max([len(s) for s in stacking])
+
+
     for stack in stacking:
         table = pick_random_table()
         if len(positions[table]) == 0:
@@ -182,6 +186,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
             prev_block = block
 
     stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    max_goal_stack = max([len(s) for s in stacking])
     goal = ["and"]
     for stack in stacking:
         table = pick_random_table()
@@ -211,6 +216,14 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
             "main_link": "base_link",
             "on-table": [str(table), "base_link"],
         }
+
+    yaml_data["run_attr"] = {
+        "num_blocks": num_blocks,
+        "num_blockers": num_blockers,
+        "max_start_stack": max_start_stack,
+        "max_goal_stack": max_goal_stack,
+        "buffer_radius": buffer_radius,
+    }
 
     return yaml_data
 

@@ -4,6 +4,7 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+import subprocess
 import time
 import numpy as np
 import random
@@ -206,6 +207,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         goal,
         model_poses = model_poses
     )
+    oracle.set_run_attr(problem_info.attr)
 
     def get_station(name):
         if name in stations:
@@ -665,7 +667,7 @@ if __name__ == "__main__":
         num_cabbages=num_cabbages,
         num_raddishes=num_raddishes,
         num_glasses=num_glasses,
-        num_goal = 4,
+        num_goal = 1,
         buffer_radius=0.0,
         url=url,
         simulate=False,

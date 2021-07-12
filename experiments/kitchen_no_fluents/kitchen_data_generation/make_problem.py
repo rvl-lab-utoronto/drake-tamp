@@ -155,6 +155,7 @@ class KitchenProblemMaker:
         self.num_objects = num_cabbages + num_raddishes + num_glasses
         self.regions = {}
         self.X_WOs = {}
+        self.buffer_radius = buffer_radius
         for region_name in REGIONS:
             info = REGIONS[region_name]
             if "sampler" in info:
@@ -302,6 +303,16 @@ class KitchenProblemMaker:
             assert num_goal <= num_objs, f"num_goal={num_goal} must be less than the number total of objects = {num_objs}"
         else:
             num_goal = num_objs
+
+        yaml_data["run_attr"] = {
+            "num_cabbages": self.num_cabbages,
+            "num_raddishes": self.num_raddishes,
+            "num_glasses": self.num_glasses,
+            "buffer_radius": self.buffer_radius,
+            "num_goal": num_goal,
+            "prob_sink": prob_sink,
+            "prob_tray": prob_tray
+        }
 
         all_objs = cabbages + raddishes + glasses
         np.random.shuffle(all_objs)

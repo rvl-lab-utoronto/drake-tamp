@@ -92,14 +92,19 @@ class Oracle:
         self.model_info = None
         self.problem_info = None
         self.model_poses = model_poses
+        self.run_attr = None
 
     def set_problem_info(self, goal_exp):
         if not goal_exp[0] == "and":
             raise NotImplementedError(
                 f"Expected goal to be a conjunction of facts. Got {goal_exp}.Need to parse this correctly."
             )
-        self.problem_info = ProblemInfo(goal_facts=tuple([fact_to_pddl(f) for f in goal_exp[1:]]))
+        self.problem_info = ProblemInfo(
+            goal_facts=tuple([fact_to_pddl(f) for f in goal_exp[1:]])
+        )
 
+    def set_run_attr(self, run_attr):
+        self.run_attr = run_attr
 
     def set_model_info(self, domain, externals):
         new_externals = []
@@ -124,12 +129,30 @@ class Oracle:
         )
 
     def save_labeled(self, path=None):
+        if not os.path.isdir(f"{FILEPATH}/data"):
+            os.mkdir(f"{FILEPATH}/data")
+        if not os.path.isdir(f"{FILEPATH}/data/labeled"):
+            os.mkdir(f"{FILEPATH}/data/labeled")
+        info_path = f"{FILEPATH}/data/labeled/data_info.json"
+        data_info = {}
+        if os.path.isfile(info_path):
+            with open(info_path, "r") as f:
+                data_info = json.load(f)
         if path is None:
-            if not os.path.isdir(f"{FILEPATH}/data"):
-                os.mkdir(f"{FILEPATH}/data")
-            if not os.path.isdir(f"{FILEPATH}/data/labeled"):
-                os.mkdir(f"{FILEPATH}/data/labeled")
             path = self.save_path
+
+
+        if self.run_attr is not None:
+            pddl = self.domain_pddl + self.stream_pddl 
+            if pddl not in data_info:
+                data_info[pddl] = [
+                    (self.run_attr, self.save_path)
+                ]
+            else:
+                data_info[pddl].append((self.run_attr, self.save_path))
+            with open(info_path, "w") as f:
+                json.dump(data_info, f, indent = 4, sort_keys = True)
+
         data = {}
         data["stats_path"] = self.get_stats()
         data["domain_pddl"] = self.domain_pddl
