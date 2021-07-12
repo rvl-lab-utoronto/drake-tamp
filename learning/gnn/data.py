@@ -232,11 +232,14 @@ def construct_hypermodel_input(
     )
 
     # indices of input objects to latest stream result
-    input_node_inds = [nodes.index(p) for p in label.result.input_objects]
     fact_to_edge_ind = {}
     for i, attr in enumerate(edge_attr):
         fact_to_edge_ind.setdefault(attr['full_fact'], []).append(i)
-    dom_edge_inds = [i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]]
+    candidate_fn = lambda result: (model_info.stream_to_index[result.name], ) \
+        + tuple([nodes.index(p) for p in result.input_objects]) \
+        + tuple([i for dom_fact in result.domain for i in fact_to_edge_ind[dom_fact]])
+
+    candidate = candidate_fn(label.result)
 
     # indices of domain facts of latest stream result
     node_features = torch.zeros(
@@ -275,9 +278,6 @@ def construct_hypermodel_input(
         # overlap_with_goal
         edge_features[i, ind + 1] = len(attr["overlap_with_goal"])
 
-    candidate = (model_info.stream_to_index[label.result.name], ) \
-        + tuple(input_node_inds) + tuple(dom_edge_inds)
-
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
     return Data(
@@ -286,7 +286,7 @@ def construct_hypermodel_input(
         edge_attr=edge_features,
         edge_index=edge_index,
         candidate=candidate,
-        fact_to_edge_ind=fact_to_edge_ind
+        candidate_fn=candidate_fn
     )
 
 
@@ -294,8 +294,9 @@ def construct_hypermodel_input(
 def construct_input(data_obj, problem_info, model_info):
     nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(problem_info.goal_facts, data_obj.atom_map, data_obj.stream_map)
 
-    parent_idxs = [nodes.index(p) for p in data_obj.result.domain]
-    candidate = (model_info.stream_to_index[data_obj.result.name], ) + tuple(parent_idxs)
+    candidate_fn = lambda result: (model_info.stream_to_index[result.name], ) \
+        + tuple([nodes.index(p) for p in result.domain])
+    candidate = candidate_fn(data_obj.result)
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
     node_features = torch.zeros((len(nodes), model_info.node_feature_size), dtype=torch.float)
@@ -324,9 +325,10 @@ def construct_input(data_obj, problem_info, model_info):
         x=node_features,
         edge_attr=edge_features,
         edge_index=edge_index,
-        candidate=candidate,
         objects_data=objects_data,
-        nodes_ind=nodes_ind
+        nodes_ind=nodes_ind,
+        candidate=candidate,
+        candidate_fn=candidate_fn,
     )
 
 def get_object_predicates(object_name, atom_map):
@@ -589,20 +591,12 @@ class TrainingDataset(Dataset):
         self.construct_datas()
 
     def combine_pair(self, graph_data, result_data, invocation):
-        # TODO: currently this is the only bit that ties this class to the hypergraph input fn - need a way to abstract that
-        model_info = self.model_info
         # use the graph from data1 and result from data2
-        input_node_inds = [graph_data.nodes.index(p) for p in invocation.result.input_objects]
-        dom_edge_inds = [i for dom_fact in invocation.result.domain for i in graph_data.fact_to_edge_ind[dom_fact]]
-        assert model_info.stream_to_index[invocation.result.name] == result_data.candidate[0]
-        return Data(
-            nodes=graph_data.nodes,
-            x=graph_data.x,
-            edge_attr=graph_data.edge_attr,
-            edge_index=graph_data.edge_index,
-            candidate=(model_info.stream_to_index[invocation.result.name], )  \
-            + tuple(input_node_inds) + tuple(dom_edge_inds)
-        )
+        data = copy(graph_data)
+        data.candidate = graph_data.candidate_fn(invocation.result)
+        data.y = result_data.y
+        return data
+
 
     def select_example(self):
         if self.stratify_prop is None:
@@ -636,16 +630,13 @@ class TrainingDataset(Dataset):
         pairings = result_example['possible_pairings']
         idx = pairings[np.random.choice(len(pairings))]
         if not self.augment or idx == example_idx:
-
             return result_example['data']
-
         graph_example = self[idx]
         d = self.combine_pair(
             graph_data=graph_example['data'],
             result_data=result_example['data'],
             invocation=result_example['invocation']
         )
-        d.y = torch.tensor([float(result_example['invocation'].label)])
         return d
 
 
