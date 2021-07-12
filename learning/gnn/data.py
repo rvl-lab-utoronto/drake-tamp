@@ -456,20 +456,17 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
     return in_prec, in_eff
 
-class TrainingDataset:
-    def __init__(self, construct_input_fn, model_info_class, augment=False):
+class Dataset:
+
+    def __init__(self, construct_input_fn, model_info_class):
         self.construct_input_fn = construct_input_fn
         self.model_info_class = model_info_class
         self.problem_labels = [] 
         self.problem_infos = []
-        self.problem_labels_partitions = []
-        self.input_result_mappings = []
+        self.datas = []
         self.model_info = None
         self.num_examples = 0
-        self.augment = augment
-        self.epoch_size = 200
-        self.prop = .5
-    
+
     def load_pkl(self, file_path):
         with open(file_path, 'rb') as f:
             data = pickle.load(f)
@@ -491,6 +488,46 @@ class TrainingDataset:
         for file_path in file_paths:
             self.load_pkl(file_path)
 
+    def construct_datas(self):
+        datas = []
+        for problem_info, labels in zip(self.problem_infos, self.problem_labels):
+            data = []
+            for invocation in labels:
+                d = self.construct_input_fn(invocation, problem_info, self.model_info)
+                d.y = torch.tensor([float(invocation.label)])
+                data.append(d)
+            datas.append(data)
+        self.datas = datas
+
+    def prepare(self):
+        self.construct_datas()
+        print(f'Prepared {self.num_examples} examples.')
+    
+    def __getitem__(self, index):
+        if not (isinstance(index, tuple) and len(index) == 2):
+            raise IndexError
+        i, j = index
+        return dict(
+            problem_info=self.problem_infos[i],
+            invocation=self.problem_labels[i][j],
+            data=self.datas[i][j],
+        )
+    
+    def __len__(self):
+        return self.num_examples
+
+    def __iter__(self):
+        return (self[(i,j)]['data'] for i, labels in enumerate (self.problem_labels) for j in range(len(labels)))
+
+class TrainingDataset(Dataset):
+    def __init__(self, construct_input_fn, model_info_class, augment=False, stratify_prop=None, epoch_size=200):
+        super().__init__(construct_input_fn, model_info_class)
+        self.problem_labels_partitions = []
+        self.input_result_mappings = []
+        self.augment = augment
+        self.epoch_size = epoch_size
+        self.stratify_prop=stratify_prop
+    
     def construct_input_result_map(self):
         self.input_result_mappings = []
         for labels in self.problem_labels:
@@ -538,22 +575,12 @@ class TrainingDataset:
             raise IndexError
         i, j = index
         return dict(
+            problem_info=self.problem_infos[i],
             invocation=self.problem_labels[i][j],
             data=self.datas[i][j],
             possible_pairings=[(i, k) for k in self.input_result_mappings[i][j]]
         )
 
-    def construct_datas(self):
-        datas = []
-        for problem_info, labels in zip(self.problem_infos, self.problem_labels):
-            data = []
-            for invocation in labels:
-                d = self.construct_input_fn(invocation, problem_info, self.model_info)
-                d.y = torch.tensor([float(invocation.label)])
-                data.append(d)
-            datas.append(data)
-        self.datas = datas
-        
 
     def prepare(self):
         self.construct_input_result_map()
@@ -577,28 +604,42 @@ class TrainingDataset:
             + tuple(input_node_inds) + tuple(dom_edge_inds)
         )
 
+    def select_example(self):
+        if self.stratify_prop is None:
+            return self.global_index[self.i]
+
+        if np.random.random() < self.stratify_prop:
+            return self.pos[np.random.choice(len(self.pos))]
+        else:
+            return self.neg[np.random.choice(len(self.neg))]
+
+    def initialize_random_order(self):
+        self.global_index = self.pos + self.neg
+        np.random.shuffle(self.global_index)
 
     def __iter__(self):
+        if self.stratify_prop is None:
+            self.initialize_random_order()
         self.i = 0
         return self
+
     def __len__(self):
         return self.epoch_size
+
     def __next__(self):
-        self.i += 1
         if self.i > self.epoch_size:
             raise StopIteration
-        if np.random.random() < self.prop:
-            example_idx = self.pos[np.random.choice(len(self.pos))]
-        else:
-            example_idx = self.neg[np.random.choice(len(self.neg))]
+        example_idx = self.select_example()
+        self.i += 1
 
         result_example = self[example_idx]
         pairings = result_example['possible_pairings']
         idx = pairings[np.random.choice(len(pairings))]
-        if idx == example_idx:
-            return result_example['data']
-        graph_example = self[idx]
+        if not self.augment or idx == example_idx:
 
+            return result_example['data']
+
+        graph_example = self[idx]
         d = self.combine_pair(
             graph_data=graph_example['data'],
             result_data=result_example['data'],
@@ -606,14 +647,6 @@ class TrainingDataset:
         )
         d.y = torch.tensor([float(result_example['invocation'].label)])
         return d
-
-
-    def __len__(self):
-        return self.num_examples
-    
-    
-
-
 
 
 if __name__ == '__main__':

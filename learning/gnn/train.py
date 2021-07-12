@@ -98,26 +98,32 @@ class StratifiedRandomSampler:
 
 
 if __name__ == '__main__':
-    from learning.gnn.data import parse_hyper_labels, HyperModelInfo, TrainingDataset, construct_hypermodel_input
+    from learning.gnn.data import parse_hyper_labels, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input
     from learning.gnn.models import HyperClassifier
-    dataset = TrainingDataset(construct_hypermodel_input, HyperModelInfo, augment=False)
-    dataset.from_pkl_files(
+    trainset = TrainingDataset(construct_hypermodel_input, HyperModelInfo, augment=False, stratify_prop=.5, epoch_size=200)
+    trainset.from_pkl_files(
         '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:26:29.452.pkl',
         '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:27:25.578.pkl'
     )
-    dataset.prepare()
+    trainset.prepare()
+
+    valset = Dataset(construct_hypermodel_input, HyperModelInfo)
+    valset.from_pkl_files(
+        '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-02:18:30.524.pkl'
+    )
+    valset.prepare()
 
     model = HyperClassifier(
-        node_feature_size=dataset.model_info.node_feature_size,
-        edge_feature_size=dataset.model_info.edge_feature_size,
-        stream_domains=dataset.model_info.stream_domains[1:],
-        stream_num_inputs=dataset.model_info.stream_num_inputs[1:],
+        node_feature_size=trainset.model_info.node_feature_size,
+        edge_feature_size=trainset.model_info.edge_feature_size,
+        stream_domains=trainset.model_info.stream_domains[1:],
+        stream_num_inputs=trainset.model_info.stream_num_inputs[1:],
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=.8*torch.ones([1]))
     train_model_graphnetwork(
         model,
-        dict(train=dataset, val=dataset),
+        dict(train=trainset, val=valset),
         criterion=criterion,
         optimizer=optimizer,
         save_every=10,
@@ -129,7 +135,7 @@ if __name__ == '__main__':
     logits = []
     labels = []
     model.eval()
-    for d in dataset:
+    for d in valset:
         logit = torch.sigmoid(model(d)).detach().numpy()[0]
         logits.append(logit)
         labels.append(d.y.detach().numpy().item())
@@ -142,6 +148,4 @@ if __name__ == '__main__':
     num_irrelevant_excluded = best_threshold_index = list(labels).index(1)
     best_threshold = scores[best_threshold_index]
     num_irrelevant_included = np.sum(labels[best_threshold_index:] == 0)
-    #for ind in inds[best_threshold_index:]:
-        #print(dataset[ind].certified, dataset[ind].y)
     print(num_irrelevant_excluded/(num_irrelevant_excluded + num_irrelevant_included))
