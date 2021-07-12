@@ -499,7 +499,7 @@ def run_blocks_world(
         oracle.save_stats(path + "stats.json")
 
     if mode == "oracle":
-        oracle.save_labeled()
+        oracle.save_labeled(path + "stats.json")
 
     make_plot(path + "stats.json", save_path=path + "plots.png")
     visualization.stats_to_graph(

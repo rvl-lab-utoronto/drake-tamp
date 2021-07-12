@@ -128,7 +128,7 @@ class Oracle:
             domain = domain
         )
 
-    def save_labeled(self, path=None):
+    def save_labeled(self, stats_path, path=None):
         if not os.path.isdir(f"{FILEPATH}/data"):
             os.mkdir(f"{FILEPATH}/data")
         if not os.path.isdir(f"{FILEPATH}/data/labeled"):
@@ -142,7 +142,19 @@ class Oracle:
             path = self.save_path
 
         datafile = self.save_path.split("/")[-1]
+
+        # we use the stats,json for the non-oracle run for the listed
+        # run attributes statistics
+        with open(self.get_stats(), "r") as f:
+            stats = json.load(f)
+
         if self.run_attr is not None:
+            self.run_attr["sample_time"] = stats["summary"]["sample_time"]
+            self.run_attr["search_time"] = stats["summary"]["search_time"]
+            self.run_attr["run_time"] = stats["summary"]["run_time"]
+            self.run_attr["iterations"] = stats["summary"]["iterations"]
+            self.run_attr["complexity"] = stats["summary"]["complexity"]
+            self.run_attr["evaluations"] = stats["summary"]["evaluations"]
             pddl = self.domain_pddl + self.stream_pddl 
             if pddl not in data_info:
                 # only save name of pkl file
@@ -155,7 +167,7 @@ class Oracle:
                 json.dump(data_info, f, indent = 4, sort_keys = True)
 
         data = {}
-        data["stats_path"] = self.get_stats()
+        data["stats_path"] = stats_path
         data["domain_pddl"] = self.domain_pddl
         data["stream_pddl"] = self.stream_pddl
         data["initial_conditions"] = tuple(self.initial_conditions)

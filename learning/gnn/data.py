@@ -3,7 +3,7 @@ import json
 import os
 import pickle
 import sys
-import operator
+from dataclasses import dataclass
 from copy import copy
 
 import numpy as np
@@ -647,24 +647,39 @@ class TrainingDataset(Dataset):
         )
         return d
 
-def query_data(pddl: str, query: dict):
+@dataclass
+class DifficultClasses:
+
+    easy = [
+        ("run_time", lambda t: t <= 15)
+    ]
+    medium = [
+        ("run_time", lambda t: 15 < t <= 60)
+    ]
+    hard = [
+        ("run_time", lambda t: 60 < t <= 180)
+    ]
+    very_hard = [
+        ("run_time", lambda t: t > 180)
+    ]
+
+  
+
+def query_data(pddl: str, query: list):
     """
     Returns a list of paths to pkl files that satisfy the query
 
     params:
         pddl: a concatentation of the strings of domain.pddl and stream.pddl
-        query: a dictionary of the form:
-        {
-            run_attr: operator, target_value
+        query: a list of the form:
+        [
+            (run_attr1, run_attr2, ... , asses_func)
             ...
-        }
+        ]
         where run_attr is a parameter of the run being searched for. The attributes
         of the returned pkl files must be a superset of the query attributes.
-        Operator is one of 
-            operator.eq, operator.le, operator.ge, operator.lt, operator.gt
-        and is used to compare target_value to the actual value. E.g
-        operator.le ensure that all returned runs hav an attribute less than
-        target_value.
+        A candidate meets the query in a certain attribute
+        if asses_func(candidate[run_attr1], candidate[run_attr2], ...) is True
 
         Parameters for the kitchen include:
             - num_cabbages
@@ -691,11 +706,17 @@ def query_data(pddl: str, query: dict):
     datafiles = []
     for (run_attr, filename) in info:
         sat = True
-        for attr, (op, tar_val) in query.items():
-            if attr not in run_attr:
-                sat = False
-                break
-            if not op(run_attr[attr], tar_val):
+        for item in query:
+            attrs = item[:-1]
+            asses = item[-1]
+            args = tuple()
+            for attr in attrs:
+                if attr not in run_attr:
+                    sat = False
+                    break
+                else:
+                    args += (run_attr[attr],)
+            if not sat or not asses(*args):
                 sat = False
                 break
         if sat:
@@ -715,12 +736,12 @@ if __name__ == '__main__':
             kitchen = pddl
 
     if kitchen is not None:
-        query = {
-            "num_raddishes": (operator.le, 1),
-            "num_cabbages": (operator.eq, 2),
-        }
+        query = DifficultClasses.easy
+        print(query_data(kitchen, query))
+        query = DifficultClasses.medium
         print(query_data(kitchen, query))
 
+    """
     if len(sys.argv) < 2:
         print('Usage error: Pass in a pkl path.')
         sys.exit(1)
@@ -729,3 +750,4 @@ if __name__ == '__main__':
     dataset.prepare()
     for x in dataset:
         print(x)
+    """
