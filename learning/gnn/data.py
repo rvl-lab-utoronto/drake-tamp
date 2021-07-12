@@ -1,11 +1,19 @@
-from learning.data_models import HyperModelInfo, InvocationInfo, ProblemInfo, ModelInfo, StreamInstanceClassifierInfo
-import numpy as np
-from learning.pddlstream_utils import objects_from_facts
 import itertools
-import torch
-from torch_geometric.data import Data
+import json
+import os
 import pickle
+import sys
+import operator
 from copy import copy
+
+import numpy as np
+import torch
+from learning.data_models import (HyperModelInfo, InvocationInfo, ModelInfo,
+                                  ProblemInfo, StreamInstanceClassifierInfo)
+from learning.pddlstream_utils import objects_from_facts
+from torch_geometric.data import Data
+
+FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
 
 def construct_scene_graph(model_poses):
@@ -639,9 +647,80 @@ class TrainingDataset(Dataset):
         )
         return d
 
+def query_data(pddl: str, query: dict):
+    """
+    Returns a list of paths to pkl files that satisfy the query
+
+    params:
+        pddl: a concatentation of the strings of domain.pddl and stream.pddl
+        query: a dictionary of the form:
+        {
+            run_attr: operator, target_value
+            ...
+        }
+        where run_attr is a parameter of the run being searched for. The attributes
+        of the returned pkl files must be a superset of the query attributes.
+        Operator is one of 
+            operator.eq, operator.le, operator.ge, operator.lt, operator.gt
+        and is used to compare target_value to the actual value. E.g
+        operator.le ensure that all returned runs hav an attribute less than
+        target_value.
+
+        Parameters for the kitchen include:
+            - num_cabbages
+            - num_glasses
+            - num_raddishes
+            - prob_sink
+            - prob_tray
+            - buffer_radius
+            - num_goal
+        parameters for blocks world include:
+            - num_blocks
+            - num_blockers
+            - max_start_stack
+            - max_goal_stack
+            - buffer_radius
+    """
+    datapath = "/".join(FILEPATH.split("/")[:-1]) + "/data/labeled/"
+    data_info_path = datapath + 'data_info.json'
+    assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
+    with open(data_info_path, "r") as f:
+        info = json.load(f)
+    assert pddl in info, "This domain.pddl and stream.pddl cannot be found in previous runs"
+    info = info[pddl]
+    datafiles = []
+    for (run_attr, filename) in info:
+        sat = True
+        for attr, (op, tar_val) in query.items():
+            if attr not in run_attr:
+                sat = False
+                break
+            if not op(run_attr[attr], tar_val):
+                sat = False
+                break
+        if sat:
+            datafiles.append(filename)
+    return datapath, datafiles
 
 if __name__ == '__main__':
-    import sys
+
+    datafile = open("/home/agrobenj/drake-tamp/learning/data/labeled/data_info.json", "r")
+    data = json.load(datafile)
+    blocks_world = None
+    kitchen = None
+    for pddl in data:
+        if "blocks_world" in pddl:
+            blocks_world = pddl
+        if "kitchen" in pddl:
+            kitchen = pddl
+
+    if kitchen is not None:
+        query = {
+            "num_raddishes": (operator.le, 1),
+            "num_cabbages": (operator.eq, 2),
+        }
+        print(query_data(kitchen, query))
+
     if len(sys.argv) < 2:
         print('Usage error: Pass in a pkl path.')
         sys.exit(1)

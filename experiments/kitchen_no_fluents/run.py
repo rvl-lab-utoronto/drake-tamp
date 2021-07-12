@@ -660,15 +660,15 @@ if __name__ == "__main__":
     url = "tcp://127.0.0.1:6000"
 
     num_cabbages = 2
-    num_raddishes = 1
+    num_raddishes = 2
     num_glasses = 1
 
     generate_data(
         num_cabbages=num_cabbages,
         num_raddishes=num_raddishes,
         num_glasses=num_glasses,
-        num_goal = 1,
-        buffer_radius=0.0,
+        num_goal = 2,
+        buffer_radius=0.00,
         url=url,
         simulate=False,
         # max_time = (num_cabbages + num_raddishes + num_glasses)*10

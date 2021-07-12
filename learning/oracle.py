@@ -141,15 +141,16 @@ class Oracle:
         if path is None:
             path = self.save_path
 
-
+        datafile = self.save_path.split("/")[-1]
         if self.run_attr is not None:
             pddl = self.domain_pddl + self.stream_pddl 
             if pddl not in data_info:
+                # only save name of pkl file
                 data_info[pddl] = [
-                    (self.run_attr, self.save_path)
+                    (self.run_attr, datafile)
                 ]
             else:
-                data_info[pddl].append((self.run_attr, self.save_path))
+                data_info[pddl].append((self.run_attr, datafile))
             with open(info_path, "w") as f:
                 json.dump(data_info, f, indent = 4, sort_keys = True)
 

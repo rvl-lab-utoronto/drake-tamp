@@ -63,6 +63,7 @@ class ProblemInfo:
         assert "surfaces" in info, "Problem specification missing surfaces"
         assert "main_links" in info, "Problem specification missing main_links"
         assert "arms" in info, "Problem specification missing arms"
+        self.attr = info.get("run_attr", None)
         self.arms = info["arms"]
         self.directive = info["directive"]
         self.planning_directive = info["directive"]

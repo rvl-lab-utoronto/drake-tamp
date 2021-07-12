@@ -146,6 +146,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         init,
         goal,
     )
+    oracle.set_run_attr(problem_info.attr)
 
     def get_station(name, arm_name=None):
         if arm_name is None:
@@ -615,7 +616,7 @@ def generate_data(
 if __name__ == "__main__":
 
     num_blocks = 3
-    num_blockers = 0
+    num_blockers = 1
     url = "tcp://127.0.0.1:6000"
     generate_data(
         num_blocks,
