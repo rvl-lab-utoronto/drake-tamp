@@ -477,10 +477,10 @@ class Dataset:
         problem_info = data['problem_info']
         if self.model_info is None:
             self.model_info = model_info
+            self.model_info.domain_pddl = data['domain_pddl']
+            self.model_info.stream_pddl = data['stream_pddl']
         else:
-            # TODO: this assertion doesnt work due to model_info.domain 
-            # assert self.model_info == model_info
-            print("Warning: Make sure the model infos in these pkls are identical!")
+            assert self.model_info.domain_pddl == data['domain_pddl'] and self.model_info.stream_pddl == data['stream_pddl'], "Make sure the model infos in these pkls are identical!"
 
         self.problem_infos.append(problem_info)
         self.problem_labels.append(data['labels'])
@@ -575,12 +575,12 @@ class TrainingDataset(Dataset):
     def __getitem__(self, index):
         if not (isinstance(index, tuple) and len(index) == 2):
             raise IndexError
-        i, j = index
+        problem_index, invocation_index = index
         return dict(
-            problem_info=self.problem_infos[i],
-            invocation=self.problem_labels[i][j],
-            data=self.datas[i][j],
-            possible_pairings=[(i, k) for k in self.input_result_mappings[i][j]]
+            problem_info=self.problem_infos[problem_index],
+            invocation=self.problem_labels[problem_index][invocation_index],
+            data=self.datas[problem_index][invocation_index],
+            possible_pairings=[(problem_index, k) for k in self.input_result_mappings[problem_index][invocation_index]]
         )
 
 
