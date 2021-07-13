@@ -16,6 +16,7 @@ from learning.data_models import (HyperModelInfo, InvocationInfo, ModelInfo,
                                   ProblemInfo, StreamInstanceClassifierInfo)
 from learning.pddlstream_utils import objects_from_facts
 from torch_geometric.data import Data
+from tqdm import tqdm
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
@@ -504,9 +505,9 @@ class Dataset:
 
     def construct_datas(self):
         datas = []
-        for problem_info, labels in zip(self.problem_infos, self.problem_labels):
+        for problem_info, labels in tqdm(zip(self.problem_infos, self.problem_labels)):
             data = []
-            for invocation in labels:
+            for invocation in tqdm(labels):
                 d = self.construct_input_fn(invocation, problem_info, self.model_info)
                 d.y = torch.tensor([float(invocation.label)])
                 data.append(d)
@@ -700,7 +701,7 @@ def query_data(pddl: str, query: list):
             - max_goal_stack
             - buffer_radius
     """
-    datapath = "/".join(FILEPATH.split("/")[:-1]) + "/data/labeled/"
+    datapath = get_base_datapath()
     data_info_path = datapath + 'data_info.json'
     assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
     with open(data_info_path, "r") as f:
@@ -725,7 +726,20 @@ def query_data(pddl: str, query: list):
                 break
         if sat:
             datafiles.append(filename)
-    return datapath, datafiles
+    return datafiles
+
+def get_base_datapath():
+    datapath = "/".join(FILEPATH.split("/")[:-1]) + "/data/labeled/"
+    return datapath
+
+def get_pddl_key(domain):
+    datapath = os.path.join(get_base_datapath(), 'data_info.json')
+    with open(datapath, "r") as datafile:
+        data = json.load(datafile)
+    for pddl in data:
+        if domain in pddl:
+            return pddl
+    raise ValueError(f"{domain} not in data_info.json")
 
 if __name__ == '__main__':
 

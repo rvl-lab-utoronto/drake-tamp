@@ -1,8 +1,9 @@
 
 import argparse
+import json
 import os
 from learning.data_models import StreamInstanceClassifierInfo
-from learning.gnn.data import construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input
+from learning.gnn.data import construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, get_base_datapath, get_pddl_key, query_data
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 import torch
@@ -62,25 +63,21 @@ def make_argument_parser():
         '--from-best',
         action="store_true"
     )
+    parser.add_argument(
+        '--datafile',
+        type=str,
+        help="A path to a json file containing train and validation keys wich have a list of pkl paths as values."
+    )
     return parser
 
 
 if __name__ == '__main__':
     args = make_argument_parser().parse_args()
-    train_files = [
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:52:23.419.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:52:49.418.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:55:20.164.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:55:53.179.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:56:25.376.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:56:45.638.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:57:03.671.pkl",
-    ]
-    val_files = [
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:43:17.224.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:49:09.154.pkl",
-        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:51:57.791.pkl",
-    ]
+    base_datapath = get_base_datapath()
+    with open(args.datafile, 'r') as f:
+        data = json.load(f)
+    train_files = [os.path.join(base_datapath, d) for d in data['train']]
+    val_files = [os.path.join(base_datapath, d) for d in data['validation']]
 
     if not os.path.exists(args.model_home):
         os.makedirs(args.model_home, exist_ok=True)

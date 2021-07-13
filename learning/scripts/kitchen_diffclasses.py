@@ -1,0 +1,32 @@
+
+#%%
+from learning.gnn.data import query_data, get_pddl_key, DifficultClasses
+import numpy as np
+import json
+# %%
+kitchen_key = get_pddl_key('kitchen')
+
+# %%
+easy = query_data(kitchen_key, DifficultClasses.easy)
+medium = query_data(kitchen_key, DifficultClasses.medium)
+hard = query_data(kitchen_key, DifficultClasses.hard)
+
+# %%
+np.random.shuffle(easy)
+np.random.shuffle(medium)
+np.random.shuffle(hard)
+num_valid_easy, num_valid_medium, num_valid_hard = 10, 5, 5
+valid = easy[-num_valid_easy:]
+valid += medium[-num_valid_medium:]
+valid += hard[-num_valid_hard:]
+
+train = easy[:-num_valid_easy]
+train += medium[:-num_valid_medium]
+train += hard[:-num_valid_hard]
+# %%
+with open('learning/data/experiments/kitchen_diffclasses.json', 'w') as f:
+    json.dump(dict(
+        train=train,
+        validation=valid,
+        experiment_description="Prelim testing with kitchen dataset using time-based difficulty classes. Validation has a slightly higher proportion of hard runs."
+    ), f, indent=4, sort_keys=True)
