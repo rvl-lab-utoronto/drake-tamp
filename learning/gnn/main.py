@@ -77,8 +77,8 @@ if __name__ == '__main__':
         "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:57:03.671.pkl",
     ]
     val_files = [
-        # "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:43:17.224.pkl",
-        # "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:49:09.154.pkl",
+        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:43:17.224.pkl",
+        "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:49:09.154.pkl",
         "/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-15:51:57.791.pkl",
     ]
 

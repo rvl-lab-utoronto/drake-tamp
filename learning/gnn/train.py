@@ -118,21 +118,19 @@ def evaluate_model(model, dataset, save_path=None):
     logits, labels = evaluate_dataset(model, dataset)
     thresholds, precision, positive_recall, negative_recall = precision_recall(logits, labels)
 
-    index_of_total_recall = np.where(positive_recall == 1.)[0][0]
-    precision_at_total_recall = negative_recall[index_of_total_recall]
-    accuracy_at_total_recall = accuracy(logits, labels, thresholds[index_of_total_recall])
+    index_of_total_recall = int(np.where(positive_recall == 1.)[0][0])
+    accuracy_at_total_recall = float(accuracy(logits, labels, thresholds[index_of_total_recall]))
     stats = dict(
         thresholds=thresholds.tolist(),
         precision=precision.tolist(),
         positive_recall=positive_recall.tolist(),
         negative_recall=negative_recall.tolist(),
         index_of_total_recall=index_of_total_recall,
-        precision_at_total_recall=float(precision_at_total_recall),
-        accuracy_at_total_recall=float(accuracy_at_total_recall),
+        accuracy_at_total_recall=accuracy_at_total_recall,
     )
     generate_figures(stats, save_path)
     with open(os.path.join(save_path, 'stats.json'), 'w') as f:
         json.dump(stats, f)
-    print(index_of_total_recall, precision_at_total_recall)
+    print(f"Total Recall Threshold: {thresholds[index_of_total_recall]:.2f}\nProportion of irrelevant facts excluded: {negative_recall[index_of_total_recall]:.2f}")
 
     
