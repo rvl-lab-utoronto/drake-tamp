@@ -92,7 +92,7 @@ def retrieve_model_poses(
         X_WB = plant.EvalBodyPoseInWorld(plant_context, body)
         res.append(
             {
-                "name": f"{model_name}-{link_name}",
+                "name": (model_name,link_name),
                 "X": X_WB,
             }
         )

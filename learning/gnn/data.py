@@ -362,7 +362,101 @@ def construct_hypermodel_input(
         candidate_fn=candidate_fn
     )
 
+def construct_problem_graph(problem_info: ProblemInfo):
+    """
+    Construct an object graph where nodes are pddl objects and edges are facts.
+    Nodes are included if they are in the problem's initial conditions, and
+    facts are included if they appear either in the goal or initial conditions.
 
+    node attributes:
+        - has_pose: whether the object is something that can have a world pose
+        - pose: The RigidTransform of the object in the world frame if has_pose
+            is true, otherwise None
+        
+    edge attributes:
+        - predicate: the name of the pddl predicate (including axioms)
+        - is_initial: True if the fact is part of the initial conditions
+    """
+    mapping = data['object_mapping']
+    model_pose_dict = {pose['name']: pose for pose in problem_info.model_poses}
+    initial_facts = problem_info.initial_facts
+    edges = []
+    edge_attributes = []
+    nodes = []
+    node_attributes = []
+    node_to_index = {}
+    for fact in initial_facts:
+        fact_objects = objects_from_facts([fact])
+        for obj in fact_objects:
+            if obj not in nodes:
+                attr = {}
+                nodes.append(obj)
+                node_attributes.append(attr)
+                node_to_index[obj] = len(nodes) - 1
+
+                name = mapping[obj]
+                attr['has_pose'] = name.__hash__ is not None and name in model_pose_dict
+                if attr['has_pose']:
+                    attr['pose'] = model_pose_dict[name]['X']
+                else:
+                    attr['pose'] = None
+        if len(fact_objects) == 1:
+            obj = fact_objects.pop()
+            edge_attributes.append({
+                "predicate": fact[0],
+                "is_initial": True
+            })
+            edges.append((node_to_index[obj],) * 2)
+        for obj1, obj2 in itertools.permutations(fact_objects, 2):
+            edges.append((node_to_index[obj1], node_to_index[obj2]))
+            edge_attributes.append({
+                "predicate": fact[0],
+                "is_initial": True
+            })
+
+    for fact in data['problem_info'].goal_facts:
+        fact_objects = objects_from_facts([fact])
+        if len(fact_objects) == 1:
+            edge_attributes.append({
+                "predicate": fact[0],
+                "is_initial": False
+            })
+            obj = fact_objects.pop()
+            edges.append((node_to_index[obj],) * 2)
+        for obj1, obj2 in itertools.permutations(fact_objects, 2):
+            edges.append((node_to_index[obj1], node_to_index[obj2]))
+            edge_attributes.append({
+                "predicate": fact[0],
+                "is_initial": False
+            })
+    return nodes, node_attributes, edges, edge_attributes
+
+
+def construct_problem_graph_input(problem_info: ProblemInfo, model_info: ModelInfo):
+    nodes, node_attr, edges, edge_attr = construct_problem_graph(problem_info)
+
+    node_features = torch.zeros(
+        (len(nodes), 4), dtype=torch.float
+    )
+    edge_features = torch.zeros(
+        (len(edges), model_info.num_predicates + 1), dtype=torch.float
+    )
+    for i, attr in enumerate(edge_attr):
+        edge_features[i, model_info.predicate_to_index[attr['predicate']]] = 1
+        edge_features[i, -1] = int(attr["is_initial"])
+
+    for i, attr in enumerate(node_attr):
+        node_features[i, 0] = int(attr['has_pose'])
+        node_features[i, 1:] = attr["pose"].translation() if attr["pose"] is None else 0
+
+    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+
+    return Data(
+        nodes=nodes,
+        x=node_features,
+        edge_attr=edge_features,
+        edge_index=edge_index,
+    )
 
 def construct_input(data_obj, problem_info, model_info):
     nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(problem_info.goal_facts, data_obj.atom_map, data_obj.stream_map)

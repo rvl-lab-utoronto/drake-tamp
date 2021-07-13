@@ -69,6 +69,8 @@ class HyperModelInfo(ModelInfo):
 @dataclass
 class ProblemInfo:
     goal_facts: list
+    initial_facts: list
+    model_poses: list
 
 # TODO: Do these shared classes need a new home?
 SerializedResult = namedtuple(

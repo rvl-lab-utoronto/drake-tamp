@@ -9,6 +9,7 @@ from learning.data_models import InvocationInfo, ModelInfo, ProblemInfo
 from learning.gnn.data import construct_input
 from learning.gnn.models import StreamInstanceClassifier
 from learning.pddlstream_utils import *
+from pddlstream.language.conversion import fact_from_evaluation
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
@@ -94,13 +95,15 @@ class Oracle:
         self.model_poses = model_poses
         self.run_attr = None
 
-    def set_problem_info(self, goal_exp):
+    def set_problem_info(self, goal_exp, evaluations):
         if not goal_exp[0] == "and":
             raise NotImplementedError(
                 f"Expected goal to be a conjunction of facts. Got {goal_exp}.Need to parse this correctly."
             )
         self.problem_info = ProblemInfo(
-            goal_facts=tuple([fact_to_pddl(f) for f in goal_exp[1:]])
+            goal_facts=tuple([fact_to_pddl(f) for f in goal_exp[1:]]),
+            initial_facts=tuple([fact_to_pddl(fact_from_evaluation(f)) for f in evaluations]),
+            model_poses=self.model_poses
         )
 
     def set_run_attr(self, run_attr):
@@ -175,7 +178,7 @@ class Oracle:
         data["labels"] = self.labels
         data["model_info"] = self.model_info
         data["problem_info"] = self.problem_info
-        data["model_poses"] = self.model_poses
+        data["object_mapping"] = {k:v.value for k,v in Object._obj_from_name.items()}
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
 
