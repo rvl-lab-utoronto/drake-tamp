@@ -50,6 +50,29 @@ def ancestors(fact, atom_map):
         res |= ancestors(parent, atom_map)
     return set(res)
 
+def siblings(fact, atom_map):
+    sib = []
+    for can_sib, can_sib_parents in atom_map.items():
+        if can_sib_parents == atom_map[fact]:
+            sib.append(can_sib)
+    return set(sib)
+
+def elders(fact, atom_map):
+    """
+    Getting uncles and parents
+    (certified facts + domain facts
+    both count as ancestors) 
+    """
+
+    parents = atom_map[fact]
+    uncles = set()
+    for p in parents:
+        uncles |= siblings(p, atom_map)
+    res = set(parents) | uncles
+    init = res.copy()
+    for elder in init:
+        res |= elders(elder, atom_map)
+    return res
 
 def ancestors_tuple(fact, atom_map):
     """

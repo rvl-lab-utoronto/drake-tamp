@@ -71,7 +71,9 @@ class ProblemInfo:
     goal_facts: list
 
 # TODO: Do these shared classes need a new home?
-SerializedResult = namedtuple('SerializedResult', ["name", "certified", "domain", "input_objects", "output_objects"])
+SerializedResult = namedtuple(
+    'SerializedResult', ["name", "certified", "domain", "input_objects", "output_objects"]
+)
 class InvocationInfo:
     def __init__(self, result, node_from_atom, label=None):
         self.atom_map = make_atom_map(node_from_atom)

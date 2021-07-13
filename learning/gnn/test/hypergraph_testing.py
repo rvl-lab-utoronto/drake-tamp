@@ -2,16 +2,38 @@
 
 from learning.gnn.models import HyperClassifier
 import torch
-from learning.visualization import plot_simple_graph
-from learning.gnn.data import construct_object_hypergraph, parse_hyper_labels
+from learning.visualization import plot_simple_graph, visualize_scene_graph
+from learning.gnn.data import (
+    construct_object_hypergraph, get_ancestor_objects, parse_hyper_labels, construct_scene_graph
+)
 from learning.gnn.train import train_model_graphnetwork, StratifiedRandomSampler
 
 import pickle
-filepath = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-11-13:45:03.864.pkl"
+filepath = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-12-23:26:54.038.pkl"
 with open(filepath, "rb") as s:
     data = pickle.load(s)
 
-
+label = data["labels"][162]
+print(f"Output object: {label.result.output_objects}")
+print(f"Ancestors: {get_ancestor_objects(label)}")
+print(label.result.name)
+print(label.result.certified)
+print(len(data["labels"]))
+nodes, node_attr, edges, edge_attr = construct_object_hypergraph(
+    label,
+    data["problem_info"],
+    data["model_info"],
+    reduced = True
+)
+#visualize_scene_graph(nodes,node_attr, edges, edge_attr,"tmp.html")
+plot_simple_graph(
+    nodes,
+    edges,
+    "tmp_red.html",
+    edge_names = [e["predicate"] for e in edge_attr],
+    levels = [n["level"] for n in node_attr]
+)
+print()
 #for label in data["labels"]:
     #print(label[:-2])
 
@@ -34,6 +56,7 @@ print()
 
 #%%
 
+"""
 #dataset, model_info  = parse_hyper_labels("/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-11-13:45:03.864.pkl")
 #dataset += parse_hyper_labels("/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-11-14:29:08.719.pkl")[0]
 #dataset += parse_hyper_labels("/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-11-14:29:18.821.pkl")[0]
@@ -82,3 +105,4 @@ num_irrelevant_included = np.sum(labels[best_threshold_index:] == 0)
 #for ind in inds[best_threshold_index:]:
     #print(dataset[ind].certified, dataset[ind].y)
 print(num_irrelevant_excluded/(num_irrelevant_excluded + num_irrelevant_included))
+"""

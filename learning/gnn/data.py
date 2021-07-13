@@ -14,7 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from learning.data_models import (HyperModelInfo, InvocationInfo, ModelInfo,
                                   ProblemInfo, StreamInstanceClassifierInfo)
-from learning.pddlstream_utils import objects_from_facts
+from learning.pddlstream_utils import objects_from_facts, ancestors, siblings, elders
 from torch_geometric.data import Data
 from tqdm import tqdm
 
@@ -73,14 +73,63 @@ def construct_scene_graph(model_poses):
 
     return nodes, node_attr, edges, edge_attr
 
+
+
+
+
+def get_ancestor_objects(label: InvocationInfo):
+    """
+    Given an InvocationInfo for a stream result,
+    return all ancestor objects to that result 
+    as a set of string
+    """
+
+    def obj_ans(obj):
+        if obj not in label.object_stream_map:
+            return set()
+        else:
+            ans = set()
+            for o in label.object_stream_map[obj]["input_objects"]:
+                ans |= obj_ans(o) | {o}
+
+            return ans
+
+    res = set()
+    for inp in label.result.input_objects:
+        res.add(inp)
+        res |= obj_ans(inp)
+
+    return res
+
+def get_initial_objects(label: InvocationInfo):
+
+    """
+    Given a stream result, return all the initial objects
+    in that problem as a set.
+    """
+
+    initial_objects = set()
+    for fact in label.atom_map:
+        if len(label.atom_map[fact]) == 0:
+            initial_objects |= objects_from_facts([fact])
+    return initial_objects
+
+
+
 def construct_object_hypergraph(
-    label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo
+    label: InvocationInfo,
+    problem_info: ProblemInfo,
+    model_info: ModelInfo,
+    reduced: bool = False
 ):
     """
     Construct an object hypergraph where nodes are pddl objects and edges are
     the facts that relate them. The hypergraph is represente as a normal graph
     with the hyperedges turned into multiple normal edges (HypergraphConv does
     not work)
+
+    reduced: if True, the returned graph consists of only the ancestors of the stream result
+        and the initial conditions (objects + facts)
 
     node attributes:
         - overlap_with_goal (bool)
@@ -120,8 +169,18 @@ def construct_object_hypergraph(
     node_to_ind = {}
     goal_objects = objects_from_facts(goal_facts)
 
+    #reduced_obj = get_ancestor_objects(label) | get_initial_objects(label)
+    fact_ans = set()
+    for dom_fact in label.result.domain:
+        fact_ans.add(dom_fact)
+        fact_ans |= siblings(dom_fact, label.atom_map)
+        fact_ans |= elders(dom_fact, label.atom_map)
+
     for fact in label.atom_map:
         fact_objects = objects_from_facts([fact])
+        if reduced and label.atom_map[fact]:
+            if not fact in fact_ans:
+                continue
         for o in fact_objects:
             if o in nodes:
                 continue
@@ -236,12 +295,13 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
 
 
 def construct_hypermodel_input(
-    label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo, 
+    label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo, reduced: bool = False,
 ):
     nodes, node_attr, edges, edge_attr = construct_object_hypergraph(
         label,
         problem_info,
-        model_info
+        model_info,
+        reduced = reduced
     )
 
     # indices of input objects to latest stream result
