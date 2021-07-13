@@ -117,7 +117,10 @@ def get_initial_objects(label: InvocationInfo):
 
 
 def construct_object_hypergraph(
-    label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo, reduced: bool = False
+    label: InvocationInfo,
+    problem_info: ProblemInfo,
+    model_info: ModelInfo,
+    reduced: bool = False
 ):
     """
     Construct an object hypergraph where nodes are pddl objects and edges are
@@ -292,12 +295,13 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
 
 
 def construct_hypermodel_input(
-    label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo, 
+    label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo, reduced: bool = False,
 ):
     nodes, node_attr, edges, edge_attr = construct_object_hypergraph(
         label,
         problem_info,
-        model_info
+        model_info,
+        reduced = reduced
     )
 
     # indices of input objects to latest stream result
