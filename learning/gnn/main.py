@@ -105,6 +105,8 @@ if __name__ == '__main__':
     valset = Dataset(
         input_fn,
         model_info_class,
+        preprocess_all=False,
+        max_per_run=200
     )
     valset.from_pkl_files(*val_files)
     valset.prepare()
@@ -119,7 +121,8 @@ if __name__ == '__main__':
             input_fn,
             model_info_class,
             augment=args.augment_data,
-            stratify_prop=args.stratify_train_prop
+            stratify_prop=args.stratify_train_prop,
+            preprocess_all=False
         )
         trainset.from_pkl_files(*train_files)
         trainset.prepare()

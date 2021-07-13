@@ -473,7 +473,7 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
 class Dataset:
 
-    def __init__(self, construct_input_fn, model_info_class):
+    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None):
         self.construct_input_fn = construct_input_fn
         self.model_info_class = model_info_class
         self.problem_labels = [] 
@@ -481,6 +481,8 @@ class Dataset:
         self.datas = []
         self.model_info = None
         self.num_examples = 0
+        self.preprocess_all = preprocess_all
+        self.max_per_run = max_per_run
 
     def load_pkl(self, file_path):
         with open(file_path, 'rb') as f:
@@ -508,11 +510,18 @@ class Dataset:
         for problem_info, labels in tqdm(zip(self.problem_infos, self.problem_labels)):
             data = []
             for invocation in tqdm(labels):
-                d = self.construct_input_fn(invocation, problem_info, self.model_info)
-                d.y = torch.tensor([float(invocation.label)])
+                if self.preprocess_all:
+                    d = self.construct_datum(invocation, problem_info)
+                else:
+                    d = None
                 data.append(d)
             datas.append(data)
         self.datas = datas
+
+    def construct_datum(self, invocation, problem_info):
+        d = self.construct_input_fn(invocation, problem_info, self.model_info)
+        d.y = torch.tensor([float(invocation.label)])
+        return d
 
     def prepare(self):
         self.construct_datas()
@@ -522,6 +531,8 @@ class Dataset:
         if not (isinstance(index, tuple) and len(index) == 2):
             raise IndexError
         i, j = index
+        if not self.preprocess_all and self.datas[i][j] is None:
+            self.datas[i][j] = self.construct_datum(self.problem_labels[i][j], self.problem_infos[i])
         return dict(
             problem_info=self.problem_infos[i],
             invocation=self.problem_labels[i][j],
@@ -532,11 +543,17 @@ class Dataset:
         return self.num_examples
 
     def __iter__(self):
-        return (self[(i,j)]['data'] for i, labels in enumerate (self.problem_labels) for j in range(len(labels)))
+        possible_inds = [(i,j) for i, labels in enumerate (self.problem_labels) for j in range(len(labels))]
+        if self.max_per_run is not None:
+            chosen_inds = np.random.choice(len(possible_inds), size=self.max_per_run)
+            possible_inds = [possible_inds[i] for i in chosen_inds]
+        
+        return (self[(i,j)]['data'] for i,j in possible_inds)
+
 
 class TrainingDataset(Dataset):
-    def __init__(self, construct_input_fn, model_info_class, augment=False, stratify_prop=None, epoch_size=200):
-        super().__init__(construct_input_fn, model_info_class)
+    def __init__(self, construct_input_fn, model_info_class, augment=False, stratify_prop=None, epoch_size=200, preprocess_all=True):
+        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all)
         self.problem_labels_partitions = []
         self.input_result_mappings = []
         self.augment = augment
@@ -589,6 +606,8 @@ class TrainingDataset(Dataset):
         if not (isinstance(index, tuple) and len(index) == 2):
             raise IndexError
         problem_index, invocation_index = index
+        if not self.preprocess_all and self.datas[problem_index][invocation_index] is None:
+            self.datas[problem_index][invocation_index] = self.construct_datum(self.problem_labels[problem_index][invocation_index], self.problem_infos[problem_index])
         return dict(
             problem_info=self.problem_infos[problem_index],
             invocation=self.problem_labels[problem_index][invocation_index],
