@@ -473,7 +473,7 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
 class Dataset:
 
-    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None):
+    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None, clear_memory=True):
         self.construct_input_fn = construct_input_fn
         self.model_info_class = model_info_class
         self.problem_labels = [] 
@@ -483,6 +483,7 @@ class Dataset:
         self.num_examples = 0
         self.preprocess_all = preprocess_all
         self.max_per_run = max_per_run
+        self.clear_memory = clear_memory
 
     def load_pkl(self, file_path):
         with open(file_path, 'rb') as f:
@@ -533,11 +534,15 @@ class Dataset:
         i, j = index
         if not self.preprocess_all and self.datas[i][j] is None:
             self.datas[i][j] = self.construct_datum(self.problem_labels[i][j], self.problem_infos[i])
-        return dict(
+        result = dict(
             problem_info=self.problem_infos[i],
             invocation=self.problem_labels[i][j],
             data=self.datas[i][j],
         )
+        if self.clear_memory:
+            self.datas[i][j] = None
+        return result
+
     
     def __len__(self):
         return self.num_examples
@@ -552,8 +557,8 @@ class Dataset:
 
 
 class TrainingDataset(Dataset):
-    def __init__(self, construct_input_fn, model_info_class, augment=False, stratify_prop=None, epoch_size=200, preprocess_all=True):
-        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all)
+    def __init__(self, construct_input_fn, model_info_class, augment=False, stratify_prop=None, epoch_size=200, preprocess_all=True, clear_memory=True):
+        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all, clear_memory=clear_memory)
         self.problem_labels_partitions = []
         self.input_result_mappings = []
         self.augment = augment
@@ -608,12 +613,15 @@ class TrainingDataset(Dataset):
         problem_index, invocation_index = index
         if not self.preprocess_all and self.datas[problem_index][invocation_index] is None:
             self.datas[problem_index][invocation_index] = self.construct_datum(self.problem_labels[problem_index][invocation_index], self.problem_infos[problem_index])
-        return dict(
+        result = dict(
             problem_info=self.problem_infos[problem_index],
             invocation=self.problem_labels[problem_index][invocation_index],
             data=self.datas[problem_index][invocation_index],
             possible_pairings=[(problem_index, k) for k in self.input_result_mappings[problem_index][invocation_index]]
         )
+        if self.clear_memory:
+            self.datas[problem_index][invocation_index] = None
+        return result
 
 
     def prepare(self):
