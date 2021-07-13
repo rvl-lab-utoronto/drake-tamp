@@ -544,6 +544,10 @@ def run_kitchen(
         return False, problem_file
         # sys.exit(0)
 
+    if len(plan) == 0:
+        print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
+        return False, problem_file
+
     make_plot(path + "stats.json", save_path=path + "plots.png")
     visualization.stats_to_graph(
         path + "stats.json", save_path=path + "preimage_graph.html"
@@ -660,25 +664,30 @@ if __name__ == "__main__":
 
     url = None #"tcp://127.0.0.1:6000"
 
-    num_cabbages = 2
-    num_raddishes = 2
-    num_glasses = 2
+    max_cabbages = 3
+    max_raddishes = 3
+    max_glasses = 3
+    num_repeats = 3
 
 
     for num_c, num_r, num_g in itertools.product(
-        range(3), range(3), range(3)
+        range(max_cabbages + 1), range(max_raddishes + 1), range(max_glasses + 1)
     ):
-        for num_goal in range(1, num_c + num_r + num_g + 1):
-            generate_data(
-                num_cabbages=num_c,
-                num_raddishes=num_r,
-                num_glasses=num_g,
-                num_goal = num_goal,
-                buffer_radius=0.00,
-                url=url,
-                simulate=False,
-                max_time = 180
-            )
+        if num_c + num_r + num_g == 0:
+            continue
+
+        for n in range(num_repeats):
+            for num_goal in range(1, num_c + num_r + num_g + 1):
+                generate_data(
+                    num_cabbages=num_c,
+                    num_raddishes=num_r,
+                    num_glasses=num_g,
+                    num_goal = num_goal,
+                    buffer_radius=0.00,
+                    url=url,
+                    simulate=False,
+                    max_time = 180
+                )
 
     """
     parser = setup_parser()

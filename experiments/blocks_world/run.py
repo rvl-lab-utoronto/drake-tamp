@@ -491,8 +491,12 @@ def run_blocks_world(
     print_solution(solution)
 
     plan, _, evaluations = solution
-    if plan is None or len(plan) == 0:
+    if plan is None:
         print(f"{Colors.RED}No solution found, exiting{Colors.RESET}")
+        return False, problem_file
+
+    if len(plan) == 0:
+        print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
     if mode == "save":
