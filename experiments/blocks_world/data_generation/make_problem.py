@@ -238,6 +238,10 @@ def make_random_stacking(blocks, num_stacks=None, max_stack_num=None):
             0 < max_stack_num <= num_blocks
         ), "Max stack height must be a integer greater than 0 and less than the number of blocks"
         lower_num = len(blocks) - max_stack_num
+
+    if num_blocks == 1:
+        return set([tuple(blocks)])
+
     if num_stacks is None:
         num_splits = np.random.randint(lower_num, num_blocks)
     else:

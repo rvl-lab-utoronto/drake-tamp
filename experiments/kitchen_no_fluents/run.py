@@ -667,7 +667,6 @@ if __name__ == "__main__":
     max_cabbages = 3
     max_raddishes = 3
     max_glasses = 3
-    num_repeats = 3
 
 
     for num_c, num_r, num_g in itertools.product(
@@ -676,18 +675,17 @@ if __name__ == "__main__":
         if num_c + num_r + num_g == 0:
             continue
 
-        for n in range(num_repeats):
-            for num_goal in range(1, num_c + num_r + num_g + 1):
-                generate_data(
-                    num_cabbages=num_c,
-                    num_raddishes=num_r,
-                    num_glasses=num_g,
-                    num_goal = num_goal,
-                    buffer_radius=0.00,
-                    url=url,
-                    simulate=False,
-                    max_time = 180
-                )
+        for num_goal in range(1, num_c + num_r + num_g + 1):
+            generate_data(
+                num_cabbages=num_c,
+                num_raddishes=num_r,
+                num_glasses=num_g,
+                num_goal = num_goal,
+                buffer_radius=0.00,
+                url=url,
+                simulate=False,
+                max_time = 180
+            )
 
     """
     parser = setup_parser()

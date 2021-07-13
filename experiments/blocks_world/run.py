@@ -7,6 +7,7 @@ http://tampbenchmark.aass.oru.se/index.php?title=Problems
 import time
 import numpy as np
 import random
+import itertools
 
 np.random.seed(seed=int(time.time()))
 random.seed(int(time.time()))
@@ -619,17 +620,32 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    num_blocks = 3
-    num_blockers = 1
-    url = "tcp://127.0.0.1:6000"
-    generate_data(
-        num_blocks,
-        num_blockers,
-        buffer_radius=0,
-        url=url,
-        max_stack_num=None,
-        simulate = False
-    )
+    #num_blocks = 3
+    #num_blockers = 1
+    url = None#"tcp://127.0.0.1:6000"
+
+    max_num_blocks = 6
+    max_num_blockers = 6
+
+
+    for num_blocks, num_blockers in itertools.product(
+        range(max_num_blocks + 1), range(max_num_blockers + 1)
+    ):
+        if num_blocks + num_blockers == 0:
+            continue
+
+        for max_stack in range(1, num_blocks + 1):
+
+            for i in range(2):
+                generate_data(
+                    num_blocks,
+                    num_blockers,
+                    buffer_radius=0,
+                    url=url,
+                    max_stack_num= max_stack,
+                    simulate = False,
+                    max_time = 180
+                )
 
     """
     parser = setup_parser()

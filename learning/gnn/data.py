@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from copy import copy
 
 import numpy as np
+from sklearn.linear_model import LinearRegression
 import torch
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from learning.data_models import (HyperModelInfo, InvocationInfo, ModelInfo,
                                   ProblemInfo, StreamInstanceClassifierInfo)
 from learning.pddlstream_utils import objects_from_facts
@@ -736,10 +740,121 @@ if __name__ == '__main__':
             kitchen = pddl
 
     if kitchen is not None:
+        print(f"Num pkls: {len(data[kitchen])}")
         query = DifficultClasses.easy
-        print(query_data(kitchen, query))
+        easy = len(query_data(kitchen, query)[1])
+        print(f"Number of easy runs {easy}")
         query = DifficultClasses.medium
-        print(query_data(kitchen, query))
+        med = len(query_data(kitchen, query)[1])
+        print(f"Number of medium runs {med}")
+        query = DifficultClasses.hard
+        hard = len(query_data(kitchen, query)[1])
+        print(f"Number of hard runs {hard}")
+        query = DifficultClasses.very_hard
+        very_hard = len(query_data(kitchen, query)[1])
+        print(f"Number of very hard runs {very_hard}")
+
+        kitchen_data = data[kitchen]
+
+        num_c, num_r, num_g, num_goal= [],[],[],[]
+        sample_time, search_time, run_time = [], [], []
+
+        for pt, _ in kitchen_data:
+            num_c.append(pt["num_cabbages"])
+            num_r.append(pt["num_raddishes"])
+            num_g.append(pt["num_glasses"])
+            num_goal.append(pt["num_goal"])
+            sample_time.append(pt["sample_time"])
+            search_time.append(pt["search_time"])
+            run_time.append(pt["run_time"])
+
+        fig, axs = plt.subplots(2,2)
+        axs[0,0].plot(num_c, run_time, linestyle = "", marker = "o")
+        axs[0,0].set_xlabel("Number of Cabbages")
+        axs[0,0].set_ylabel("Run Time (s)")
+
+        num_c = np.array(num_c).reshape(-1,1)
+        run_time = np.array(run_time)
+        model = LinearRegression().fit(num_c, run_time)
+        x = np.linspace(0, max(num_c), max(num_c) + 1)
+        axs[0,0].plot(
+            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
+            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        )
+        axs[0,0].legend()
+        axs[0,0].axhline(180, color = "r")
+
+        axs[0,1].plot(num_r, run_time, linestyle = "", marker = "o")
+        axs[0,1].set_xlabel("Number of Raddishes")
+        axs[0,1].set_ylabel("Run Time (s)")
+
+        num_r = np.array(num_r).reshape(-1,1)
+        run_time = np.array(run_time)
+        model = LinearRegression().fit(num_r, run_time)
+        x = np.linspace(0, max(num_r), max(num_r) + 1)
+        axs[0,1].plot(
+            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
+            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        )
+        axs[0,1].legend()
+        axs[0,1].axhline(180, color = "r")
+
+        axs[1,0].plot(num_g, run_time, linestyle = "", marker = "o")
+        axs[1,0].set_xlabel("Number of Glasses")
+        axs[1,0].set_ylabel("Run Time (s)")
+        num_g = np.array(num_g).reshape(-1,1)
+        run_time = np.array(run_time)
+        model = LinearRegression().fit(num_g, run_time)
+        x = np.linspace(0, max(num_g), max(num_g) + 1)
+        axs[1,0].plot(
+            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
+            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        )
+        axs[1,0].legend()
+        axs[1,0].axhline(180, color = "r")
+
+        axs[1,1].plot(num_goal, run_time, linestyle = "", marker = "o")
+        axs[1,1].set_xlabel("Number of Goal Objects")
+        axs[1,1].set_ylabel("Run Time (s)")
+        num_goal = np.array(num_goal).reshape(-1,1)
+        run_time = np.array(run_time)
+        model = LinearRegression().fit(num_goal, run_time)
+        x = np.linspace(0, max(num_goal), max(num_goal) + 1)
+        axs[1,1].plot(
+            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
+            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        )
+        axs[1,1].legend()
+        axs[1,1].axhline(180, color = "r")
+
+        fig.tight_layout()
+        fig.set_size_inches(15, 15)
+        plt.savefig(f"{FILEPATH}/plots/difficulty_plot1.png", dpi = 300)
+
+        plt.close(fig)
+
+        fig,ax = plt.subplots()
+
+        num_tot = list(map(lambda x: x[0]+x[1]+x[2], zip(num_c, num_r, num_g)))
+        ax.plot(num_tot, run_time, linestyle = "", marker = "o")
+        ax.set_xlabel("Total Number of Objects")
+        ax.set_ylabel("Run Time (s)")
+        num_tot = np.array(num_tot).reshape(-1,1)
+        run_time = np.array(run_time)
+        model = LinearRegression().fit(num_tot, run_time)
+        x = np.linspace(0, max(num_goal), max(num_goal) + 1)
+        ax.plot(
+            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
+            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        )
+        ax.legend()
+        ax.axhline(180, color = "r")
+        fig.tight_layout()
+        fig.set_size_inches(15, 15)
+        plt.savefig(f"{FILEPATH}/plots/difficulty_plot2.png", dpi = 300)
+
+
+
 
     """
     if len(sys.argv) < 2:
