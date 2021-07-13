@@ -27,11 +27,12 @@ def precision_recall(logits, labels):
 
 def generate_figures(stats, save_path):
     idx = stats['index_of_total_recall']
+    irrelevant_recall = stats['negative_recall'][idx]
     plt.plot(stats['positive_recall'], stats['negative_recall'])
     plt.xlabel('Recall on Relevant')
     plt.ylabel('% of Irrelevant Excluded')
     plt.annotate(
-        f"thresh={stats['thresholds'][idx]:.2f}\nacc={stats['accuracy_at_total_recall']:.2f}",
+        f"thresh={stats['thresholds'][idx]:.2f}\nacc={stats['accuracy_at_total_recall']:.2f}\nfiltered={irrelevant_recall:.2f}",
         (stats['positive_recall'][idx], stats['negative_recall'][idx])
     )
     plt.savefig(os.path.join(save_path, 'recall.png'), dpi=300)
