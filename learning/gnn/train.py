@@ -1,9 +1,13 @@
+from learning.gnn.metrics import accuracy, generate_figures, precision_recall
+from learning.data_models import StreamInstanceClassifierInfo
+from learning.gnn.data import construct_input
+from learning.gnn.models import StreamInstanceClassifier
 import time
 import os
 import numpy as np
 import torch
 import copy
-
+import json
 
 def train_model_graphnetwork(
     model,
@@ -96,56 +100,37 @@ class StratifiedRandomSampler:
         else:
             return self.neg[np.random.choice(len(self.neg))]
 
-
-if __name__ == '__main__':
-    from learning.gnn.data import parse_hyper_labels, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input
-    from learning.gnn.models import HyperClassifier
-    trainset = TrainingDataset(construct_hypermodel_input, HyperModelInfo, augment=False, stratify_prop=.5, epoch_size=200)
-    trainset.from_pkl_files(
-        '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:26:29.452.pkl',
-        '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-11-15:27:25.578.pkl'
-    )
-    trainset.prepare()
-
-    valset = Dataset(construct_hypermodel_input, HyperModelInfo)
-    valset.from_pkl_files(
-        '/home/mohammed/drake-tamp/learning/data/labeled/2021-07-12-02:18:30.524.pkl'
-    )
-    valset.prepare()
-
-    model = HyperClassifier(
-        node_feature_size=trainset.model_info.node_feature_size,
-        edge_feature_size=trainset.model_info.edge_feature_size,
-        stream_domains=trainset.model_info.stream_domains[1:],
-        stream_num_inputs=trainset.model_info.stream_num_inputs[1:],
-    )
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=.8*torch.ones([1]))
-    train_model_graphnetwork(
-        model,
-        dict(train=trainset, val=valset),
-        criterion=criterion,
-        optimizer=optimizer,
-        save_every=10,
-        epochs=1000
-    )
-
-    import numpy as np
-
+def evaluate_dataset(model, dataset):
     logits = []
     labels = []
     model.eval()
-    for d in valset:
-        logit = torch.sigmoid(model(d)).detach().numpy()[0]
+    for d in dataset:
+        logit = torch.sigmoid(model(d)).detach().numpy().item()
         logits.append(logit)
         labels.append(d.y.detach().numpy().item())
-        # print(d.certified, logit, d.y)
+        if len(logits) == 100:
+            break
     logits = np.array(logits)
     labels = np.array(labels)
-    inds = np.argsort(logits)
-    labels = labels[inds]
-    scores = logits[inds]
-    num_irrelevant_excluded = best_threshold_index = list(labels).index(1)
-    best_threshold = scores[best_threshold_index]
-    num_irrelevant_included = np.sum(labels[best_threshold_index:] == 0)
-    print(num_irrelevant_excluded/(num_irrelevant_excluded + num_irrelevant_included))
+    return logits, labels
+
+def evaluate_model(model, dataset, save_path=None):
+    logits, labels = evaluate_dataset(model, dataset)
+    thresholds, precision, positive_recall, negative_recall = precision_recall(logits, labels)
+
+    index_of_total_recall = int(np.where(positive_recall == 1.)[0][0])
+    accuracy_at_total_recall = float(accuracy(logits, labels, thresholds[index_of_total_recall]))
+    stats = dict(
+        thresholds=thresholds.tolist(),
+        precision=precision.tolist(),
+        positive_recall=positive_recall.tolist(),
+        negative_recall=negative_recall.tolist(),
+        index_of_total_recall=index_of_total_recall,
+        accuracy_at_total_recall=accuracy_at_total_recall,
+    )
+    generate_figures(stats, save_path)
+    with open(os.path.join(save_path, 'stats.json'), 'w') as f:
+        json.dump(stats, f)
+    print(f"Total Recall Threshold: {thresholds[index_of_total_recall]:.2f}\nProportion of irrelevant facts excluded: {negative_recall[index_of_total_recall]:.2f}")
+
+    

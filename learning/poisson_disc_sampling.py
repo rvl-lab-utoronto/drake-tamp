@@ -1,8 +1,5 @@
 import time
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-import matplotlib.animation as animation
 import itertools
 np.random.seed(seed = int(time.time()))
 
