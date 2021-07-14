@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 from learning.data_models import StreamInstanceClassifierInfo
-from learning.gnn.data import EvaluationDataset, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, get_base_datapath, get_pddl_key, query_data
+from learning.gnn.data import EvaluationDataset, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
@@ -65,6 +65,14 @@ def make_argument_parser():
         action="store_true"
     )
     parser.add_argument(
+        '--use-reduced-graph',
+        action="store_true"
+    )
+    parser.add_argument(
+        '--use-problem-graph',
+        action="store_true"
+    )
+    parser.add_argument(
         '--datafile',
         type=str,
         help="A path to a json file containing train and validation keys wich have a list of pkl paths as values."
@@ -84,13 +92,13 @@ if __name__ == '__main__':
         os.makedirs(args.model_home, exist_ok=True)
 
     if args.model == 'hyper':
-        input_fn = partial(construct_hypermodel_input, reduced = True)
+        input_fn = partial(construct_hypermodel_input, reduced = args.use_reduced_graph)
+        if args.use_problem_graph:
+            input_fn = construct_with_problem_graph(input_fn)
         model_info_class = HyperModelInfo
         model_fn = lambda model_info: HyperClassifier(
-            node_feature_size=model_info.node_feature_size,
-            edge_feature_size=model_info.edge_feature_size,
-            stream_domains=model_info.stream_domains[1:],
-            stream_num_inputs=model_info.stream_num_inputs[1:],
+            model_info,
+            with_problem_graph=args.use_problem_graph
         )
     elif args.model == 'streamclass':
         input_fn = construct_input

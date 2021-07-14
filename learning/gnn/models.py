@@ -19,19 +19,34 @@ class HyperClassifier(nn.Module):
     """
     def __init__(
         self,
-        node_feature_size,
-        edge_feature_size,
-        stream_domains,
-        stream_num_inputs,
+        model_info,
+        with_problem_graph=False,
         feature_size=16,
+        problem_graph_output_size=16,
+        problem_graph_hidden_size=4,
         mlp_out=1,
     ):
+
+        node_feature_size = model_info.node_feature_size
+        edge_feature_size = model_info.edge_feature_size
+        stream_domains = model_info.stream_domains[1:]
+        stream_num_inputs = model_info.stream_num_inputs[1:]
         super(HyperClassifier, self).__init__()
         self.graph_network = GraphNetwork(
             node_feature_size = node_feature_size,
             edge_feature_size = edge_feature_size,
             hidden_size = feature_size
         )
+        self.with_problem_graph = with_problem_graph
+        if self.with_problem_graph:
+            self.problem_graph_network = ProblemGraphNetwork(
+                node_feature_size=model_info.problem_graph_node_feature_size,
+                edge_feature_size=model_info.problem_graph_edge_feature_size,
+                hidden_size=problem_graph_hidden_size,
+                graph_hidden_size=problem_graph_output_size
+            )
+        else:
+            problem_graph_output_size = 0
         assert len(stream_domains) == len(stream_num_inputs), "Inequal number of streams"
         self.stream_num_inputs = stream_num_inputs
         # each domain fact and stream input has its own input feature vector
@@ -46,6 +61,7 @@ class HyperClassifier(nn.Module):
                     # every non-unary fact has two edges (bidirectional)
                     inp_size += 2 
             inp_size *= feature_size
+            inp_size += problem_graph_output_size
             self.mlps.append(
                 MLP([16, mlp_out], inp_size)
             )
@@ -67,8 +83,13 @@ class HyperClassifier(nn.Module):
 
         input_node_embeddings = [x[i] for i in input_node_inds]
         dom_edge_embeddings = [edge_attr[i] for i in dom_edge_inds]
+
+        if self.with_problem_graph:
+            problem_rep = [self.problem_graph_network(data.problem_graph)]
+        else:
+            problem_rep = []
         input_and_domain = torch.cat(
-            input_node_embeddings + dom_edge_embeddings
+           problem_rep + input_node_embeddings + dom_edge_embeddings
         )
         x = stream_mlp(input_and_domain)
         if score:
@@ -159,10 +180,10 @@ class NodeModel(nn.Module):
         )
 
     def forward(self, x, edge_idx, edge_attr, u=None, batch=None):
-        row, col = edge_idx
-        out = torch.cat([x[row], edge_attr], dim=1)
+        source, dest = edge_idx
+        out = torch.cat([x[source], edge_attr], dim=1)
         out = self.node_mlp_1(out)
-        out = scatter_mean(out, col, dim=0, dim_size=x.size(0))
+        out = scatter_mean(out, dest, dim=0, dim_size=x.size(0))
         out = torch.cat([x, out], dim=1)
         return self.node_mlp_2(out)
 
@@ -188,6 +209,55 @@ class GraphNetwork(nn.Module):
         if return_edge_attr:
             return x, edge_attr
         return x
+
+class GlobalModel(torch.nn.Module):
+    def __init__(self, node_representation_size, edge_representation_size, graph_feature_size, graph_representation_size, dropout=0.0):
+        super(GlobalModel, self).__init__()
+        self.global_mlp = nn.Sequential(
+            nn.Linear(node_representation_size + graph_feature_size, graph_representation_size),
+            nn.LeakyReLU(),
+            nn.LayerNorm(graph_representation_size),
+            nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
+            nn.Linear(graph_representation_size, graph_representation_size),
+        )
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        # x: [N, F_x], where N is the number of nodes.
+        # edge_index: [2, E] with max entry N - 1.
+        # edge_attr: [E, F_e]
+        # u: [B, F_u]
+        # batch: [N] with max entry B - 1.
+        if u is not None:
+            out = torch.cat([u, torch.mean(x, dim=0)], dim=0)
+        else:
+            out = torch.mean(x, dim=0)
+        return self.global_mlp(out)
+
+
+class ProblemGraphNetwork(nn.Module):
+    def __init__(self, node_feature_size, edge_feature_size, hidden_size, graph_hidden_size, dropout=0.0):
+        super().__init__()
+        self.meta_layer_1 = MetaLayer(
+            node_model=NodeModel(node_feature_size, hidden_size, hidden_size, dropout=dropout),
+            edge_model=EdgeModel(node_feature_size, edge_feature_size, hidden_size, dropout=dropout),
+            global_model=GlobalModel(node_representation_size=hidden_size, edge_representation_size=hidden_size, graph_feature_size=0, graph_representation_size=graph_hidden_size)
+        )
+        self.meta_layer_2 = MetaLayer(
+            edge_model=EdgeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
+            node_model=NodeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
+            global_model=GlobalModel(node_representation_size=hidden_size, edge_representation_size=hidden_size, graph_feature_size=graph_hidden_size, graph_representation_size=graph_hidden_size)
+        )
+        self.meta_layer_3 = MetaLayer(
+            edge_model=EdgeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
+            node_model=NodeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
+            global_model=GlobalModel(node_representation_size=hidden_size, edge_representation_size=hidden_size, graph_feature_size=graph_hidden_size, graph_representation_size=graph_hidden_size)
+        )
+    def forward(self, data, attr='x'):
+        x, edge_idx, edge_attr = getattr(data, attr), data.edge_index, data.edge_attr
+        x, edge_attr, u = self.meta_layer_1(x, edge_idx, edge_attr, u=None)
+        x, edge_attr, u = self.meta_layer_2(x, edge_idx, edge_attr, u=u)
+        x, edge_attr, u = self.meta_layer_3(x, edge_idx, edge_attr, u=u)
+        return u
 
 class SimpleGCN(nn.Module):
     def __init__(self, node_feature_size, feature_size):

@@ -376,7 +376,6 @@ def construct_problem_graph(problem_info: ProblemInfo):
         - predicate: the name of the pddl predicate (including axioms)
         - is_initial: True if the fact is part of the initial conditions
     """
-    mapping = data['object_mapping']
     model_pose_dict = {pose['name']: pose for pose in problem_info.model_poses}
     initial_facts = problem_info.initial_facts
     edges = []
@@ -393,7 +392,7 @@ def construct_problem_graph(problem_info: ProblemInfo):
                 node_attributes.append(attr)
                 node_to_index[obj] = len(nodes) - 1
 
-                name = mapping[obj]
+                name = problem_info.object_mapping[obj]
                 attr['has_pose'] = name.__hash__ is not None and name in model_pose_dict
                 if attr['has_pose']:
                     attr['pose'] = model_pose_dict[name]['X']
@@ -413,7 +412,7 @@ def construct_problem_graph(problem_info: ProblemInfo):
                 "is_initial": True
             })
 
-    for fact in data['problem_info'].goal_facts:
+    for fact in problem_info.goal_facts:
         fact_objects = objects_from_facts([fact])
         if len(fact_objects) == 1:
             edge_attributes.append({
@@ -446,7 +445,9 @@ def construct_problem_graph_input(problem_info: ProblemInfo, model_info: ModelIn
 
     for i, attr in enumerate(node_attr):
         node_features[i, 0] = int(attr['has_pose'])
-        node_features[i, 1:] = attr["pose"].translation() if attr["pose"] is None else 0
+        if attr['has_pose']:
+            for k, v in enumerate(attr['pose'].translation()):
+                node_features[i, 1+k] = v
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
@@ -456,6 +457,13 @@ def construct_problem_graph_input(problem_info: ProblemInfo, model_info: ModelIn
         edge_attr=edge_features,
         edge_index=edge_index,
     )
+
+def construct_with_problem_graph(input_fn):
+    def new_fn(invocation, problem, model_info):
+        data = input_fn(invocation, problem, model_info)
+        data.problem_graph = construct_problem_graph_input(problem, model_info)
+        return data
+    return new_fn
 
 def construct_input(data_obj, problem_info, model_info):
     nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(problem_info.goal_facts, data_obj.atom_map, data_obj.stream_map)
@@ -644,6 +652,8 @@ class Dataset:
 
         model_info = self.model_info_class(**data['model_info'].__dict__)
         problem_info = data['problem_info']
+        # TODO: If we make a suitable change in oracle, and regenerate data files, we can get rid of ths line
+        problem_info.object_mapping = data['object_mapping']
         if self.model_info is None:
             self.model_info = model_info
             self.model_info.domain_pddl = data['domain_pddl']
@@ -818,7 +828,7 @@ class TrainingDataset(Dataset):
         return self.epoch_size
 
     def __next__(self):
-        if self.i > self.epoch_size:
+        if self.i >= min(self.epoch_size, self.num_examples):
             raise StopIteration
         example_idx = self.select_example()
         self.i += 1
