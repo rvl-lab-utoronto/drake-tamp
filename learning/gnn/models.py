@@ -188,6 +188,7 @@ class NodeModel(nn.Module):
         return self.node_mlp_2(out)
 
 
+
 class GraphNetwork(nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, hidden_size, dropout=0.0):
         super(GraphNetwork, self).__init__()
@@ -233,6 +234,48 @@ class GlobalModel(torch.nn.Module):
             out = torch.mean(x, dim=0)
         return self.global_mlp(out)
 
+class GraphAwareNodeModel(torch.nn.Module):
+    def __init__(self, node_feature_size, edge_feature_size, graph_feature_size, output_size, dropout = 0.0):
+        super().__init__()
+        self.node_mlp_1 = nn.Sequential(
+            nn.Linear(node_feature_size + edge_feature_size + graph_feature_size, output_size),
+            nn.LeakyReLU(),
+            nn.LayerNorm(output_size),
+            nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
+            nn.Linear(output_size, output_size),
+        )
+        self.node_mlp_2 = nn.Sequential(
+            nn.Linear(node_feature_size + output_size, output_size),
+            nn.LeakyReLU(),
+            nn.LayerNorm(output_size),
+            nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
+            nn.Linear(output_size, output_size),
+        )
+
+    def forward(self, x, edge_index, edge_attr, u, batch):
+        src, dest = edge_index
+        out = torch.cat([x[src], edge_attr, u], dim = 1)
+        out= self.node_mlp_1(out)
+        out = scatter_mean(out, dest, dim = 0, dim_size = x.size(0))
+        return self.node_mlp_2(torch.cat([x, out], dim = 1))
+
+class GraphAwareEdgeModel(torch.nn.Module):
+    def __init__(self, node_feature_size, edge_feature_size, graph_feature_size, hidden_size, dropout=0.0):
+        super(EdgeModel, self).__init__()
+        self.edge_mlp = nn.Sequential(
+            nn.Linear(2 * node_feature_size + edge_feature_size + graph_feature_size, hidden_size),
+            nn.LeakyReLU(),
+            nn.LayerNorm(hidden_size),
+            nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
+            nn.Linear(hidden_size, hidden_size),
+        )
+
+    def forward(self, src, dst, edge_attr, u, batch=None):
+        # src, dst: [E, F_x], where E is num edges, F_x is node-feature dimensionality
+        # edge_attr: [E, F_e], where E is num edges, F_e is edge-feature dimensionality
+        out = torch.cat([src, dst, edge_attr, u], dim=1)
+        return self.edge_mlp(out)
+
 
 class ProblemGraphNetwork(nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, hidden_size, graph_hidden_size, dropout=0.0):
@@ -243,13 +286,13 @@ class ProblemGraphNetwork(nn.Module):
             global_model=GlobalModel(node_representation_size=hidden_size, edge_representation_size=hidden_size, graph_feature_size=0, graph_representation_size=graph_hidden_size)
         )
         self.meta_layer_2 = MetaLayer(
-            edge_model=EdgeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
-            node_model=NodeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
+            edge_model=GraphAwareEdgeModel(hidden_size, hidden_size, graph_hidden_size, hidden_size, dropout=dropout),
+            node_model=GraphAwareNodeModel(hidden_size, hidden_size, graph_hidden_size, hidden_size, dropout=dropout),
             global_model=GlobalModel(node_representation_size=hidden_size, edge_representation_size=hidden_size, graph_feature_size=graph_hidden_size, graph_representation_size=graph_hidden_size)
         )
         self.meta_layer_3 = MetaLayer(
-            edge_model=EdgeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
-            node_model=NodeModel(hidden_size, hidden_size, hidden_size, dropout=dropout),
+            edge_model=GraphAwareEdgeModel(hidden_size, hidden_size, graph_hidden_size, hidden_size, dropout=dropout),
+            node_model=GraphAwareNodeModel(hidden_size, hidden_size, graph_hidden_size, hidden_size, dropout=dropout),
             global_model=GlobalModel(node_representation_size=hidden_size, edge_representation_size=hidden_size, graph_feature_size=graph_hidden_size, graph_representation_size=graph_hidden_size)
         )
     def forward(self, data, attr='x'):
