@@ -22,7 +22,7 @@ def train_model_graphnetwork(
 ):
     since = time.time()
     best_seen_model_weights = None  # as measured over the validation set
-    best_seen_running_validation_loss = np.inf
+    best_seen_validation_excluded = 0
 
     trainset, validset = datasets["train"], datasets["val"]
 
@@ -55,25 +55,15 @@ def train_model_graphnetwork(
             torch.save(model.state_dict(), savefile)
             print(f"Saved model checkpoint {savefile}")
 
-            running_loss = 0.
-            running_num_samples = 0
+            avg_excluded = evaluate_model(model, criterion, validset, save_folder)
+            print(f"===== [EPOCH {e:03d} / {epochs}] Val Pct Excluded: {avg_excluded:03.5f}")
 
-            for d in validset:
-                preds = model(d)
-                loss = criterion(preds, d.y)
-
-                running_loss += loss.item()
-                running_num_samples += 1
-
-            print(f"===== [EPOCH {e:03d} / {epochs}] Val loss: {(running_loss / running_num_samples):03.5f}")
-
-            val_loss = running_loss / running_num_samples
-            if val_loss < best_seen_running_validation_loss:
-                best_seen_running_validation_loss = copy.deepcopy(val_loss)
+            if avg_excluded > best_seen_validation_excluded:
+                best_seen_validation_excluded = avg_excluded
                 best_seen_model_weights = model.state_dict()
                 savefile = os.path.join(save_folder, "best.pt")
                 torch.save(best_seen_model_weights, savefile)
-                print(f"Found new best model with val loss {best_seen_running_validation_loss} at epoch {e}. Saved!")
+                print(f"Found new best model with avg excluded {avg_excluded} at epoch {e}. Saved!")
 
     time_elapsed = time.time() - since
     print(f"Training complete in {(time_elapsed // 60):.0f} m {(time_elapsed % 60):.0f} sec")
@@ -101,39 +91,54 @@ class StratifiedRandomSampler:
         else:
             return self.neg[np.random.choice(len(self.neg))]
 
-def evaluate_dataset(model, dataset):
-    logits = []
-    labels = []
+def evaluate_dataset(model, criterion, dataset):
+    logits = {}
+    labels = {}
+    losses = {}
     model.eval()
-    for d in tqdm(dataset):
-        logit = torch.sigmoid(model(d)).detach().numpy().item()
-        logits.append(logit)
-        labels.append(d.y.detach().numpy().item())
-        #if len(logits) == 100:
-            #break
-    logits = np.array(logits)
-    labels = np.array(labels)
-    return logits, labels
+    for problem_key, d in tqdm(dataset):
+        preds = model(d)
+        logit = torch.sigmoid(preds)
+        loss = criterion(preds, d.y)
+        losses.setdefault(problem_key, []).append(loss.detach().numpy().item())
+        logits.setdefault(problem_key, []).append(logit.detach().numpy().item())
+        labels.setdefault(problem_key, []).append(d.y.detach().numpy().item())
+    return logits, labels, losses
 
-def evaluate_model(model, dataset, save_path=None):
-    logits, labels = evaluate_dataset(model, dataset)
-    thresholds, precision, positive_recall, negative_recall = precision_recall(logits, labels)
+def evaluate_model(model, criterion, dataset, save_path=None):
+    problem_logits, problem_labels, problem_losses = evaluate_dataset(model, criterion, dataset)
+    problem_stats = {}
+    pct_excluded = []
+    per_problem_loss = []
+    for problem_key in problem_logits:
+        logits, labels, losses = problem_logits[problem_key], problem_labels[problem_key], problem_losses[problem_key]
+        thresholds, precision, positive_recall, negative_recall = precision_recall(logits, labels)
 
-    index_of_total_recall = int(np.where(positive_recall == 1.)[0][0])
-    accuracy_at_total_recall = float(accuracy(logits, labels, thresholds[index_of_total_recall]))
-    stats = dict(
-        thresholds=thresholds.tolist(),
-        precision=precision.tolist(),
-        positive_recall=positive_recall.tolist(),
-        negative_recall=negative_recall.tolist(),
-        index_of_total_recall=index_of_total_recall,
-        accuracy_at_total_recall=accuracy_at_total_recall,
-        logits=list(logits),
-        labels = list(labels),
-    )
-    generate_figures(stats, save_path)
+        index_of_total_recall = int(np.where(positive_recall == 1.)[0][0])
+        accuracy_at_total_recall = float(accuracy(logits, labels, thresholds[index_of_total_recall]))
+        stats = dict(
+            losses=losses,
+            thresholds=thresholds.tolist(),
+            precision=precision.tolist(),
+            positive_recall=positive_recall.tolist(),
+            negative_recall=negative_recall.tolist(),
+            index_of_total_recall=index_of_total_recall,
+            accuracy_at_total_recall=accuracy_at_total_recall,
+            logits=list(logits),
+            labels = list(labels),
+        )
+        per_problem_loss.append(np.mean(losses))
+        problem_stats[problem_key] = stats
+        pct_excluded.append(negative_recall[index_of_total_recall])
+
+    generate_figures(problem_stats, save_path)
     with open(os.path.join(save_path, 'stats.json'), 'w') as f:
-        json.dump(stats, f)
-    print(f"Total Recall Threshold: {thresholds[index_of_total_recall]:.2f}\nProportion of irrelevant facts excluded: {negative_recall[index_of_total_recall]:.2f}")
+        json.dump(problem_stats, f)
+    
+    overall_pct_excluded = np.mean(pct_excluded)
+    overall_loss = np.mean(per_problem_loss)
+    print(f"\Average Prop of irrelevant facts excluded: {overall_pct_excluded:.2f}")
+    print(f"\Average loss: {overall_loss:.2f}")
+    return overall_pct_excluded
 
     

@@ -708,6 +708,10 @@ class Dataset:
         
         return (self[(i,j)]['data'] for i,j in possible_inds)
 
+class EvaluationDataset(Dataset):
+    def __iter__(self):
+        possible_inds = [(problem_index,invocation_index) for problem_index, labels in enumerate (self.problem_labels) for invocation_index in range(len(labels))]
+        return ((problem_index, self[(problem_index,invocation_index)]['data']) for problem_index,invocation_index in possible_inds)
 
 class TrainingDataset(Dataset):
     def __init__(self, construct_input_fn, model_info_class, augment=False, stratify_prop=None, epoch_size=200, preprocess_all=True, clear_memory=True):
