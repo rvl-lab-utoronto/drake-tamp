@@ -26,6 +26,14 @@ def train_model_graphnetwork(
 
     trainset, validset = datasets["train"], datasets["val"]
 
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    criterion.to(device)
+    model.to(device)
+
     for e in range(epochs):
 
         running_loss = 0.
@@ -34,6 +42,9 @@ def train_model_graphnetwork(
         model.train()
 
         for i, d in enumerate(trainset):
+            d.to(device)
+            if d.problem_graph is not None:
+                d.problem_graph.to(device)
             preds = model(d)
             loss = criterion(preds, d.y)
 
@@ -55,7 +66,7 @@ def train_model_graphnetwork(
             torch.save(model.state_dict(), savefile)
             print(f"Saved model checkpoint {savefile}")
 
-            avg_excluded = evaluate_model(model, criterion, validset, save_folder)
+            avg_excluded = evaluate_model(model, criterion, validset, device, save_path = save_folder)
             print(f"===== [EPOCH {e:03d} / {epochs}] Val Pct Excluded: {avg_excluded:03.5f}")
 
             if avg_excluded > best_seen_validation_excluded:
@@ -91,22 +102,26 @@ class StratifiedRandomSampler:
         else:
             return self.neg[np.random.choice(len(self.neg))]
 
-def evaluate_dataset(model, criterion, dataset):
+def evaluate_dataset(model, criterion, dataset, device):
     logits = {}
     labels = {}
     losses = {}
     model.eval()
+    model.to(device)
     for problem_key, d in tqdm(dataset):
+        d.to(device)
+        if d.problem_graph is not None:
+            d.problem_graph.to(device)
         preds = model(d)
         logit = torch.sigmoid(preds)
         loss = criterion(preds, d.y)
-        losses.setdefault(problem_key, []).append(loss.detach().numpy().item())
-        logits.setdefault(problem_key, []).append(logit.detach().numpy().item())
-        labels.setdefault(problem_key, []).append(d.y.detach().numpy().item())
+        losses.setdefault(problem_key, []).append(loss.detach().cpu().numpy().item())
+        logits.setdefault(problem_key, []).append(logit.detach().cpu().numpy().item())
+        labels.setdefault(problem_key, []).append(d.y.detach().cpu().numpy().item())
     return logits, labels, losses
 
-def evaluate_model(model, criterion, dataset, save_path=None):
-    problem_logits, problem_labels, problem_losses = evaluate_dataset(model, criterion, dataset)
+def evaluate_model(model, criterion, dataset, device, save_path=None):
+    problem_logits, problem_labels, problem_losses = evaluate_dataset(model, criterion, dataset, device)
     problem_stats = {}
     pct_excluded = []
     per_problem_loss = []

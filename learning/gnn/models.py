@@ -254,14 +254,14 @@ class GraphAwareNodeModel(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, u, batch):
         src, dest = edge_index
-        out = torch.cat([x[src], edge_attr, u], dim = 1)
+        out = torch.cat([x[src], edge_attr, u.unsqueeze(0).repeat(edge_attr.shape[0], 1)], dim = 1)
         out= self.node_mlp_1(out)
         out = scatter_mean(out, dest, dim = 0, dim_size = x.size(0))
         return self.node_mlp_2(torch.cat([x, out], dim = 1))
 
 class GraphAwareEdgeModel(torch.nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, graph_feature_size, hidden_size, dropout=0.0):
-        super(EdgeModel, self).__init__()
+        super().__init__()
         self.edge_mlp = nn.Sequential(
             nn.Linear(2 * node_feature_size + edge_feature_size + graph_feature_size, hidden_size),
             nn.LeakyReLU(),
@@ -273,7 +273,7 @@ class GraphAwareEdgeModel(torch.nn.Module):
     def forward(self, src, dst, edge_attr, u, batch=None):
         # src, dst: [E, F_x], where E is num edges, F_x is node-feature dimensionality
         # edge_attr: [E, F_e], where E is num edges, F_e is edge-feature dimensionality
-        out = torch.cat([src, dst, edge_attr, u], dim=1)
+        out = torch.cat([src, dst, edge_attr, u.unsqueeze(0).repeat(src.shape[0], 1)], dim=1)
         return self.edge_mlp(out)
 
 

@@ -94,7 +94,7 @@ if __name__ == '__main__':
 
     if args.debug:
         train_files = train_files[:1]
-        val_files = val_files[:1]
+        val_files = train_files[:1]
 
     if not os.path.exists(args.model_home):
         os.makedirs(args.model_home, exist_ok=True)
