@@ -143,7 +143,6 @@ def construct_object_hypergraph(
         - stream (string)
         - actions it is precondition of (list[string])
         - actions it is poscondition of (list[string])
-        - level: the number of stream insantiations required to certify this fact (int)
 
     TODO(agro): level vs initial?
     TODO(agro): index of domain fact

@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import copy
 import json
+from tqdm import tqdm
 
 def train_model_graphnetwork(
     model,
@@ -104,12 +105,12 @@ def evaluate_dataset(model, dataset):
     logits = []
     labels = []
     model.eval()
-    for d in dataset:
+    for d in tqdm(dataset):
         logit = torch.sigmoid(model(d)).detach().numpy().item()
         logits.append(logit)
         labels.append(d.y.detach().numpy().item())
-        if len(logits) == 100:
-            break
+        #if len(logits) == 100:
+            #break
     logits = np.array(logits)
     labels = np.array(labels)
     return logits, labels
@@ -127,6 +128,8 @@ def evaluate_model(model, dataset, save_path=None):
         negative_recall=negative_recall.tolist(),
         index_of_total_recall=index_of_total_recall,
         accuracy_at_total_recall=accuracy_at_total_recall,
+        logits=list(logits),
+        labels = list(labels),
     )
     generate_figures(stats, save_path)
     with open(os.path.join(save_path, 'stats.json'), 'w') as f:
