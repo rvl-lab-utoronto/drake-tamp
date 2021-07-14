@@ -26,6 +26,10 @@ def precision_recall(logits, labels):
     return thresholds, precision, positive_recall, negative_recall
 
 def generate_figures(stats, save_path):
+    make_recall_plot(stats, save_path)
+    make_histogram_plot(stats, save_path)
+
+def make_recall_plot(stats, save_path):
     idx = stats['index_of_total_recall']
     irrelevant_recall = stats['negative_recall'][idx]
     plt.plot(stats['positive_recall'], stats['negative_recall'])
@@ -36,3 +40,46 @@ def generate_figures(stats, save_path):
         (stats['positive_recall'][idx], stats['negative_recall'][idx])
     )
     plt.savefig(os.path.join(save_path, 'recall.png'), dpi=300)
+    plt.clf()
+
+
+def make_histogram_plot(stats, save_path):
+    logits = stats["logits"]
+    labels = stats["labels"]
+
+    logits = np.array(logits)
+    labels = np.array(labels)
+
+    assert len(logits) == len(labels), "Logits and labels should be the same size!"
+
+    pos_logits = logits[np.where(labels == 1)]
+    total_recall_log = min(pos_logits)
+    neg_logits = logits[np.where(labels == 0)]
+    num_neg_inc = len(np.where(neg_logits >= total_recall_log))
+
+    # proportion of irrelevant facts included @ total recall
+    prop_neg_inc = 1 - num_neg_inc/len(neg_logits) 
+    # Proportion of included facts that are irrelevant
+    prop_irr= num_neg_inc/(num_neg_inc + len(pos_logits))
+
+    bins = np.linspace(0,1,100)
+
+    fig, ax = plt.subplots()
+
+    ax.hist(pos_logits, bins, alpha = 0.5, color = "b", label = "Relevant")
+    ax.hist(neg_logits, bins, alpha = 0.5, color = "r", label = "Irrelevant")
+    ax.axvline(total_recall_log, linestyle = "--", color = "k", label = f"Minimum Threshold For Total Recall")
+    ax.set_xlabel("Model Relevance Score (logits)")
+    ax.set_ylabel("Number")
+    ax.legend(prop = {"size": 7})
+    """
+    ax.annotate(
+        f"Proportion Irrelevant Excluded {prop_neg_inc:.3f}\nProportion of Included That Are Relevant {1 - prop_irr:.3f}",
+        (0.53,0.7),
+        fontsize = 7,
+        xycoords='figure fraction',
+        horizontalalignment='left', verticalalignment='top',
+    )
+    """
+    plt.savefig(os.path.join(save_path, "hist.png"), dpi = 300)
+    plt.close(fig)

@@ -13,31 +13,21 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "kitchen oracle",
+            "name": "run main.py test",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/experiments/kitchen_no_fluents/run.py",
+            "program": "${workspaceFolder}/learning/gnn/main.py",
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/",
-            "args": ["--mode", "oracle"],
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--datafile",
+                "learning/data/experiments/kitchen_diffclasses.json",
+                "--model-home", "model_files/kitchen_diffclasses",
+                "--model",
+                "hyper",
+                "--test-only",
+                "--from-best"
+            ],
         },
-        {
-            "name": "kitchen normal",
-            "type": "python",
-            "request": "launch",
-            "program": "run.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/",
-            "args": ["--mode", "normal"],
-        },
-        {
-            "name": "kitchen save",
-            "type": "python",
-            "request": "launch",
-            "program": "run.py",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/experiments/kitchen_no_fluents/",
-            "args": ["--mode", "save"],
-        }
     ]
 }
