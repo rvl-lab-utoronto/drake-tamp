@@ -77,6 +77,10 @@ def make_argument_parser():
         type=str,
         help="A path to a json file containing train and validation keys wich have a list of pkl paths as values."
     )
+    parser.add_argument(
+        '--debug',
+        action='store_true'
+    )
     return parser
 
 
@@ -87,6 +91,10 @@ if __name__ == '__main__':
         data = json.load(f)
     train_files = [os.path.join(base_datapath, d) for d in data['train']]
     val_files = [os.path.join(base_datapath, d) for d in data['validation']]
+
+    if args.debug:
+        train_files = train_files[:1]
+        val_files = val_files[:1]
 
     if not os.path.exists(args.model_home):
         os.makedirs(args.model_home, exist_ok=True)
