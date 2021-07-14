@@ -1,4 +1,5 @@
-FROM ubuntu:18.04
+#FROM ubuntu:18.04
+FROM nvidia/cuda:11.1.1-runtime-ubuntu18.04
 
 RUN apt-get -y update
 RUN apt-get -y install wget unzip 
@@ -47,6 +48,7 @@ RUN apt-get -y install trash-cli
 RUN apt-get -y install ffmpeg
 RUN apt-get -y install xdg-utils
 
+
 # pddlstream
 #RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream
 #RUN cd pddlstream && ./FastDownward/build.py release64
@@ -74,10 +76,12 @@ USER $user
 # other requirements
 COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
-RUN pip3 install torch
-RUN pip3 install torch-geometric
-RUN pip3 install torch-scatter
-RUN pip3 install torch-sparse
+RUN pip3 install torch==1.9.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://pytorch-geometric.com/whl/torch-1.9.0+cu111.html
+#RUN pip3 install torch
+#RUN pip3 install torch-geometric
+#RUN pip3 install torch-scatter
+#RUN pip3 install torch-sparse
 ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
 ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/
 
