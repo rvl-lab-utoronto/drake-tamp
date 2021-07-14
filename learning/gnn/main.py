@@ -52,12 +52,12 @@ def make_argument_parser():
     )
     parser.add_argument(
         "--lr",
-        default=0.001,
+        default=0.0001,
         type=float
     )
     parser.add_argument(
         "--gradient-batch-size",
-        default=10,
+        default=16,
         type=int
     )
     parser.add_argument(
