@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 from learning.data_models import StreamInstanceClassifierInfo
-from learning.gnn.data import construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, get_base_datapath, get_pddl_key, query_data
+from learning.gnn.data import EvaluationDataset, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, get_base_datapath, get_pddl_key, query_data
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
@@ -77,8 +77,8 @@ if __name__ == '__main__':
     base_datapath = get_base_datapath()
     with open(args.datafile, 'r') as f:
         data = json.load(f)
-    train_files = [os.path.join(base_datapath, d) for d in data['train']][:2]
-    val_files = [os.path.join(base_datapath, d) for d in data['validation']][:2]
+    train_files = [os.path.join(base_datapath, d) for d in data['train']]
+    val_files = [os.path.join(base_datapath, d) for d in data['validation']]
 
     if not os.path.exists(args.model_home):
         os.makedirs(args.model_home, exist_ok=True)
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     else:
         raise ValueError
 
-    valset = Dataset(
+    valset = EvaluationDataset(
         input_fn,
         model_info_class,
         preprocess_all=False,
@@ -113,9 +113,11 @@ if __name__ == '__main__':
     valset.prepare()
 
     model = model_fn(valset.model_info)
+    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=args.pos_weight*torch.ones([1]))
 
     if args.from_best:
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
+
 
     if not args.test_only:
         trainset = TrainingDataset(
@@ -129,7 +131,6 @@ if __name__ == '__main__':
         trainset.prepare()
 
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-        criterion = torch.nn.BCEWithLogitsLoss(pos_weight=args.pos_weight*torch.ones([1]))
         train_model_graphnetwork(
             model,
             dict(train=trainset, val=valset),
@@ -143,7 +144,7 @@ if __name__ == '__main__':
         # Load the best checkoibt for evaluation
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
  
-    evaluate_model(model, valset, save_path=args.model_home)
+    evaluate_model(model, criterion, valset, save_path=args.model_home)
 
 
 

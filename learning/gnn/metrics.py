@@ -12,8 +12,8 @@ def precision_recall(logits, labels):
     
     inds = np.argsort(logits)[::-1]
 
-    labels = labels.copy()[inds]
-    thresholds = logits.copy()[inds]
+    labels = np.array(labels)[inds]
+    thresholds = np.array(logits)[inds]
 
     true_positive_cumsum = np.cumsum(labels == 1)
     true_negative_cumsum = np.cumsum(labels == 0)
@@ -25,11 +25,12 @@ def precision_recall(logits, labels):
 
     return thresholds, precision, positive_recall, negative_recall
 
-def generate_figures(stats, save_path):
-    make_recall_plot(stats, save_path)
-    make_histogram_plot(stats, save_path)
+def generate_figures(problem_stats, save_path):
+    for problem_key, stats in problem_stats.items():
+        make_recall_plot(stats, save_path, prefix=str(problem_key))
+        make_histogram_plot(stats, save_path, prefix=str(problem_key))
 
-def make_recall_plot(stats, save_path):
+def make_recall_plot(stats, save_path, prefix=''):
     idx = stats['index_of_total_recall']
     irrelevant_recall = stats['negative_recall'][idx]
     plt.plot(stats['positive_recall'], stats['negative_recall'])
@@ -39,11 +40,11 @@ def make_recall_plot(stats, save_path):
         f"thresh={stats['thresholds'][idx]:.2f}\nacc={stats['accuracy_at_total_recall']:.2f}\nfiltered={irrelevant_recall:.2f}",
         (stats['positive_recall'][idx], stats['negative_recall'][idx])
     )
-    plt.savefig(os.path.join(save_path, 'recall.png'), dpi=300)
+    plt.savefig(os.path.join(save_path, prefix + 'recall.png'), dpi=300)
     plt.clf()
 
 
-def make_histogram_plot(stats, save_path):
+def make_histogram_plot(stats, save_path, prefix=''):
     logits = stats["logits"]
     labels = stats["labels"]
 
@@ -81,5 +82,5 @@ def make_histogram_plot(stats, save_path):
         horizontalalignment='left', verticalalignment='top',
     )
     """
-    plt.savefig(os.path.join(save_path, "hist.png"), dpi = 300)
+    plt.savefig(os.path.join(save_path, prefix + "hist.png"), dpi = 300)
     plt.close(fig)
