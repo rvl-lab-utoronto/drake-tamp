@@ -159,8 +159,11 @@ if __name__ == '__main__':
         )
         # Load the best checkoibt for evaluation
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
- 
-    evaluate_model(model, criterion, valset, save_path=args.model_home)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    evaluate_model(model, criterion, valset, device, save_path=args.model_home)
 
 
 

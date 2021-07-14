@@ -43,7 +43,7 @@ def train_model_graphnetwork(
 
         for i, d in enumerate(trainset):
             d.to(device)
-            if d.problem_graph is not None:
+            if hasattr(d, 'problem_graph'):
                 d.problem_graph.to(device)
             preds = model(d)
             loss = criterion(preds, d.y)
@@ -110,7 +110,7 @@ def evaluate_dataset(model, criterion, dataset, device):
     model.to(device)
     for problem_key, d in tqdm(dataset):
         d.to(device)
-        if d.problem_graph is not None:
+        if hasattr(d, 'problem_graph'):
             d.problem_graph.to(device)
         preds = model(d)
         logit = torch.sigmoid(preds)

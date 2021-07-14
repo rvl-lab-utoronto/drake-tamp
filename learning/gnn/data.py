@@ -702,7 +702,7 @@ class Dataset:
             invocation=self.problem_labels[i][j],
             data=self.datas[i][j],
         )
-        if self.clear_memory:
+        if not self.preprocess_all and self.clear_memory:
             self.datas[i][j] = None
         return result
 
@@ -786,7 +786,7 @@ class TrainingDataset(Dataset):
             data=self.datas[problem_index][invocation_index],
             possible_pairings=[(problem_index, k) for k in self.input_result_mappings[problem_index][invocation_index]]
         )
-        if self.clear_memory:
+        if not self.preprocess_all and self.clear_memory:
             self.datas[problem_index][invocation_index] = None
         return result
 
