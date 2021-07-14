@@ -664,14 +664,16 @@ if __name__ == "__main__":
 
     url = None #"tcp://127.0.0.1:6000"
 
-    max_cabbages = 3
-    max_raddishes = 3
-    max_glasses = 3
+    """
+    max_cabbages = 4
+    max_raddishes = 4
+    max_glasses = 4
 
 
     for num_c, num_r, num_g in itertools.product(
         range(max_cabbages + 1), range(max_raddishes + 1), range(max_glasses + 1)
     ):
+
         if num_c + num_r + num_g == 0:
             continue
 
@@ -684,8 +686,30 @@ if __name__ == "__main__":
                 buffer_radius=0.00,
                 url=url,
                 simulate=False,
-                max_time = 180
+                max_time = 360
             )
+    """
+
+    L = ["c", "r", "g"]
+
+    for num in range(3,5):
+        for comb in itertools.combinations_with_replacement(L, num):
+            for rep in range(4):
+                num_c = comb.count('c')
+                num_r = comb.count('r')
+                num_g = comb.count('g')
+                generate_data(
+                    num_cabbages=num_c,
+                    num_raddishes=num_r,
+                    num_glasses=num_g,
+                    num_goal = None,
+                    buffer_radius=0.00,
+                    url=url,
+                    simulate=False,
+                    max_time = 360
+                )
+
+
 
     """
     parser = setup_parser()

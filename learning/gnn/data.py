@@ -934,18 +934,18 @@ if __name__ == '__main__':
             kitchen = pddl
 
     if kitchen is not None:
-        print(f"Num pkls: {len(data[kitchen])}")
+        print(f"Num kitchen pkls: {len(data[kitchen])}")
         query = DifficultClasses.easy
-        easy = len(query_data(kitchen, query)[1])
+        easy = len(query_data(kitchen, query))
         print(f"Number of easy runs {easy}")
         query = DifficultClasses.medium
-        med = len(query_data(kitchen, query)[1])
+        med = len(query_data(kitchen, query))
         print(f"Number of medium runs {med}")
         query = DifficultClasses.hard
-        hard = len(query_data(kitchen, query)[1])
+        hard = len(query_data(kitchen, query))
         print(f"Number of hard runs {hard}")
         query = DifficultClasses.very_hard
-        very_hard = len(query_data(kitchen, query)[1])
+        very_hard = len(query_data(kitchen, query))
         print(f"Number of very hard runs {very_hard}")
 
         kitchen_data = data[kitchen]

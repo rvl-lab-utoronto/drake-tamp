@@ -22,6 +22,7 @@ echo "Using container name: $name"
 
 sudo docker run -it \
     -v /home/$USER/drake-tamp:/home/$USER/drake-tamp \
+    --gpus all \
     -p $port:22 \
     --name $name \
     drake-tamp-$USER \
