@@ -2,7 +2,7 @@ from learning.gnn.metrics import accuracy, generate_figures, precision_recall
 from learning.data_models import StreamInstanceClassifierInfo
 from learning.gnn.data import construct_input
 from learning.gnn.models import StreamInstanceClassifier
-from torch_geometric.data import DataLoader
+from torch_geometric.data import DataLoader, Batch
 import time
 import os
 import numpy as np
@@ -28,6 +28,8 @@ def train_model_graphnetwork(
 
     trainset, validset = datasets["train"], datasets["val"]
 
+    train_loader = DataLoader([d for d in trainset], batch_size = 10)
+
     if torch.cuda.is_available():
         device = torch.device("cuda")
     else:
@@ -43,12 +45,13 @@ def train_model_graphnetwork(
 
         model.train()
 
-        for i, d in enumerate(trainset):
+        for i, d in enumerate(train_loader):
             d.to(device)
             if d.problem_graph is not None:
-                d.problem_graph.to(device)
+                for pgraph in d.problem_graph:
+                    pgraph.to(device)
             preds = model(d)
-            loss = criterion(preds, d.y)
+            loss = criterion(preds.flatten(), d.y)
 
             running_loss += loss.item()
             running_num_samples += 1
@@ -111,12 +114,14 @@ def evaluate_dataset(model, criterion, dataset, device):
     model.eval()
     model.to(device)
     for problem_key, d in tqdm(dataset):
+        d = Batch().from_data_list([d])
         d.to(device)
         if d.problem_graph is not None:
-            d.problem_graph.to(device)
+            for pgraph in d.problem_graph:
+                pgraph.to(device)
         preds = model(d)
         logit = torch.sigmoid(preds)
-        loss = criterion(preds, d.y)
+        loss = criterion(preds.flatten(), d.y)
         losses.setdefault(problem_key, []).append(loss.detach().cpu().numpy().item())
         logits.setdefault(problem_key, []).append(logit.detach().cpu().numpy().item())
         labels.setdefault(problem_key, []).append(d.y.detach().cpu().numpy().item())
