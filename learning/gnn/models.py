@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+from torch.cuda import stream
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_scatter import scatter_mean
@@ -74,7 +76,31 @@ class HyperClassifier(nn.Module):
         x, edge_attr = self.graph_network(data, return_edge_attr = True)
         # candidate object embeddings, and candidate fact embeddings to mlp
         cand = data.candidate
-        assert cand[0] > 0, "Considering an initial condition"
+        assert all(
+            np.array([c[0] for c in cand]) > 0
+        ), "Considering an initial condition"
+
+        # group batch by stream type 
+        node_to_row = {} # maybe not needed?
+        mlp_to_input = {}
+        mlp_to_batch_inds = {}
+
+        for i, row in enumerate(data.candidate):
+            stream_ind = row[0] - 1
+            stream_num_inp = self.stream_num_inputs[stream_ind]
+            input_node_inds = row[1:1 + stream_num_inp]
+            dom_edge_inds = row[1+ stream_num_inp:]
+
+            mlp = self.mlps[stream_ind]
+            mlp_to_batch_inds.setdefault(mlp, []).append(i)
+            node_inp = x[torch.where(data.batch == i)][input_node_inds]
+            edge_inp = edge_attr[torch.where(data.batch == i)][input_node_inds]
+            if mlp in mlp_to_input:
+                mlp_to_input[mlp] = torch.cat((mlp_to_input[mlp], inp), dim = 0)
+            else:
+                mlp_to_input[mlp] = inp
+
+
         ind = cand[0] - 1
         stream_mlp = self.mlps[ind]
         stream_num_inp = self.stream_num_inputs[ind]

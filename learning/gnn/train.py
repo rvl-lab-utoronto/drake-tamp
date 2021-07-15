@@ -2,6 +2,7 @@ from learning.gnn.metrics import accuracy, generate_figures, precision_recall
 from learning.data_models import StreamInstanceClassifierInfo
 from learning.gnn.data import construct_input
 from learning.gnn.models import StreamInstanceClassifier
+from torch_geometric.data import DataLoader
 import time
 import os
 import numpy as np
@@ -15,6 +16,7 @@ def train_model_graphnetwork(
     datasets,
     criterion,
     optimizer,
+    batch_size = 4,
     step_every=10,
     save_every=100,
     save_folder="/tmp",
