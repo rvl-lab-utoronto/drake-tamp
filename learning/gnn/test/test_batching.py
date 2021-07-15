@@ -9,13 +9,15 @@ import torch
 from torch_geometric.data import Batch, DataLoader
 # %%
 
-
+use_problem_graph = True
 train_files = ["/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-14-02:11:35.009.pkl"]
 input_fn = partial(construct_hypermodel_input, reduced = False)
+if use_problem_graph:
+    input_fn = construct_with_problem_graph(input_fn)
 model_info_class = HyperModelInfo
 model_fn = lambda model_info: HyperClassifier(
     model_info,
-    with_problem_graph=False
+    with_problem_graph=use_problem_graph
 )
 trainset = TrainingDataset(
     input_fn,

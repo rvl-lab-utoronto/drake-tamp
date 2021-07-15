@@ -7,6 +7,7 @@ from torch_scatter import scatter_mean
 from torch_geometric.nn import MetaLayer
 from torch_geometric.nn import GCNConv
 from torch.nn.utils.rnn import pad_sequence
+from torch_geometric.data import Batch
 
 class HyperClassifier(nn.Module):
     """
@@ -74,31 +75,55 @@ class HyperClassifier(nn.Module):
     def forward(self, data, score = False):
         # first get node and edge embeddings from GNN
         x, edge_attr = self.graph_network(data, return_edge_attr = True)
+        if self.with_problem_graph:
+            prob_batch = Batch().from_data_list(data.problem_graph)
+            prob_rep = self.problem_graph_network(prob_batch)
         # candidate object embeddings, and candidate fact embeddings to mlp
-        cand = data.candidate
-        assert all(
-            np.array([c[0] for c in cand]) > 0
-        ), "Considering an initial condition"
 
         # group batch by stream type 
         node_to_row = {} # maybe not needed?
         mlp_to_input = {}
         mlp_to_batch_inds = {}
 
+        running_num_nodes = 0
         for i, row in enumerate(data.candidate):
+            assert row[0] > 0, "Considering an initial condition"
             stream_ind = row[0] - 1
             stream_num_inp = self.stream_num_inputs[stream_ind]
             input_node_inds = row[1:1 + stream_num_inp]
             dom_edge_inds = row[1+ stream_num_inp:]
 
             mlp = self.mlps[stream_ind]
-            mlp_to_batch_inds.setdefault(mlp, []).append(i)
-            node_inp = x[torch.where(data.batch == i)][input_node_inds]
-            edge_inp = edge_attr[torch.where(data.batch == i)][input_node_inds]
+            subgraph_node_inds = torch.where(data.batch == i)
+            num_nodes = len(subgraph_node_inds[0])
+            node_inp = x[subgraph_node_inds][input_node_inds]
+            edge_inp = edge_attr[
+                torch.where(
+                    (data.edge_index >= running_num_nodes) &
+                    (data.edge_index < running_num_nodes + num_nodes)
+                )[0]
+            ][dom_edge_inds]
+            running_num_nodes += num_nodes
+            inp = torch.cat(
+                (prob_rep[i].unsqueeze(0), node_inp.reshape(1, -1), edge_inp.reshape(1, -1)), dim = 1
+            )
             if mlp in mlp_to_input:
                 mlp_to_input[mlp] = torch.cat((mlp_to_input[mlp], inp), dim = 0)
+                mlp_to_batch_inds[mlp] = torch.cat(
+                    (mlp_to_batch_inds[mlp], torch.tensor([i]))
+                )
             else:
                 mlp_to_input[mlp] = inp
+                mlp_to_batch_inds[mlp] = torch.tensor([i])
+
+        out = torch.zeros((len(data.candidate), 1))
+        for mlp, inp in mlp_to_input.items():
+            mlpout = mlp(inp)
+            batch_inds = mlp_to_batch_inds[mlp]
+            out[batch_inds] = mlpout
+
+        return out
+            
 
 
         ind = cand[0] - 1
@@ -255,35 +280,36 @@ class GlobalModel(torch.nn.Module):
         # u: [B, F_u]
         # batch: [N] with max entry B - 1.
         if u is not None:
-            out = torch.cat([u, torch.mean(x, dim=0)], dim=0)
+            out = torch.cat([u, scatter_mean(x, batch, dim=0)], dim=1)
         else:
-            out = torch.mean(x, dim=0)
+            out = scatter_mean(x, batch, dim=0)
         return self.global_mlp(out)
 
 class GraphAwareNodeModel(torch.nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, graph_feature_size, output_size, dropout = 0.0):
         super().__init__()
         self.node_mlp_1 = nn.Sequential(
-            nn.Linear(node_feature_size + edge_feature_size + graph_feature_size, output_size),
+            nn.Linear(node_feature_size + edge_feature_size, output_size),
             nn.LeakyReLU(),
             nn.LayerNorm(output_size),
             nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
             nn.Linear(output_size, output_size),
         )
         self.node_mlp_2 = nn.Sequential(
-            nn.Linear(node_feature_size + output_size, output_size),
+            nn.Linear(node_feature_size + output_size + graph_feature_size, output_size),
             nn.LeakyReLU(),
             nn.LayerNorm(output_size),
             nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
             nn.Linear(output_size, output_size),
         )
 
-    def forward(self, x, edge_index, edge_attr, u, batch):
-        src, dest = edge_index
-        out = torch.cat([x[src], edge_attr, u.unsqueeze(0).repeat(edge_attr.shape[0], 1)], dim = 1)
-        out= self.node_mlp_1(out)
-        out = scatter_mean(out, dest, dim = 0, dim_size = x.size(0))
-        return self.node_mlp_2(torch.cat([x, out], dim = 1))
+    def forward(self, x, edge_index, edge_attr, u, batch = None):
+        row, col = edge_index
+        out = torch.cat([x[row], edge_attr], dim=1)
+        out = self.node_mlp_1(out)
+        out = scatter_mean(out, col, dim=0, dim_size=x.size(0))
+        out = torch.cat([x, out, u[batch]], dim=1)
+        return self.node_mlp_2(out)
 
 class GraphAwareEdgeModel(torch.nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, graph_feature_size, hidden_size, dropout=0.0):
@@ -299,7 +325,16 @@ class GraphAwareEdgeModel(torch.nn.Module):
     def forward(self, src, dst, edge_attr, u, batch=None):
         # src, dst: [E, F_x], where E is num edges, F_x is node-feature dimensionality
         # edge_attr: [E, F_e], where E is num edges, F_e is edge-feature dimensionality
-        out = torch.cat([src, dst, edge_attr, u.unsqueeze(0).repeat(src.shape[0], 1)], dim=1)
+        if batch is None:
+            out = torch.cat(
+                [src, dst, edge_attr, u.unsqueeze(0).repeat(src.shape[0], 1)],
+                dim=1
+            )
+        else:
+            out = torch.cat(
+                [src, dst, edge_attr, u[batch]],
+                dim=1
+            )
         return self.edge_mlp(out)
 
 
@@ -323,9 +358,9 @@ class ProblemGraphNetwork(nn.Module):
         )
     def forward(self, data, attr='x'):
         x, edge_idx, edge_attr = getattr(data, attr), data.edge_index, data.edge_attr
-        x, edge_attr, u = self.meta_layer_1(x, edge_idx, edge_attr, u=None)
-        x, edge_attr, u = self.meta_layer_2(x, edge_idx, edge_attr, u=u)
-        x, edge_attr, u = self.meta_layer_3(x, edge_idx, edge_attr, u=u)
+        x, edge_attr, u = self.meta_layer_1(x, edge_idx, edge_attr, u=None, batch = data.batch)
+        x, edge_attr, u = self.meta_layer_2(x, edge_idx, edge_attr, u=u, batch = data.batch)
+        x, edge_attr, u = self.meta_layer_3(x, edge_idx, edge_attr, u=u, batch = data.batch)
         return u
 
 class SimpleGCN(nn.Module):
