@@ -33,7 +33,7 @@ np.random.shuffle(valid)
 # %%
 with open('learning/data/experiments/kitchen_diffclasses.json', 'w') as f:
     json.dump(dict(
-        train=train[:80],
+        train=train[:65],
         validation=valid[:20],
         experiment_description="Prelim testing with kitchen dataset using time-based difficulty classes. Validation has a slightly higher proportion of hard runs. This time, we have what we need for a problem graph model which encodes scene graph and goal."
     ), f, indent=4, sort_keys=True)
