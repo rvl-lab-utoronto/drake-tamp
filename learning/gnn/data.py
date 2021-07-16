@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 import torch
 import matplotlib
+from torch.utils.data.sampler import Sampler
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from learning.data_models import (HyperModelInfo, InvocationInfo, ModelInfo,
@@ -116,11 +117,26 @@ def get_initial_objects(label: InvocationInfo):
 
 
 
+def obj_level(obj, label):
+    if obj not in label.object_stream_map:
+        return 0
+    else:
+        return 1 + max(
+            [obj_level(o, label) for o in label.object_stream_map[obj]["input_objects"]]
+        )
+
+def fact_level(fact, label):
+    if len(label.atom_map[fact]) == 0:
+        return 0
+    else:
+        return 1 + max([fact_level(d, label) for d in label.atom_map[fact]])
+
+
 def construct_object_hypergraph(
     label: InvocationInfo,
     problem_info: ProblemInfo,
     model_info: ModelInfo,
-    reduced: bool = False
+    reduced: bool = True
 ):
     """
     Construct an object hypergraph where nodes are pddl objects and edges are
@@ -147,20 +163,6 @@ def construct_object_hypergraph(
     TODO(agro): level vs initial?
     TODO(agro): index of domain fact
     """
-
-    def obj_level(obj):
-        if obj not in label.object_stream_map:
-            return 0
-        else:
-            return 1 + max(
-                [obj_level(o) for o in label.object_stream_map[obj]["input_objects"]]
-            )
-
-    def fact_level(fact):
-        if len(label.atom_map[fact]) == 0:
-            return 0
-        else:
-            return 1 + max([fact_level(d) for d in label.atom_map[fact]])
 
     goal_facts = problem_info.goal_facts
     nodes, edges = [], []
@@ -189,7 +191,7 @@ def construct_object_hypergraph(
                 {
                     "overlap_with_goal": o in goal_objects,
                     "stream": label.object_stream_map.get(o, None),
-                    "level": obj_level(o)
+                    "level": obj_level(o, label)
                 }
             )
         
@@ -200,7 +202,7 @@ def construct_object_hypergraph(
                 {
                     "predicate": fact[0],
                     "overlap_with_goal": fact_objects.intersection(goal_objects),
-                    "level": obj_level(fact),
+                    "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
                     "relevant_actions": fact_to_relevant_actions(
                         fact, model_info.domain, indices = False
@@ -215,7 +217,7 @@ def construct_object_hypergraph(
                 attr = {
                     "predicate": fact[0],
                     "overlap_with_goal": fact_objects.intersection(goal_objects),
-                    "level": obj_level(fact),
+                    "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
                     "relevant_actions": fact_to_relevant_actions(
                         fact, model_info.domain, indices = False
@@ -307,11 +309,10 @@ def construct_hypermodel_input(
     fact_to_edge_ind = {}
     for i, attr in enumerate(edge_attr):
         fact_to_edge_ind.setdefault(attr['full_fact'], []).append(i)
-    candidate_fn = lambda result: (model_info.stream_to_index[result.name], ) \
-        + tuple([nodes.index(p) for p in result.input_objects]) \
-        + tuple([i for dom_fact in result.domain for i in fact_to_edge_ind[dom_fact]])
 
-    candidate = candidate_fn(label.result)
+    candidate = (model_info.stream_to_index[label.result.name], ) \
+        + tuple([nodes.index(p) for p in label.result.input_objects]) \
+        + tuple([i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]])
 
     # indices of domain facts of latest stream result
     node_features = torch.zeros(
@@ -358,7 +359,6 @@ def construct_hypermodel_input(
         edge_attr=edge_features,
         edge_index=edge_index,
         candidate=candidate,
-        candidate_fn=candidate_fn
     )
 
 def construct_problem_graph(problem_info: ProblemInfo):
@@ -634,7 +634,7 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
 class Dataset:
 
-    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None, clear_memory=True):
+    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None, clear_memory=True, device='cpu'):
         self.construct_input_fn = construct_input_fn
         self.model_info_class = model_info_class
         self.problem_labels = [] 
@@ -645,6 +645,7 @@ class Dataset:
         self.preprocess_all = preprocess_all
         self.max_per_run = max_per_run
         self.clear_memory = clear_memory
+        self.device = device
 
     def load_pkl(self, file_path):
         with open(file_path, 'rb') as f:
@@ -691,7 +692,7 @@ class Dataset:
         self.construct_datas()
         print(f'Prepared {self.num_examples} examples.')
     
-    def __getitem__(self, index):
+    def get_dict(self, index):
         if not (isinstance(index, tuple) and len(index) == 2):
             raise IndexError
         i, j = index
@@ -705,55 +706,38 @@ class Dataset:
         if self.clear_memory:
             self.datas[i][j] = None
         return result
-
+    
+    def __getitem__(self, index):
+        data = self.get_dict(index)['data']
+        data.problem_index = [index[0]] # This list crazyness is to prevent torch geometric from batching
+        data.to(self.device)
+        if hasattr(data, 'problem_graph'):
+            data.problem_graph.to(self.device)
+        return data
     
     def __len__(self):
         return self.num_examples
 
-    def __iter__(self):
-        possible_inds = [(i,j) for i, labels in enumerate (self.problem_labels) for j in range(len(labels))]
-        if self.max_per_run is not None:
-            chosen_inds = np.random.choice(len(possible_inds), size=self.max_per_run)
-            possible_inds = [possible_inds[i] for i in chosen_inds]
-        
-        return (self[(i,j)]['data'] for i,j in possible_inds)
+class EvaluationDatasetSampler(Sampler):
+    def __init__(self, dataset):
+        self.dataset = dataset
 
-class EvaluationDataset(Dataset):
     def __iter__(self):
-        possible_inds = [(problem_index,invocation_index) for problem_index, labels in enumerate (self.problem_labels) for invocation_index in range(len(labels))]
-        return ((problem_index, self[(problem_index,invocation_index)]['data']) for problem_index,invocation_index in possible_inds)
+        return (
+            (problem_index,invocation_index) \
+                for problem_index, labels in enumerate (self.dataset.problem_labels) \
+                    for invocation_index in range(len(labels))
+        )
 
+    def __len__(self):
+        return len(self.dataset)
 
 class TrainingDataset(Dataset):
-    def __init__(self, construct_input_fn, model_info_class, augment=False, stratify_prop=None, epoch_size=200, preprocess_all=True, clear_memory=True):
-        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all, clear_memory=clear_memory)
+    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, clear_memory=True, device='cpu'):
+        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all, clear_memory=clear_memory, device=device)
         self.problem_labels_partitions = []
-        self.input_result_mappings = []
-        self.augment = augment
-        self.epoch_size = epoch_size
-        self.stratify_prop=stratify_prop
-    
-    def construct_input_result_map(self):
-        self.input_result_mappings = []
-        for labels in self.problem_labels:
-            self.input_result_mappings.append(self.compute_possible_pairings(labels))
-    
-    def compute_possible_pairings(self, invocations):
-        possible_pairs = {i:[i] for i in range(len(invocations))}
-
-        if not self.augment:
-            return possible_pairs
-
-        for i, j in itertools.permutations(range(len(invocations)), 2):
-            invocation1 = invocations[i]
-            invocation2 = invocations[j]
-            if invocation1.result == invocation2.result:
-                continue
-            # the atom map of invocation1 could support addition of result from invocation2
-            if all(fact not in invocation1.atom_map for fact in invocation2.result.certified) \
-                and all(fact in invocation1.atom_map for fact in invocation2.result.domain):
-                    possible_pairs[j].append(i)
-        return possible_pairs
+        self.pos = []
+        self.neg = []
     
     def construct_label_partition_map(self):
         self.problem_labels_partitions = []
@@ -765,8 +749,6 @@ class TrainingDataset(Dataset):
                     partitions[0].append(i)
                 else:
                     partitions[1].append(i)
-
-    def construct_global_index(self):
         all_pos = []
         all_neg = []
         for i, (neg, pos) in enumerate(self.problem_labels_partitions):
@@ -775,49 +757,30 @@ class TrainingDataset(Dataset):
         self.pos = all_pos
         self.neg = all_neg
 
-    def __getitem__(self, index):
-        if not (isinstance(index, tuple) and len(index) == 2):
-            raise IndexError
-        problem_index, invocation_index = index
-        if not self.preprocess_all and self.datas[problem_index][invocation_index] is None:
-            self.datas[problem_index][invocation_index] = self.construct_datum(self.problem_labels[problem_index][invocation_index], self.problem_infos[problem_index])
-        result = dict(
-            problem_info=self.problem_infos[problem_index],
-            invocation=self.problem_labels[problem_index][invocation_index],
-            data=self.datas[problem_index][invocation_index],
-            possible_pairings=[(problem_index, k) for k in self.input_result_mappings[problem_index][invocation_index]]
-        )
-        if self.clear_memory:
-            self.datas[problem_index][invocation_index] = None
-        return result
-
-
     def prepare(self):
-        self.construct_input_result_map()
         self.construct_label_partition_map()
-        self.construct_global_index()
         self.construct_datas()
 
-    def combine_pair(self, graph_data, result_data, invocation):
-        # use the graph from data1 and result from data2
-        data = copy(graph_data)
-        data.candidate = graph_data.candidate_fn(invocation.result)
-        data.y = result_data.y
-        return data
+class TrainingDatasetSampler(Sampler):
+    def __init__(self, dataset, epoch_size=200, stratify_prop = None):
+        self.dataset = dataset
+        self.i = None
+        self.stratify_prop = stratify_prop
+        self.global_index = None
+        self.epoch_size = epoch_size
 
+    def initialize_random_order(self):
+        self.global_index = self.dataset.pos + self.dataset.neg
+        np.random.shuffle(self.global_index)
 
     def select_example(self):
         if self.stratify_prop is None:
             return self.global_index[self.i]
 
         if np.random.random() < self.stratify_prop:
-            return self.pos[np.random.choice(len(self.pos))]
+            return self.dataset.pos[np.random.choice(len(self.dataset.pos))]
         else:
-            return self.neg[np.random.choice(len(self.neg))]
-
-    def initialize_random_order(self):
-        self.global_index = self.pos + self.neg
-        np.random.shuffle(self.global_index)
+            return self.dataset.neg[np.random.choice(len(self.dataset.neg))]
 
     def __iter__(self):
         if self.stratify_prop is None:
@@ -825,27 +788,15 @@ class TrainingDataset(Dataset):
         self.i = 0
         return self
 
-    def __len__(self):
-        return self.epoch_size
-
     def __next__(self):
-        if self.i >= min(self.epoch_size, self.num_examples):
+        if self.i >= min(self.epoch_size, len(self.dataset)):
             raise StopIteration
         example_idx = self.select_example()
         self.i += 1
+        return example_idx
 
-        result_example = self[example_idx]
-        pairings = result_example['possible_pairings']
-        idx = pairings[np.random.choice(len(pairings))]
-        if not self.augment or idx == example_idx:
-            return result_example['data']
-        graph_example = self[idx]
-        d = self.combine_pair(
-            graph_data=graph_example['data'],
-            result_data=result_example['data'],
-            invocation=result_example['invocation']
-        )
-        return d
+    def __len__(self):
+        return self.epoch_size
 
 @dataclass
 class DifficultClasses:
