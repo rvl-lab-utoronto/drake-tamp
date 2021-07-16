@@ -2,8 +2,10 @@
 import argparse
 import json
 import os
+
+from torch_geometric.data.dataloader import DataLoader
 from learning.data_models import StreamInstanceClassifierInfo
-from learning.gnn.data import EvaluationDataset, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
+from learning.gnn.data import EvaluationDatasetSampler, TrainingDatasetSampler, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
@@ -119,17 +121,31 @@ if __name__ == '__main__':
     else:
         raise ValueError
 
-    valset = EvaluationDataset(
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+
+    valset = Dataset(
         input_fn,
         model_info_class,
         preprocess_all=False,
-        max_per_run=200
+        max_per_run=200,
+        device=device
     )
     valset.from_pkl_files(*val_files)
     valset.prepare()
+    val_sampler = EvaluationDatasetSampler(valset)
+    val_loader = DataLoader(valset, sampler=val_sampler, batch_size=4, num_workers=2)
 
     model = model_fn(valset.model_info)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=args.pos_weight*torch.ones([1]))
+
+
+    criterion.to(device)
+    model.to(device)
 
     if args.from_best:
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
@@ -139,17 +155,17 @@ if __name__ == '__main__':
         trainset = TrainingDataset(
             input_fn,
             model_info_class,
-            augment=args.augment_data,
-            stratify_prop=args.stratify_train_prop,
-            preprocess_all=False
+            preprocess_all=False,
+            device=device
         )
         trainset.from_pkl_files(*train_files)
         trainset.prepare()
-
+        train_sampler = TrainingDatasetSampler(trainset, epoch_size=200, stratify_prop=None)
+        train_loader = DataLoader(trainset, sampler=train_sampler, batch_size=4, num_workers=2)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train_model_graphnetwork(
             model,
-            dict(train=trainset, val=valset),
+            dict(train=train_loader, val=val_loader),
             criterion=criterion,
             optimizer=optimizer,
             step_every=args.gradient_batch_size,
@@ -160,7 +176,7 @@ if __name__ == '__main__':
         # Load the best checkoibt for evaluation
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
  
-    evaluate_model(model, criterion, valset, save_path=args.model_home)
+    evaluate_model(model, criterion, val_loader, save_path=args.model_home)
 
 
 
