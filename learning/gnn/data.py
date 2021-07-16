@@ -634,7 +634,7 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
 class Dataset:
 
-    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None, clear_memory=True, device='cpu'):
+    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None, clear_memory=True):
         self.construct_input_fn = construct_input_fn
         self.model_info_class = model_info_class
         self.problem_labels = [] 
@@ -645,7 +645,6 @@ class Dataset:
         self.preprocess_all = preprocess_all
         self.max_per_run = max_per_run
         self.clear_memory = clear_memory
-        self.device = device
 
     def load_pkl(self, file_path):
         with open(file_path, 'rb') as f:
@@ -710,9 +709,6 @@ class Dataset:
     def __getitem__(self, index):
         data = self.get_dict(index)['data']
         data.problem_index = [index[0]] # This list crazyness is to prevent torch geometric from batching
-        data.to(self.device)
-        if hasattr(data, 'problem_graph'):
-            data.problem_graph.to(self.device)
         return data
     
     def __len__(self):
@@ -733,8 +729,8 @@ class EvaluationDatasetSampler(Sampler):
         return len(self.dataset)
 
 class TrainingDataset(Dataset):
-    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, clear_memory=True, device='cpu'):
-        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all, clear_memory=clear_memory, device=device)
+    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, clear_memory=True):
+        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all, clear_memory=clear_memory)
         self.problem_labels_partitions = []
         self.pos = []
         self.neg = []
@@ -797,6 +793,23 @@ class TrainingDatasetSampler(Sampler):
 
     def __len__(self):
         return self.epoch_size
+
+class DeviceAwareLoaderWrapper:
+    def __init__(self, dataloader, device):
+        self.dataloader = dataloader
+        self.device = device
+    def __iter__(self):
+        self.iterator = iter(self.dataloader)
+        return self
+    def __next__(self):
+        data = next(self.iterator)
+        data.to(self.device)
+        if hasattr(data, 'problem_graph'):
+            for problem in data.problem_graph:
+                problem.to(self.device)
+        return data
+    def __len__(self):
+        return len(self.dataloader)
 
 @dataclass
 class DifficultClasses:

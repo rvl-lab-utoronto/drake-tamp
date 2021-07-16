@@ -5,7 +5,7 @@ import os
 
 from torch_geometric.data.dataloader import DataLoader
 from learning.data_models import StreamInstanceClassifierInfo
-from learning.gnn.data import EvaluationDatasetSampler, TrainingDatasetSampler, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
+from learning.gnn.data import DeviceAwareLoaderWrapper, EvaluationDatasetSampler, TrainingDatasetSampler, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
@@ -54,22 +54,22 @@ def make_argument_parser():
     )
     parser.add_argument(
         "--lr",
-        default=0.001,
+        default=0.01,
         type=float
     )
     parser.add_argument(
         "--gradient-batch-size",
-        default=10,
+        default=1,
         type=int
     )
     parser.add_argument(
         "--batch-size",
-        default=1,
+        default=128,
         type=int
     )
     parser.add_argument(
         "--num-preprocessors",
-        default=1,
+        default=8,
         type=int
     )
     parser.add_argument(
@@ -143,7 +143,6 @@ if __name__ == '__main__':
         model_info_class,
         preprocess_all=False,
         max_per_run=200,
-        device=device
     )
     valset.from_pkl_files(*val_files)
     valset.prepare()
@@ -160,13 +159,11 @@ if __name__ == '__main__':
     if args.from_best:
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
 
-
     if not args.test_only:
         trainset = TrainingDataset(
             input_fn,
             model_info_class,
             preprocess_all=False,
-            device=device
         )
         trainset.from_pkl_files(*train_files)
         trainset.prepare()
@@ -175,7 +172,10 @@ if __name__ == '__main__':
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train_model_graphnetwork(
             model,
-            dict(train=train_loader, val=val_loader),
+            dict(
+                train=DeviceAwareLoaderWrapper(train_loader, device),
+                val=DeviceAwareLoaderWrapper(val_loader, device)
+            ),
             criterion=criterion,
             optimizer=optimizer,
             step_every=args.gradient_batch_size,
