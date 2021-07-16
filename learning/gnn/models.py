@@ -86,12 +86,12 @@ class HyperClassifier(nn.Module):
         mlp_to_batch_inds = {}
 
         running_num_nodes = 0
-        for i, row in enumerate(data.candidate):
-            assert row[0] > 0, "Considering an initial condition"
-            stream_ind = row[0] - 1
+        for i, cand in enumerate(data.candidate):
+            assert cand[0] > 0, "Considering an initial condition"
+            stream_ind = cand[0] - 1
             stream_num_inp = self.stream_num_inputs[stream_ind]
-            input_node_inds = row[1:1 + stream_num_inp]
-            dom_edge_inds = row[1+ stream_num_inp:]
+            input_node_inds = cand[1:1 + stream_num_inp]
+            dom_edge_inds = cand[1+ stream_num_inp:]
 
             mlp = self.mlps[stream_ind]
             subgraph_node_inds = torch.where(data.batch == i)
@@ -99,9 +99,9 @@ class HyperClassifier(nn.Module):
             node_inp = x[subgraph_node_inds][input_node_inds]
             edge_inp = edge_attr[
                 torch.where(
-                    (data.edge_index >= running_num_nodes) &
-                    (data.edge_index < running_num_nodes + num_nodes)
-                )[0]
+                    (data.edge_index[0] >= running_num_nodes) &
+                    (data.edge_index[0] < running_num_nodes + num_nodes)
+                )
             ][dom_edge_inds]
             running_num_nodes += num_nodes
             inp = torch.cat(
@@ -121,6 +121,9 @@ class HyperClassifier(nn.Module):
             mlpout = mlp(inp)
             batch_inds = mlp_to_batch_inds[mlp]
             out[batch_inds] = mlpout
+
+        if score:
+            return torch.sigmoid(out)
 
         return out
             
@@ -281,8 +284,8 @@ class GraphAwareNodeModel(torch.nn.Module):
         )
 
     def forward(self, x, edge_index, edge_attr, u, batch = None):
-        row, col = edge_index
-        out = torch.cat([x[row], edge_attr], dim=1)
+        cand, col = edge_index
+        out = torch.cat([x[cand], edge_attr], dim=1)
         out = self.node_mlp_1(out)
         out = scatter_mean(out, col, dim=0, dim_size=x.size(0))
         out = torch.cat([x, out, u[batch]], dim=1)
