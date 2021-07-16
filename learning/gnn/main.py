@@ -54,7 +54,7 @@ def make_argument_parser():
     )
     parser.add_argument(
         "--lr",
-        default=0.01,
+        default=0.0001,
         type=float
     )
     parser.add_argument(

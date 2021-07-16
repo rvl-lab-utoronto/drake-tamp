@@ -159,6 +159,8 @@ def construct_object_hypergraph(
         - stream (string)
         - actions it is precondition of (list[string])
         - actions it is poscondition of (list[string])
+        - the one hot encoding of the source object argument index
+        - the one hot encoding of the destination object argument index
 
     TODO(agro): level vs initial?
     TODO(agro): index of domain fact
@@ -207,13 +209,14 @@ def construct_object_hypergraph(
                     "relevant_actions": fact_to_relevant_actions(
                         fact, model_info.domain, indices = False
                     ),
-                    "full_fact": fact # not used as an attribute, but for indexing
+                    "full_fact": fact, # not used as an attribute, but for indexing
+                    "src_obj_arg_ind": 0,
+                    "dest_obj_arg_ind": 0,
                 }
             )
         else:
-            for (o1,o2) in itertools.combinations(fact_objects, 2):
+            for (o1,o2) in itertools.permutations(fact_objects, 2):
                 edges.append((node_to_ind[o1], node_to_ind[o2]))
-                edges.append((node_to_ind[o2], node_to_ind[o1]))
                 attr = {
                     "predicate": fact[0],
                     "overlap_with_goal": fact_objects.intersection(goal_objects),
@@ -222,9 +225,10 @@ def construct_object_hypergraph(
                     "relevant_actions": fact_to_relevant_actions(
                         fact, model_info.domain, indices = False
                     ),
-                    "full_fact": fact # not used as an attribute, but for indexing
+                    "full_fact": fact, # not used as an attribute, but for indexing
+                    "src_obj_arg_ind": fact.index(o1) - 1,
+                    "dest_obj_arg_ind": fact.index(o2) - 1,
                 }
-                edge_attr.append(attr)
                 edge_attr.append(attr)
     return nodes, node_attr, edges, edge_attr
 
@@ -350,6 +354,10 @@ def construct_hypermodel_input(
         edge_features[i, ind] = attr['level']
         # overlap_with_goal
         edge_features[i, ind + 1] = len(attr["overlap_with_goal"])
+        ind += 2
+        edge_features[i, ind + attr["src_obj_arg_ind"]] = 1
+        ind += model_info.max_predicate_num_args
+        edge_features[i, ind + attr["dest_obj_arg_ind"]] = 1
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
@@ -702,7 +710,7 @@ class Dataset:
             invocation=self.problem_labels[i][j],
             data=self.datas[i][j],
         )
-        if self.clear_memory:
+        if not self.preprocess_all and self.clear_memory:
             self.datas[i][j] = None
         return result
     

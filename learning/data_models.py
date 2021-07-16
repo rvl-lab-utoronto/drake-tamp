@@ -44,6 +44,15 @@ class ModelInfo:
     def num_actions(self):
         return len(self.domain.actions)
 
+    @property
+    def predicate_num_args(self):
+        """Returns a list of the lengths of the predicate arguments"""
+        return [len(predicate.arguments) for predicate in self.domain.predicates]
+
+    @property
+    def max_predicate_num_args(self):
+        return max(self.predicate_num_args)
+
 class StreamInstanceClassifierInfo(ModelInfo):
 
     @property
@@ -62,7 +71,7 @@ class HyperModelInfo(ModelInfo):
 
     @property
     def edge_feature_size(self):
-        return self.num_predicates + self.num_actions * 2 + self.num_streams + 2
+        return self.num_predicates + self.num_actions * 2 + self.num_streams + 2  + 2 * self.max_predicate_num_args
     
     @property
     def problem_graph_node_feature_size(self):
