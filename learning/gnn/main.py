@@ -43,10 +43,10 @@ def make_argument_parser():
         type=float,
         default=3.
     )
-    parser.add_argument(
-        "--augment-data",
-        action="store_true"
-    )
+    # parser.add_argument(
+    #     "--augment-data",
+    #     action="store_true"
+    # )
     parser.add_argument(
         "--stratify-train-prop",
         type=float,
@@ -60,6 +60,16 @@ def make_argument_parser():
     parser.add_argument(
         "--gradient-batch-size",
         default=10,
+        type=int
+    )
+    parser.add_argument(
+        "--batch-size",
+        default=1,
+        type=int
+    )
+    parser.add_argument(
+        "--num-preprocessors",
+        default=1,
         type=int
     )
     parser.add_argument(
@@ -138,7 +148,7 @@ if __name__ == '__main__':
     valset.from_pkl_files(*val_files)
     valset.prepare()
     val_sampler = EvaluationDatasetSampler(valset)
-    val_loader = DataLoader(valset, sampler=val_sampler, batch_size=4, num_workers=2)
+    val_loader = DataLoader(valset, sampler=val_sampler, batch_size=args.batch_size, num_workers=args.num_preprocessors)
 
     model = model_fn(valset.model_info)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=args.pos_weight*torch.ones([1]))
@@ -160,8 +170,8 @@ if __name__ == '__main__':
         )
         trainset.from_pkl_files(*train_files)
         trainset.prepare()
-        train_sampler = TrainingDatasetSampler(trainset, epoch_size=200, stratify_prop=None)
-        train_loader = DataLoader(trainset, sampler=train_sampler, batch_size=4, num_workers=2)
+        train_sampler = TrainingDatasetSampler(trainset, epoch_size=200, stratify_prop=args.stratify_train_prop)
+        train_loader = DataLoader(trainset, sampler=train_sampler, batch_size=args.batch_size, num_workers=args.num_preprocessors)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train_model_graphnetwork(
             model,
