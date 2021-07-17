@@ -93,6 +93,15 @@ def make_argument_parser():
         '--debug',
         action='store_true'
     )
+    parser.add_argument(
+        "--epoch-size",
+        default = 1280,
+        type = int
+    )
+    parser.add_argument(
+        "--preprocess-all",
+        action = "store_true"
+    )
     return parser
 
 
@@ -141,7 +150,7 @@ if __name__ == '__main__':
     valset = Dataset(
         input_fn,
         model_info_class,
-        preprocess_all=False,
+        preprocess_all=args.preprocess_all,
         max_per_run=200,
     )
     valset.from_pkl_files(*val_files)
@@ -163,11 +172,11 @@ if __name__ == '__main__':
         trainset = TrainingDataset(
             input_fn,
             model_info_class,
-            preprocess_all=False,
+            preprocess_all=args.preprocess_all,
         )
         trainset.from_pkl_files(*train_files)
         trainset.prepare()
-        train_sampler = TrainingDatasetSampler(trainset, epoch_size=200, stratify_prop=args.stratify_train_prop)
+        train_sampler = TrainingDatasetSampler(trainset, epoch_size=args.epoch_size, stratify_prop=args.stratify_train_prop)
         train_loader = DataLoader(trainset, sampler=train_sampler, batch_size=args.batch_size, num_workers=args.num_preprocessors)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train_model_graphnetwork(

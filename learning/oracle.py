@@ -6,7 +6,7 @@ from datetime import datetime
 import torch
 
 from learning.data_models import InvocationInfo, ModelInfo, ProblemInfo
-from learning.gnn.data import construct_input
+from learning.gnn.data import construct_input, construct_problem_graph
 from learning.gnn.models import StreamInstanceClassifier
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import fact_from_evaluation
@@ -95,6 +95,10 @@ class Oracle:
         self.model_poses = model_poses
         self.run_attr = None
 
+    def set_infos(self, domain, externals, goal_exp, evaluations):
+        self.set_model_info(domain, externals)
+        self.set_problem_info(goal_exp, evaluations)
+
     def set_problem_info(self, goal_exp, evaluations):
         if not goal_exp[0] == "and":
             raise NotImplementedError(
@@ -144,7 +148,7 @@ class Oracle:
         if path is None:
             path = self.save_path
 
-        datafile = self.save_path.split("/")[-1]
+        _, datafile = os.path.split(path)
 
         # we use the stats,json for the non-oracle run for the listed
         # run attributes statistics
@@ -161,11 +165,9 @@ class Oracle:
             pddl = self.domain_pddl + self.stream_pddl 
             if pddl not in data_info:
                 # only save name of pkl file
-                data_info[pddl] = [
-                    (self.run_attr, datafile)
-                ]
-            else:
-                data_info[pddl].append((self.run_attr, datafile))
+                data_info[pddl] = []
+            data_info[pddl].append((self.run_attr, datafile, len(self.labels)))
+
             with open(info_path, "w") as f:
                 json.dump(data_info, f, indent = 4, sort_keys = True)
 
@@ -173,14 +175,25 @@ class Oracle:
         data["stats_path"] = stats_path
         data["domain_pddl"] = self.domain_pddl
         data["stream_pddl"] = self.stream_pddl
-        data["initial_conditions"] = tuple(self.initial_conditions)
-        data["goal_conditions"] = tuple(self.goal_conditions)
-        data["labels"] = self.labels
+        #data["initial_conditions"] = tuple(self.initial_conditions)
+        #data["goal_conditions"] = tuple(self.goal_conditions)
         data["model_info"] = self.model_info
         data["problem_info"] = self.problem_info
-        data["object_mapping"] = {k:v.value for k,v in Object._obj_from_name.items()}
+        self.problem_info.object_mapping = {k:v.value for k,v in Object._obj_from_name.items()}
+        self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
+        data["num_labels"] = len(self.labels)
+
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
+
+        dirpath = os.path.splitext(path)[0]
+        if not os.path.isdir(dirpath):
+            os.mkdir(dirpath)
+
+        for i, label in enumerate(self.labels):
+            labelpath = os.path.join(dirpath, f"label_{i}.pkl")
+            with open(labelpath, "wb") as lfile:
+                pickle.dump(label, lfile)
 
     def save_stats(self, stats_path):
         """

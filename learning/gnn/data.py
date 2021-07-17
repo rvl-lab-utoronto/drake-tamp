@@ -1,5 +1,6 @@
 import itertools
 import json
+from operator import mod
 import os
 import pickle
 import sys
@@ -11,10 +12,16 @@ from sklearn.linear_model import LinearRegression
 import torch
 import matplotlib
 from torch.utils.data.sampler import Sampler
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from learning.data_models import (HyperModelInfo, InvocationInfo, ModelInfo,
-                                  ProblemInfo, StreamInstanceClassifierInfo)
+from learning.data_models import (
+    HyperModelInfo,
+    InvocationInfo,
+    ModelInfo,
+    ProblemInfo,
+    StreamInstanceClassifierInfo,
+)
 from learning.pddlstream_utils import objects_from_facts, ancestors, siblings, elders
 from torch_geometric.data import Data
 from tqdm import tqdm
@@ -51,37 +58,26 @@ def construct_scene_graph(model_poses):
         node_to_ind[name] = i
         nodes.append(name)
         node_attr.append(
-            {
-                "static": model_info["static"],
-                "name": name,
-                "worldpose": model_info["X"]
-            }
+            {"static": model_info["static"], "name": name, "worldpose": model_info["X"]}
         )
-    
-    for o1, o2 in itertools.combinations(nodes, r= 2):
+
+    for o1, o2 in itertools.combinations(nodes, r=2):
         i = node_to_ind[o1]
         j = node_to_ind[o2]
         Xi = model_poses[i]["X"]
         Xj = model_poses[j]["X"]
-        edges.append((i,j))
-        edge_attr.append({
-            "p": Xj.translation() - Xi.translation()
-        })
-        edges.append((j,i))
-        edge_attr.append({
-            "p": Xi.translation() - Xj.translation()
-        })
+        edges.append((i, j))
+        edge_attr.append({"p": Xj.translation() - Xi.translation()})
+        edges.append((j, i))
+        edge_attr.append({"p": Xi.translation() - Xj.translation()})
 
     return nodes, node_attr, edges, edge_attr
-
-
-
 
 
 def get_ancestor_objects(label: InvocationInfo):
     """
     Given an InvocationInfo for a stream result,
-    return all ancestor objects to that result 
+    return all ancestor objects to that result
     as a set of string
     """
 
@@ -102,6 +98,7 @@ def get_ancestor_objects(label: InvocationInfo):
 
     return res
 
+
 def get_initial_objects(label: InvocationInfo):
 
     """
@@ -116,7 +113,6 @@ def get_initial_objects(label: InvocationInfo):
     return initial_objects
 
 
-
 def obj_level(obj, label):
     if obj not in label.object_stream_map:
         return 0
@@ -124,6 +120,7 @@ def obj_level(obj, label):
         return 1 + max(
             [obj_level(o, label) for o in label.object_stream_map[obj]["input_objects"]]
         )
+
 
 def fact_level(fact, label):
     if len(label.atom_map[fact]) == 0:
@@ -136,7 +133,7 @@ def construct_object_hypergraph(
     label: InvocationInfo,
     problem_info: ProblemInfo,
     model_info: ModelInfo,
-    reduced: bool = True
+    reduced: bool = True,
 ):
     """
     Construct an object hypergraph where nodes are pddl objects and edges are
@@ -152,10 +149,10 @@ def construct_object_hypergraph(
         - stream (string)
         - level: the number of stream instantiations required to create this object (int)
 
-    edge_attributes: 
+    edge_attributes:
         - predicate (string)
         - overlap_with_goal (bool)
-        - level (int) 
+        - level (int)
         - stream (string)
         - actions it is precondition of (list[string])
         - actions it is poscondition of (list[string])
@@ -172,7 +169,7 @@ def construct_object_hypergraph(
     node_to_ind = {}
     goal_objects = objects_from_facts(goal_facts)
 
-    #reduced_obj = get_ancestor_objects(label) | get_initial_objects(label)
+    # reduced_obj = get_ancestor_objects(label) | get_initial_objects(label)
     fact_ans = set()
     for dom_fact in label.result.domain:
         fact_ans.add(dom_fact)
@@ -193,11 +190,11 @@ def construct_object_hypergraph(
                 {
                     "overlap_with_goal": o in goal_objects,
                     "stream": label.object_stream_map.get(o, None),
-                    "level": obj_level(o, label)
+                    "level": obj_level(o, label),
                 }
             )
-        
-        if len(fact_objects) == 1: #unary
+
+        if len(fact_objects) == 1:  # unary
             o = fact_objects.pop()
             edges.append((node_to_ind[o], node_to_ind[o]))
             edge_attr.append(
@@ -207,15 +204,15 @@ def construct_object_hypergraph(
                     "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
                     "relevant_actions": fact_to_relevant_actions(
-                        fact, model_info.domain, indices = False
+                        fact, model_info.domain, indices=False
                     ),
-                    "full_fact": fact, # not used as an attribute, but for indexing
+                    "full_fact": fact,  # not used as an attribute, but for indexing
                     "src_obj_arg_ind": 0,
                     "dest_obj_arg_ind": 0,
                 }
             )
         else:
-            for (o1,o2) in itertools.permutations(fact_objects, 2):
+            for (o1, o2) in itertools.permutations(fact_objects, 2):
                 edges.append((node_to_ind[o1], node_to_ind[o2]))
                 attr = {
                     "predicate": fact[0],
@@ -223,9 +220,9 @@ def construct_object_hypergraph(
                     "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
                     "relevant_actions": fact_to_relevant_actions(
-                        fact, model_info.domain, indices = False
+                        fact, model_info.domain, indices=False
                     ),
-                    "full_fact": fact, # not used as an attribute, but for indexing
+                    "full_fact": fact,  # not used as an attribute, but for indexing
                     "src_obj_arg_ind": fact.index(o1) - 1,
                     "dest_obj_arg_ind": fact.index(o2) - 1,
                 }
@@ -245,12 +242,14 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
         nodes.append(fact)
         fact_to_idx[fact] = i
         edges.append((i, i))
-        edge_attributes_list.append({
-            "is_directed": False,
-            "stream": None,
-            "domain_index": -1,
-            "via_objects": []
-        })
+        edge_attributes_list.append(
+            {
+                "is_directed": False,
+                "stream": None,
+                "domain_index": -1,
+                "via_objects": [],
+            }
+        )
 
     for fact, i in fact_to_idx.items():
         fact_objects = objects_from_facts([fact])
@@ -272,8 +271,10 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
                 edge_attributes = {
                     "is_directed": True,
                     "stream": stream_map[fact],
-                    "via_objects": objects_from_facts([parent]).intersection(fact_objects),
-                    "domain_index": domain_idx, # meant to encode the position in which
+                    "via_objects": objects_from_facts([parent]).intersection(
+                        fact_objects
+                    ),
+                    "domain_index": domain_idx,  # meant to encode the position in which
                 }
                 edge_attributes_list.append(edge_attributes)
 
@@ -290,7 +291,7 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
             "is_directed": False,
             "stream": None,
             "domain_index": -1,
-            "via_objects": object_edges[(i, j)]
+            "via_objects": object_edges[(i, j)],
         }
         edges.append((i, j))
         edge_attributes_list.append(edge_attributes)
@@ -300,23 +301,27 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
 
 
 def construct_hypermodel_input(
-    label: InvocationInfo, problem_info: ProblemInfo, model_info: ModelInfo, reduced: bool = False,
+    label: InvocationInfo,
+    problem_info: ProblemInfo,
+    model_info: ModelInfo,
+    reduced: bool = False,
 ):
     nodes, node_attr, edges, edge_attr = construct_object_hypergraph(
-        label,
-        problem_info,
-        model_info,
-        reduced = reduced
+        label, problem_info, model_info, reduced=reduced
     )
 
     # indices of input objects to latest stream result
     fact_to_edge_ind = {}
     for i, attr in enumerate(edge_attr):
-        fact_to_edge_ind.setdefault(attr['full_fact'], []).append(i)
+        fact_to_edge_ind.setdefault(attr["full_fact"], []).append(i)
 
-    candidate = (model_info.stream_to_index[label.result.name], ) \
-        + tuple([nodes.index(p) for p in label.result.input_objects]) \
-        + tuple([i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]])
+    candidate = (
+        (model_info.stream_to_index[label.result.name],)
+        + tuple([nodes.index(p) for p in label.result.input_objects])
+        + tuple(
+            [i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]]
+        )
+    )
 
     # indices of domain facts of latest stream result
     node_features = torch.zeros(
@@ -351,7 +356,7 @@ def construct_hypermodel_input(
         edge_features[i, ind + model_info.stream_to_index[attr["stream"]]] = 1
         ind += len(model_info.stream_to_index)
         # level
-        edge_features[i, ind] = attr['level']
+        edge_features[i, ind] = attr["level"]
         # overlap_with_goal
         edge_features[i, ind + 1] = len(attr["overlap_with_goal"])
         ind += 2
@@ -369,6 +374,7 @@ def construct_hypermodel_input(
         candidate=candidate,
     )
 
+
 def construct_problem_graph(problem_info: ProblemInfo):
     """
     Construct an object graph where nodes are pddl objects and edges are facts.
@@ -379,12 +385,12 @@ def construct_problem_graph(problem_info: ProblemInfo):
         - has_pose: whether the object is something that can have a world pose
         - pose: The RigidTransform of the object in the world frame if has_pose
             is true, otherwise None
-        
+
     edge attributes:
         - predicate: the name of the pddl predicate (including axioms)
         - is_initial: True if the fact is part of the initial conditions
     """
-    model_pose_dict = {pose['name']: pose for pose in problem_info.model_poses}
+    model_pose_dict = {pose["name"]: pose for pose in problem_info.model_poses}
     initial_facts = problem_info.initial_facts
     edges = []
     edge_attributes = []
@@ -401,61 +407,48 @@ def construct_problem_graph(problem_info: ProblemInfo):
                 node_to_index[obj] = len(nodes) - 1
 
                 name = problem_info.object_mapping[obj]
-                attr['has_pose'] = name.__hash__ is not None and name in model_pose_dict
-                if attr['has_pose']:
-                    attr['pose'] = model_pose_dict[name]['X']
+                attr["has_pose"] = name.__hash__ is not None and name in model_pose_dict
+                if attr["has_pose"]:
+                    attr["pose"] = model_pose_dict[name]["X"]
                 else:
-                    attr['pose'] = None
+                    attr["pose"] = None
         if len(fact_objects) == 1:
             obj = fact_objects.pop()
-            edge_attributes.append({
-                "predicate": fact[0],
-                "is_initial": True
-            })
+            edge_attributes.append({"predicate": fact[0], "is_initial": True})
             edges.append((node_to_index[obj],) * 2)
         for obj1, obj2 in itertools.permutations(fact_objects, 2):
             edges.append((node_to_index[obj1], node_to_index[obj2]))
-            edge_attributes.append({
-                "predicate": fact[0],
-                "is_initial": True
-            })
+            edge_attributes.append({"predicate": fact[0], "is_initial": True})
 
     for fact in problem_info.goal_facts:
         fact_objects = objects_from_facts([fact])
         if len(fact_objects) == 1:
-            edge_attributes.append({
-                "predicate": fact[0],
-                "is_initial": False
-            })
+            edge_attributes.append({"predicate": fact[0], "is_initial": False})
             obj = fact_objects.pop()
             edges.append((node_to_index[obj],) * 2)
         for obj1, obj2 in itertools.permutations(fact_objects, 2):
             edges.append((node_to_index[obj1], node_to_index[obj2]))
-            edge_attributes.append({
-                "predicate": fact[0],
-                "is_initial": False
-            })
+            edge_attributes.append({"predicate": fact[0], "is_initial": False})
     return nodes, node_attributes, edges, edge_attributes
 
 
 def construct_problem_graph_input(problem_info: ProblemInfo, model_info: ModelInfo):
-    nodes, node_attr, edges, edge_attr = construct_problem_graph(problem_info)
+    nodes, node_attr, edges, edge_attr = problem_info.problem_graph
+    # construct_problem_graph(problem_info)
 
-    node_features = torch.zeros(
-        (len(nodes), 4), dtype=torch.float
-    )
+    node_features = torch.zeros((len(nodes), 4), dtype=torch.float)
     edge_features = torch.zeros(
         (len(edges), model_info.num_predicates + 1), dtype=torch.float
     )
     for i, attr in enumerate(edge_attr):
-        edge_features[i, model_info.predicate_to_index[attr['predicate']]] = 1
+        edge_features[i, model_info.predicate_to_index[attr["predicate"]]] = 1
         edge_features[i, -1] = int(attr["is_initial"])
 
     for i, attr in enumerate(node_attr):
-        node_features[i, 0] = int(attr['has_pose'])
-        if attr['has_pose']:
-            for k, v in enumerate(attr['pose'].translation()):
-                node_features[i, 1+k] = v
+        node_features[i, 0] = int(attr["has_pose"])
+        if attr["has_pose"]:
+            for k, v in enumerate(attr["pose"].translation()):
+                node_features[i, 1 + k] = v
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
@@ -466,33 +459,43 @@ def construct_problem_graph_input(problem_info: ProblemInfo, model_info: ModelIn
         edge_index=edge_index,
     )
 
+
 def construct_with_problem_graph(input_fn):
     def new_fn(invocation, problem, model_info):
         data = input_fn(invocation, problem, model_info)
         data.problem_graph = construct_problem_graph_input(problem, model_info)
         return data
+
     return new_fn
 
-def construct_input(data_obj, problem_info, model_info):
-    nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(problem_info.goal_facts, data_obj.atom_map, data_obj.stream_map)
 
-    candidate_fn = lambda result: (model_info.stream_to_index[result.name], ) \
-        + tuple([nodes.index(p) for p in result.domain])
+def construct_input(data_obj, problem_info, model_info):
+    nodes, node_attributes_list, edges, edge_attributes_list = construct_fact_graph(
+        problem_info.goal_facts, data_obj.atom_map, data_obj.stream_map
+    )
+
+    candidate_fn = lambda result: (model_info.stream_to_index[result.name],) + tuple(
+        [nodes.index(p) for p in result.domain]
+    )
     candidate = candidate_fn(data_obj.result)
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-    node_features = torch.zeros((len(nodes), model_info.node_feature_size), dtype=torch.float)
+    node_features = torch.zeros(
+        (len(nodes), model_info.node_feature_size), dtype=torch.float
+    )
     for i, (node, attr) in enumerate(zip(nodes, node_attributes_list)):
-        node_features[i, model_info.predicate_to_index[attr['predicate']]] = 1
-        node_features[i, -1] = len(attr['overlap_with_goal'])
-        node_features[i, -2] = int(attr['is_initial'])
+        node_features[i, model_info.predicate_to_index[attr["predicate"]]] = 1
+        node_features[i, -1] = len(attr["overlap_with_goal"])
+        node_features[i, -2] = int(attr["is_initial"])
 
-    edge_features = torch.zeros((len(edges), model_info.edge_feature_size), dtype=torch.float)
+    edge_features = torch.zeros(
+        (len(edges), model_info.edge_feature_size), dtype=torch.float
+    )
     for i, (edge, attr) in enumerate(zip(edges, edge_attributes_list)):
-        edge_features[i, model_info.stream_to_index[attr['stream']]] = 1
-        edge_features[i, -3] = attr['domain_index']
-        edge_features[i, -2] = int(attr['is_directed'])
-        edge_features[i, -1] = len(attr['via_objects'])
+        edge_features[i, model_info.stream_to_index[attr["stream"]]] = 1
+        edge_features[i, -3] = attr["domain_index"]
+        edge_features[i, -2] = int(attr["is_directed"])
+        edge_features[i, -1] = len(attr["via_objects"])
 
     objects_data = get_object_graph(data_obj.atom_map, model_info)
 
@@ -500,7 +503,10 @@ def construct_input(data_obj, problem_info, model_info):
     for n in nodes:
         predicate = n[0]
         objects = n[1:]
-        nodes_ind.append([model_info.predicate_to_index[predicate]] + [objects_data.object_to_index[o] for o in objects])
+        nodes_ind.append(
+            [model_info.predicate_to_index[predicate]]
+            + [objects_data.object_to_index[o] for o in objects]
+        )
 
     return Data(
         nodes=nodes,
@@ -513,12 +519,14 @@ def construct_input(data_obj, problem_info, model_info):
         candidate_fn=candidate_fn,
     )
 
+
 def get_object_predicates(object_name, atom_map):
     return set({a[0] for a in atom_map if object_name in a})
 
+
 def get_object_graph(atom_map, model_info):
     objects = list(objects_from_facts([a for a in atom_map]))
-    object_to_index = {o:i for i, o in enumerate(objects)}
+    object_to_index = {o: i for i, o in enumerate(objects)}
 
     predicate_hot = np.zeros((len(objects), len(model_info.predicates)))
     for i, o in enumerate(objects):
@@ -533,72 +541,85 @@ def get_object_graph(atom_map, model_info):
             if source in fact and dest in fact:
                 edges.add((object_to_index[source], object_to_index[dest]))
                 edges.add((object_to_index[dest], object_to_index[source]))
-    return Data(object_to_index=object_to_index,x=torch.tensor(embs, dtype=torch.float), edge_index=torch.tensor(list(edges), dtype=torch.long).t().contiguous())
+    return Data(
+        object_to_index=object_to_index,
+        x=torch.tensor(embs, dtype=torch.float),
+        edge_index=torch.tensor(list(edges), dtype=torch.long).t().contiguous(),
+    )
+
 
 def augment_labels(invocations):
-    positive_results = {invocation.result for invocation in invocations if invocation.label == True}
+    positive_results = {
+        invocation.result for invocation in invocations if invocation.label == True
+    }
     new_invocations = []
     for invocation in invocations:
         for result in positive_results:
             if invocation.result != result:
-                if all(fact not in invocation.atom_map for fact in result.certified) \
-                    and all(fact in invocation.atom_map for fact in result.domain):
-                        new_invocation = copy(invocation)
-                        new_invocation.result = result
-                        new_invocation.label = True
-                        new_invocations.append(new_invocation)
-    print('New Invocations', len(new_invocations))
+                if all(
+                    fact not in invocation.atom_map for fact in result.certified
+                ) and all(fact in invocation.atom_map for fact in result.domain):
+                    new_invocation = copy(invocation)
+                    new_invocation.result = result
+                    new_invocation.label = True
+                    new_invocations.append(new_invocation)
+    print("New Invocations", len(new_invocations))
     return invocations + new_invocations
 
+
 def parse_labels(pkl_path, augment=False):
-    with open(pkl_path, 'rb') as f:
+    with open(pkl_path, "rb") as f:
         data = pickle.load(f)
 
-    model_info = data['model_info']
-    problem_info = data['problem_info']
-    labels = data['labels'] if not augment else augment_labels(data['labels'])
+    model_info = data["model_info"]
+    problem_info = data["problem_info"]
+    labels = data["labels"] if not augment else augment_labels(data["labels"])
 
     model_info = StreamInstanceClassifierInfo(
-        predicates = model_info.predicates,
-        streams = model_info.streams,
+        predicates=model_info.predicates,
+        streams=model_info.streams,
         stream_num_domain_facts=model_info.stream_num_domain_facts,
         stream_num_inputs=model_info.stream_num_inputs,
-        stream_domains = model_info.stream_domains,
-        domain = model_info.domain
+        stream_domains=model_info.stream_domains,
+        domain=model_info.domain,
     )
 
     dataset = []
-    for invocation_info in labels: # label is now an instance of learning.gnn.oracle.Data
+    for (
+        invocation_info
+    ) in labels:  # label is now an instance of learning.gnn.oracle.Data
         d = construct_input(invocation_info, problem_info, model_info)
         d.y = torch.tensor([float(invocation_info.label)])
         dataset.append(d)
     return dataset, model_info
 
+
 def parse_hyper_labels(pkl_path):
-    with open(pkl_path, 'rb') as f:
+    with open(pkl_path, "rb") as f:
         data = pickle.load(f)
 
-    model_info = data['model_info']
-    problem_info = data['problem_info']
+    model_info = data["model_info"]
+    problem_info = data["problem_info"]
 
     model_info = HyperModelInfo(
-        predicates = model_info.predicates,
-        streams = model_info.streams,
+        predicates=model_info.predicates,
+        streams=model_info.streams,
         stream_num_domain_facts=model_info.stream_num_domain_facts,
         stream_num_inputs=model_info.stream_num_inputs,
-        stream_domains = model_info.stream_domains,
-        domain = model_info.domain
+        stream_domains=model_info.stream_domains,
+        domain=model_info.domain,
     )
 
     dataset = []
-    for invocation_info in data['labels']: 
+    for invocation_info in data["labels"]:
         d = construct_hypermodel_input(invocation_info, problem_info, model_info)
         d.y = torch.tensor([float(invocation_info.label)])
         dataset.append(d)
-    
+
     return dataset, model_info
 
-def fact_to_relevant_actions(fact, domain, indices = True):
+
+def fact_to_relevant_actions(fact, domain, indices=True):
     """
     Given a fact, determine which actions it is part of the
     preconditions and effects of.
@@ -607,7 +628,7 @@ def fact_to_relevant_actions(fact, domain, indices = True):
         fact: A pddl stream fact represented as a tuple
         domain: a pddlstream.algorithms.downward.Domain object
         indices (optional): if true, return multi-hot encoding,
-        else return a tuple of list of action names 
+        else return a tuple of list of action names
         ([appears in precondition of ], [appears in postcondition of])
     """
 
@@ -617,7 +638,7 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
     in_prec = []
     in_eff = []
-    multi_hot = np.zeros(len(actions*2))
+    multi_hot = np.zeros(len(actions * 2))
 
     action_index = 0
     for action in actions:
@@ -632,7 +653,7 @@ def fact_to_relevant_actions(fact, domain, indices = True):
             if fact_name == effect:
                 in_eff.append(action.name)
                 multi_hot[action_index + len(actions)] = 1
-                break 
+                break
         action_index += 1
 
     if indices:
@@ -640,50 +661,111 @@ def fact_to_relevant_actions(fact, domain, indices = True):
 
     return in_prec, in_eff
 
-class Dataset:
 
-    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, max_per_run=None, clear_memory=True):
+class DataStore:
+
+    def __init__(self, model_info: ModelInfo, problem_info: ProblemInfo, label_paths:list, do_cache: bool = False):
+        self.model_info = model_info
+        self.problem_info = problem_info
+        self.label_paths = label_paths
+        self.do_cache = do_cache
+        self.cache = [None for _ in label_paths]
+
+    def __next__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def __getitem__(self, i):
+        if i >= len(self):
+            raise IndexError(
+                f"You have asked for label at index {i} when there are only {len(self)} labels"
+            )
+        if self.cache[i] is not None:
+            return self.cache[i]
+        with open(self.label_paths[i], "rb") as f:
+            label = pickle.load(f)
+        if self.do_cache:
+            self.cache[i] = label
+        return label
+
+    def __len__(self):
+        return len(self.label_paths)
+
+
+class Dataset:
+    def __init__(
+        self,
+        construct_input_fn,
+        model_info_class,
+        preprocess_all=True,
+        max_per_run=None,
+        clear_memory=True,
+    ):
         self.construct_input_fn = construct_input_fn
         self.model_info_class = model_info_class
-        self.problem_labels = [] 
-        self.problem_infos = []
+        #self.problem_labels = []
+        #self.problem_infos = []
         self.datas = []
         self.model_info = None
         self.num_examples = 0
         self.preprocess_all = preprocess_all
         self.max_per_run = max_per_run
         self.clear_memory = clear_memory
+        self.datastores = []
 
     def load_pkl(self, file_path):
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             data = pickle.load(f)
 
-        model_info = self.model_info_class(**data['model_info'].__dict__)
-        problem_info = data['problem_info']
-        # TODO: If we make a suitable change in oracle, and regenerate data files, we can get rid of ths line
-        problem_info.object_mapping = data['object_mapping']
+        model_info = self.model_info_class(**data["model_info"].__dict__)
+        problem_info = data["problem_info"]
         if self.model_info is None:
             self.model_info = model_info
-            self.model_info.domain_pddl = data['domain_pddl']
-            self.model_info.stream_pddl = data['stream_pddl']
+            self.model_info.domain_pddl = data["domain_pddl"]
+            self.model_info.stream_pddl = data["stream_pddl"]
         else:
-            assert self.model_info.domain_pddl == data['domain_pddl'] and self.model_info.stream_pddl == data['stream_pddl'], "Make sure the model infos in these pkls are identical!"
+            assert (
+                self.model_info.domain_pddl == data["domain_pddl"]
+                and self.model_info.stream_pddl == data["stream_pddl"]
+            ), "Make sure the model infos in these pkls are identical!"
 
-        self.problem_infos.append(problem_info)
-        self.problem_labels.append(data['labels'])
-        self.num_examples += len(data['labels'])
+        dirpath = os.path.splitext(file_path)[0]
+        label_paths = [
+            os.path.join(dirpath, f"label_{i}.pkl") for i in range(data["num_labels"])
+        ]
+
+        self.datastores.append(
+            DataStore(
+                model_info,
+                problem_info,
+                label_paths,
+            )
+        )
+
+        # self.problem_infos.append(problem_info)
+        # self.problem_labels.append(data['labels'])
+        self.num_examples += data['num_labels']
 
     def from_pkl_files(self, *file_paths):
-        for file_path in file_paths:
+        """
+        Take in a list of *top level* pickle files (ie containing
+        ModelInfo, ProblemInfo, ...). These will all be loaded to start.
+        """
+        # for file_path in tqdm(file_paths):
+        # self.load_pkl(file_path)
+        print("Loading top level pkls")
+        for file_path in tqdm(file_paths):
             self.load_pkl(file_path)
 
     def construct_datas(self):
         datas = []
-        for problem_info, labels in tqdm(zip(self.problem_infos, self.problem_labels)):
+        print(f"Constructing datas. self.preprocess_all: {self.preprocess_all}")
+        for datastore in tqdm(self.datastores):
             data = []
-            for invocation in tqdm(labels):
+            for i in range(len(datastore)):
                 if self.preprocess_all:
-                    d = self.construct_datum(invocation, problem_info)
+                    invocation = datastore[i]
+                    d = self.construct_datum(invocation, datastore.problem_info)
                 else:
                     d = None
                 data.append(d)
@@ -697,30 +779,36 @@ class Dataset:
 
     def prepare(self):
         self.construct_datas()
-        print(f'Prepared {self.num_examples} examples.')
-    
+        print(f"Prepared {self.num_examples} examples.")
+
     def get_dict(self, index):
         if not (isinstance(index, tuple) and len(index) == 2):
             raise IndexError
         i, j = index
         if not self.preprocess_all and self.datas[i][j] is None:
-            self.datas[i][j] = self.construct_datum(self.problem_labels[i][j], self.problem_infos[i])
+            datastore = self.datastores[i]
+            self.datas[i][j] = self.construct_datum(
+                datastore[j], datastore.problem_info
+            )
         result = dict(
-            problem_info=self.problem_infos[i],
-            invocation=self.problem_labels[i][j],
+            problem_info=self.datastores[i].problem_info,
+            invocation=self.datastores[i][j],
             data=self.datas[i][j],
         )
         if not self.preprocess_all and self.clear_memory:
             self.datas[i][j] = None
         return result
-    
+
     def __getitem__(self, index):
-        data = self.get_dict(index)['data']
-        data.problem_index = [index[0]] # This list crazyness is to prevent torch geometric from batching
+        data = self.get_dict(index)["data"]
+        data.problem_index = [
+            index[0]
+        ]  # This list crazyness is to prevent torch geometric from batching
         return data
-    
+
     def __len__(self):
         return self.num_examples
+
 
 class EvaluationDatasetSampler(Sampler):
     def __init__(self, dataset):
@@ -728,31 +816,49 @@ class EvaluationDatasetSampler(Sampler):
 
     def __iter__(self):
         return (
-            (problem_index,invocation_index) \
-                for problem_index, labels in enumerate (self.dataset.problem_labels) \
-                    for invocation_index in range(len(labels))
+            (problem_index, invocation_index)
+            for problem_index, datastore in enumerate(self.dataset.datastores)
+            for invocation_index in range(len(datastore))
         )
 
     def __len__(self):
         return len(self.dataset)
 
 class TrainingDataset(Dataset):
-    def __init__(self, construct_input_fn, model_info_class, preprocess_all=True, clear_memory=True):
-        super().__init__(construct_input_fn, model_info_class, preprocess_all=preprocess_all, clear_memory=clear_memory)
+    def __init__(
+        self,
+        construct_input_fn,
+        model_info_class,
+        preprocess_all=True,
+        clear_memory=True,
+    ):
+        super().__init__(
+            construct_input_fn,
+            model_info_class,
+            preprocess_all=preprocess_all,
+            clear_memory=clear_memory,
+        )
         self.problem_labels_partitions = []
         self.pos = []
         self.neg = []
-    
-    def construct_label_partition_map(self):
+
+    def construct_datas(self):
+        datas = []
         self.problem_labels_partitions = []
-        for labels in self.problem_labels:
+        print(f"Constructing training datas. self.preprocess_all: {self.preprocess_all}")
+        for datastore in tqdm(self.datastores):
+            data = []
             partitions = ([], [])
             self.problem_labels_partitions.append(partitions)
-            for i,label in enumerate(labels):
-                if not label.label:
-                    partitions[0].append(i)
+            for i, invocation in enumerate(datastore):
+                partitions[int(invocation.label)].append(i)
+                if self.preprocess_all:
+                    d = self.construct_datum(invocation, datastore.problem_info)
                 else:
-                    partitions[1].append(i)
+                    d = None
+                data.append(d)
+            datas.append(data)
+        self.datas = datas
         all_pos = []
         all_neg = []
         for i, (neg, pos) in enumerate(self.problem_labels_partitions):
@@ -762,11 +868,11 @@ class TrainingDataset(Dataset):
         self.neg = all_neg
 
     def prepare(self):
-        self.construct_label_partition_map()
         self.construct_datas()
 
+
 class TrainingDatasetSampler(Sampler):
-    def __init__(self, dataset, epoch_size=200, stratify_prop = None):
+    def __init__(self, dataset, epoch_size=200, stratify_prop=None):
         self.dataset = dataset
         self.i = None
         self.stratify_prop = stratify_prop
@@ -806,36 +912,31 @@ class DeviceAwareLoaderWrapper:
     def __init__(self, dataloader, device):
         self.dataloader = dataloader
         self.device = device
+
     def __iter__(self):
         self.iterator = iter(self.dataloader)
         return self
+
     def __next__(self):
         data = next(self.iterator)
         data.to(self.device)
-        if hasattr(data, 'problem_graph'):
+        if hasattr(data, "problem_graph"):
             for problem in data.problem_graph:
                 problem.to(self.device)
         return data
+
     def __len__(self):
         return len(self.dataloader)
+
 
 @dataclass
 class DifficultClasses:
 
-    easy = [
-        ("run_time", lambda t: t <= 15)
-    ]
-    medium = [
-        ("run_time", lambda t: 15 < t <= 60)
-    ]
-    hard = [
-        ("run_time", lambda t: 60 < t <= 180)
-    ]
-    very_hard = [
-        ("run_time", lambda t: t > 180)
-    ]
+    easy = [("run_time", lambda t: t <= 15)]
+    medium = [("run_time", lambda t: 15 < t <= 60)]
+    hard = [("run_time", lambda t: 60 < t <= 180)]
+    very_hard = [("run_time", lambda t: t > 180)]
 
-  
 
 def query_data(pddl: str, query: list):
     """
@@ -869,14 +970,16 @@ def query_data(pddl: str, query: list):
             - buffer_radius
     """
     datapath = get_base_datapath()
-    data_info_path = datapath + 'data_info.json'
+    data_info_path = datapath + "data_info.json"
     assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
     with open(data_info_path, "r") as f:
         info = json.load(f)
-    assert pddl in info, "This domain.pddl and stream.pddl cannot be found in previous runs"
+    assert (
+        pddl in info
+    ), "This domain.pddl and stream.pddl cannot be found in previous runs"
     info = info[pddl]
     datafiles = []
-    for (run_attr, filename) in info:
+    for (run_attr, filename, _) in info:
         sat = True
         for item in query:
             attrs = item[:-1]
@@ -895,12 +998,14 @@ def query_data(pddl: str, query: list):
             datafiles.append(filename)
     return datafiles
 
+
 def get_base_datapath():
     datapath = "/".join(FILEPATH.split("/")[:-1]) + "/data/labeled/"
     return datapath
 
+
 def get_pddl_key(domain):
-    datapath = os.path.join(get_base_datapath(), 'data_info.json')
+    datapath = os.path.join(get_base_datapath(), "data_info.json")
     with open(datapath, "r") as datafile:
         data = json.load(datafile)
     for pddl in data:
@@ -908,9 +1013,12 @@ def get_pddl_key(domain):
             return pddl
     raise ValueError(f"{domain} not in data_info.json")
 
-if __name__ == '__main__':
 
-    datafile = open("/home/agrobenj/drake-tamp/learning/data/labeled/data_info.json", "r")
+if __name__ == "__main__":
+
+    datafile = open(
+        "/home/agrobenj/drake-tamp/learning/data/labeled/data_info.json", "r"
+    )
     data = json.load(datafile)
     blocks_world = None
     kitchen = None
@@ -937,10 +1045,10 @@ if __name__ == '__main__':
 
         kitchen_data = data[kitchen]
 
-        num_c, num_r, num_g, num_goal= [],[],[],[]
+        num_c, num_r, num_g, num_goal = [], [], [], []
         sample_time, search_time, run_time = [], [], []
 
-        for pt, _ in kitchen_data:
+        for pt, _, _ in kitchen_data:
             num_c.append(pt["num_cabbages"])
             num_r.append(pt["num_raddishes"])
             num_g.append(pt["num_glasses"])
@@ -949,93 +1057,105 @@ if __name__ == '__main__':
             search_time.append(pt["search_time"])
             run_time.append(pt["run_time"])
 
-        fig, axs = plt.subplots(2,2)
-        axs[0,0].plot(num_c, run_time, linestyle = "", marker = "o")
-        axs[0,0].set_xlabel("Number of Cabbages")
-        axs[0,0].set_ylabel("Run Time (s)")
+        fig, axs = plt.subplots(2, 2)
+        axs[0, 0].plot(num_c, run_time, linestyle="", marker="o")
+        axs[0, 0].set_xlabel("Number of Cabbages")
+        axs[0, 0].set_ylabel("Run Time (s)")
 
-        num_c = np.array(num_c).reshape(-1,1)
+        num_c = np.array(num_c).reshape(-1, 1)
         run_time = np.array(run_time)
         model = LinearRegression().fit(num_c, run_time)
         x = np.linspace(0, max(num_c), max(num_c) + 1)
-        axs[0,0].plot(
-            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
-            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        axs[0, 0].plot(
+            x,
+            x * model.coef_[0] + model.intercept_,
+            color="k",
+            linestyle="--",
+            label=f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}",
         )
-        axs[0,0].legend()
-        axs[0,0].axhline(180, color = "r")
+        axs[0, 0].legend()
+        axs[0, 0].axhline(180, color="r")
 
-        axs[0,1].plot(num_r, run_time, linestyle = "", marker = "o")
-        axs[0,1].set_xlabel("Number of Raddishes")
-        axs[0,1].set_ylabel("Run Time (s)")
+        axs[0, 1].plot(num_r, run_time, linestyle="", marker="o")
+        axs[0, 1].set_xlabel("Number of Raddishes")
+        axs[0, 1].set_ylabel("Run Time (s)")
 
-        num_r = np.array(num_r).reshape(-1,1)
+        num_r = np.array(num_r).reshape(-1, 1)
         run_time = np.array(run_time)
         model = LinearRegression().fit(num_r, run_time)
         x = np.linspace(0, max(num_r), max(num_r) + 1)
-        axs[0,1].plot(
-            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
-            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        axs[0, 1].plot(
+            x,
+            x * model.coef_[0] + model.intercept_,
+            color="k",
+            linestyle="--",
+            label=f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}",
         )
-        axs[0,1].legend()
-        axs[0,1].axhline(180, color = "r")
+        axs[0, 1].legend()
+        axs[0, 1].axhline(180, color="r")
 
-        axs[1,0].plot(num_g, run_time, linestyle = "", marker = "o")
-        axs[1,0].set_xlabel("Number of Glasses")
-        axs[1,0].set_ylabel("Run Time (s)")
-        num_g = np.array(num_g).reshape(-1,1)
+        axs[1, 0].plot(num_g, run_time, linestyle="", marker="o")
+        axs[1, 0].set_xlabel("Number of Glasses")
+        axs[1, 0].set_ylabel("Run Time (s)")
+        num_g = np.array(num_g).reshape(-1, 1)
         run_time = np.array(run_time)
         model = LinearRegression().fit(num_g, run_time)
         x = np.linspace(0, max(num_g), max(num_g) + 1)
-        axs[1,0].plot(
-            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
-            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        axs[1, 0].plot(
+            x,
+            x * model.coef_[0] + model.intercept_,
+            color="k",
+            linestyle="--",
+            label=f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}",
         )
-        axs[1,0].legend()
-        axs[1,0].axhline(180, color = "r")
+        axs[1, 0].legend()
+        axs[1, 0].axhline(180, color="r")
 
-        axs[1,1].plot(num_goal, run_time, linestyle = "", marker = "o")
-        axs[1,1].set_xlabel("Number of Goal Objects")
-        axs[1,1].set_ylabel("Run Time (s)")
-        num_goal = np.array(num_goal).reshape(-1,1)
+        axs[1, 1].plot(num_goal, run_time, linestyle="", marker="o")
+        axs[1, 1].set_xlabel("Number of Goal Objects")
+        axs[1, 1].set_ylabel("Run Time (s)")
+        num_goal = np.array(num_goal).reshape(-1, 1)
         run_time = np.array(run_time)
         model = LinearRegression().fit(num_goal, run_time)
         x = np.linspace(0, max(num_goal), max(num_goal) + 1)
-        axs[1,1].plot(
-            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
-            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+        axs[1, 1].plot(
+            x,
+            x * model.coef_[0] + model.intercept_,
+            color="k",
+            linestyle="--",
+            label=f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}",
         )
-        axs[1,1].legend()
-        axs[1,1].axhline(180, color = "r")
+        axs[1, 1].legend()
+        axs[1, 1].axhline(180, color="r")
 
         fig.tight_layout()
         fig.set_size_inches(15, 15)
-        plt.savefig(f"{FILEPATH}/plots/difficulty_plot1.png", dpi = 300)
+        plt.savefig(f"{FILEPATH}/plots/difficulty_plot1.png", dpi=300)
 
         plt.close(fig)
 
-        fig,ax = plt.subplots()
+        fig, ax = plt.subplots()
 
-        num_tot = list(map(lambda x: x[0]+x[1]+x[2], zip(num_c, num_r, num_g)))
-        ax.plot(num_tot, run_time, linestyle = "", marker = "o")
+        num_tot = list(map(lambda x: x[0] + x[1] + x[2], zip(num_c, num_r, num_g)))
+        ax.plot(num_tot, run_time, linestyle="", marker="o")
         ax.set_xlabel("Total Number of Objects")
         ax.set_ylabel("Run Time (s)")
-        num_tot = np.array(num_tot).reshape(-1,1)
+        num_tot = np.array(num_tot).reshape(-1, 1)
         run_time = np.array(run_time)
         model = LinearRegression().fit(num_tot, run_time)
         x = np.linspace(0, max(num_goal), max(num_goal) + 1)
         ax.plot(
-            x, x*model.coef_[0] + model.intercept_, color = "k", linestyle = "--",
-            label = f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}"
+            x,
+            x * model.coef_[0] + model.intercept_,
+            color="k",
+            linestyle="--",
+            label=f"m: {model.coef_[0]:.2f}, b: {model.intercept_:.2f}",
         )
         ax.legend()
-        ax.axhline(180, color = "r")
+        ax.axhline(180, color="r")
         fig.tight_layout()
         fig.set_size_inches(15, 15)
-        plt.savefig(f"{FILEPATH}/plots/difficulty_plot2.png", dpi = 300)
-
-
-
+        plt.savefig(f"{FILEPATH}/plots/difficulty_plot2.png", dpi=300)
 
     """
     if len(sys.argv) < 2:
