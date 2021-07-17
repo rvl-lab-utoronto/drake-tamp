@@ -1,13 +1,18 @@
-import torch
+from math import factorial
+
 import numpy as np
-from torch.cuda import stream
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter_mean
-from torch_geometric.nn import MetaLayer
-from torch_geometric.nn import GCNConv
+from torch.cuda import stream
 from torch.nn.utils.rnn import pad_sequence
 from torch_geometric.data import Batch
+from torch_geometric.nn import GCNConv, MetaLayer
+from torch_scatter import scatter_mean
+
+
+def nPr(n, r):
+    return factorial(n)/factorial(n-r)
 
 class HyperClassifier(nn.Module):
     """
@@ -69,7 +74,7 @@ class HyperClassifier(nn.Module):
                     inp_size += edge_inp_size
                 else:
                     # every non-unary fact has two edges (bidirectional)
-                    inp_size += 2*edge_inp_size
+                    inp_size += nPr(len(fact), 2)*edge_inp_size
             #inp_size *= feature_size
             inp_size += problem_graph_output_size
             self.mlps.append(
