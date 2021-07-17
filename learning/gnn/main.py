@@ -34,7 +34,7 @@ def make_argument_parser():
         default=500
     )
     parser.add_argument(
-        "--save_every",
+        "--save-every",
         type=int,
         default=10
     )

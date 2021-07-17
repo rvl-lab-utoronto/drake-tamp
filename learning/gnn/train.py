@@ -97,6 +97,7 @@ def evaluate_dataset(model, criterion, dataset):
     labels = {}
     losses = {}
     model.eval()
+    print("Starting Evaluation")
     for d in tqdm(dataset):
         problem_keys = d.problem_index # this is a list of single element lists
         preds = model(d)

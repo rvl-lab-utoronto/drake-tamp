@@ -760,7 +760,8 @@ class Dataset:
     def construct_datas(self):
         datas = []
         print(f"Constructing datas. self.preprocess_all: {self.preprocess_all}")
-        for datastore in tqdm(self.datastores):
+        pbar = tqdm(total=self.num_examples)
+        for datastore in self.datastores:
             data = []
             for i in range(len(datastore)):
                 if self.preprocess_all:
@@ -768,6 +769,7 @@ class Dataset:
                     d = self.construct_datum(invocation, datastore.problem_info)
                 else:
                     d = None
+                pbar.update(1)
                 data.append(d)
             datas.append(data)
         self.datas = datas
@@ -846,7 +848,8 @@ class TrainingDataset(Dataset):
         datas = []
         self.problem_labels_partitions = []
         print(f"Constructing training datas. self.preprocess_all: {self.preprocess_all}")
-        for datastore in tqdm(self.datastores):
+        pbar = tqdm(total=self.num_examples)
+        for datastore in self.datastores:
             data = []
             partitions = ([], [])
             self.problem_labels_partitions.append(partitions)
@@ -857,6 +860,7 @@ class TrainingDataset(Dataset):
                 else:
                     d = None
                 data.append(d)
+                pbar.update(1)
             datas.append(data)
         self.datas = datas
         all_pos = []
@@ -869,6 +873,7 @@ class TrainingDataset(Dataset):
 
     def prepare(self):
         self.construct_datas()
+        print(f"Prepared {self.num_examples} examples.")
 
 
 class TrainingDatasetSampler(Sampler):
