@@ -111,7 +111,7 @@ if __name__ == '__main__':
         model_fn = lambda model_info: HyperClassifier(
             model_info,
             with_problem_graph=args.use_problem_graph,
-            use_gnns=args.ablation
+            use_gnns=(not args.ablation)
         )
     elif args.model == 'streamclass':
         input_fn = construct_input

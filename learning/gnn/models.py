@@ -27,7 +27,7 @@ class HyperClassifier(nn.Module):
         mlp_out=1,
         use_gnns = True,
     ):
-
+        self.use_gnns = use_gnns
         node_feature_size = model_info.node_feature_size
         edge_feature_size = model_info.edge_feature_size
         stream_domains = model_info.stream_domains[1:]
@@ -78,7 +78,7 @@ class HyperClassifier(nn.Module):
 
         self.use_gnns = use_gnns
 
-    def forward(self, data, score = False):
+    def forward(self, data, score = False, return_rep=False):
         # first get node and edge embeddings from GNN
         x, edge_attr = data.x, data.edge_attr
         if self.use_gnns:
@@ -104,6 +104,8 @@ class HyperClassifier(nn.Module):
         input_and_domain = torch.cat(
            problem_rep + input_node_embeddings + dom_edge_embeddings
         )
+        if return_rep:
+            return input_and_domain
         x = stream_mlp(input_and_domain)
         if score:
             return torch.sigmoid(x)
