@@ -81,6 +81,10 @@ def make_argument_parser():
         '--debug',
         action='store_true'
     )
+    parser.add_argument(
+        "--ablation",
+        action="store_true"
+    )
     return parser
 
 
@@ -106,7 +110,8 @@ if __name__ == '__main__':
         model_info_class = HyperModelInfo
         model_fn = lambda model_info: HyperClassifier(
             model_info,
-            with_problem_graph=args.use_problem_graph
+            with_problem_graph=args.use_problem_graph,
+            use_gnns=args.ablation
         )
     elif args.model == 'streamclass':
         input_fn = construct_input

@@ -25,6 +25,7 @@ class HyperClassifier(nn.Module):
         problem_graph_output_size=16,
         problem_graph_hidden_size=4,
         mlp_out=1,
+        use_gnns = True,
     ):
 
         node_feature_size = model_info.node_feature_size
@@ -69,9 +70,13 @@ class HyperClassifier(nn.Module):
         for i, mlp in enumerate(self.mlps):
             setattr(self, f"mlp{i}", mlp)
 
+        self.use_gnns = use_gnns
+
     def forward(self, data, score = False):
         # first get node and edge embeddings from GNN
-        x, edge_attr = self.graph_network(data, return_edge_attr = True)
+        x, edge_attr = data.x, data.edge_attr
+        if self.use_gnns:
+            x, edge_attr = self.graph_network(data, return_edge_attr = True)
         # candidate object embeddings, and candidate fact embeddings to mlp
         cand = data.candidate
         assert cand[0] > 0, "Considering an initial condition"
@@ -85,7 +90,9 @@ class HyperClassifier(nn.Module):
         dom_edge_embeddings = [edge_attr[i] for i in dom_edge_inds]
 
         if self.with_problem_graph:
-            problem_rep = [self.problem_graph_network(data.problem_graph)]
+            problem_rep = [data.problem_graph]
+            if self.use_gnns:
+                problem_rep = [self.problem_graph_network(data.problem_graph)]
         else:
             problem_rep = []
         input_and_domain = torch.cat(
