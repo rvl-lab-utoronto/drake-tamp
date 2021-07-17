@@ -129,10 +129,14 @@ if __name__ == '__main__':
         if args.use_problem_graph:
             input_fn = construct_with_problem_graph(input_fn)
         model_info_class = HyperModelInfo
+        # TODO: decide what we want to do about this, using problem graph currently requires GNNS
+        use_problem_graph = args.use_problem_graph
+        if args.ablation:
+            use_problem_graph = False
         model_fn = lambda model_info: HyperClassifier(
             model_info,
-            with_problem_graph=args.use_problem_graph,
-            use_gnns = args.ablation
+            with_problem_graph=use_problem_graph,
+            use_gnns = not args.ablation
         )
     elif args.model == 'streamclass':
         input_fn = construct_input

@@ -12,7 +12,9 @@ from torch_scatter import scatter_mean
 
 
 def nPr(n, r):
-    return factorial(n)/factorial(n-r)
+    assert isinstance(n, int), "n must be an int"
+    assert isinstance(r, int), "r must be an int"
+    return factorial(n)//factorial(n-r)
 
 class HyperClassifier(nn.Module):
     """
@@ -60,6 +62,7 @@ class HyperClassifier(nn.Module):
         self.stream_num_inputs = stream_num_inputs
         # each domain fact and stream input has its own input feature vector
 
+        self.use_gnns = use_gnns
         node_inp_size = feature_size
         edge_inp_size = feature_size
         if not self.use_gnns:
@@ -68,13 +71,13 @@ class HyperClassifier(nn.Module):
 
         self.mlps = []
         for domain, num_inputs in zip(stream_domains, stream_num_inputs):
-            inp_size = num_inputs*node_feature_size
+            inp_size = num_inputs*node_inp_size
             for fact in domain:
                 if len(fact) == 2: # unary facts have one edge
-                    inp_size += edge_inp_size
+                    inp_size += 1*edge_inp_size
                 else:
                     # every non-unary fact has two edges (bidirectional)
-                    inp_size += nPr(len(fact), 2)*edge_inp_size
+                    inp_size += nPr(len(fact)- 1, 2)*edge_inp_size
             #inp_size *= feature_size
             inp_size += problem_graph_output_size
             self.mlps.append(
@@ -85,6 +88,10 @@ class HyperClassifier(nn.Module):
             setattr(self, f"mlp{i}", mlp)
 
         self.use_gnns = use_gnns
+        if use_gnns and (not with_problem_graph):
+            raise NotImplementedError(
+                "Currently using problem graph is not supported without GNN's"
+            )
 
     def forward(self, data, score = False):
         # first get node and edge embeddings from GNN
