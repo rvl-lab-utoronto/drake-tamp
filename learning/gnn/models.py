@@ -55,16 +55,22 @@ class HyperClassifier(nn.Module):
         self.stream_num_inputs = stream_num_inputs
         # each domain fact and stream input has its own input feature vector
 
+        node_inp_size = feature_size
+        edge_inp_size = feature_size
+        if not self.use_gnns:
+            node_inp_size = node_feature_size
+            edge_inp_size = edge_feature_size
+
         self.mlps = []
         for domain, num_inputs in zip(stream_domains, stream_num_inputs):
-            inp_size = num_inputs
+            inp_size = num_inputs*node_feature_size
             for fact in domain:
                 if len(fact) == 2: # unary facts have one edge
-                    inp_size += 1
+                    inp_size += edge_inp_size
                 else:
                     # every non-unary fact has two edges (bidirectional)
-                    inp_size += 2 
-            inp_size *= feature_size
+                    inp_size += 2*edge_inp_size
+            #inp_size *= feature_size
             inp_size += problem_graph_output_size
             self.mlps.append(
                 MLP([16, mlp_out], inp_size)
