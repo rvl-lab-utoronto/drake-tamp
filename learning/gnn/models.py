@@ -109,7 +109,6 @@ class HyperClassifier(nn.Module):
         mlp_to_input = {}
         mlp_to_batch_inds = {}
 
-        running_num_nodes = 0
         for i, cand in enumerate(data.candidate):
             assert cand[0] > 0, "Considering an initial condition"
             stream_ind = cand[0] - 1
@@ -119,15 +118,13 @@ class HyperClassifier(nn.Module):
 
             mlp = self.mlps[stream_ind]
             subgraph_node_inds = torch.where(data.batch == i)
-            num_nodes = len(subgraph_node_inds[0])
             node_inp = x[subgraph_node_inds][input_node_inds]
             edge_inp = edge_attr[
                 torch.where(
-                    (data.edge_index[0] >= running_num_nodes) &
-                    (data.edge_index[0] < running_num_nodes + num_nodes)
+                    (data.edge_index[0] >= min(subgraph_node_inds[0]).item()) &
+                    (data.edge_index[0] <= max(subgraph_node_inds[0]).item())
                 )
             ][dom_edge_inds]
-            running_num_nodes += num_nodes
             inp = torch.cat(
                 (prob_rep[i].unsqueeze(0), node_inp.reshape(1, -1), edge_inp.reshape(1, -1)), dim = 1
             )

@@ -116,6 +116,8 @@ if __name__ == '__main__':
         data = json.load(f)
     train_files = [os.path.join(base_datapath, d) for d in data['train']]
     val_files = [os.path.join(base_datapath, d) for d in data['validation']]
+    print(f"Number of training files: len(train_files)")
+    print("Number of validation files: len(val_files)")
 
     if args.debug:
         train_files = train_files[:1]
@@ -204,7 +206,7 @@ if __name__ == '__main__':
         # Load the best checkoibt for evaluation
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
  
-    evaluate_model(model, criterion, val_loader, save_path=args.model_home)
+    evaluate_model(model, criterion, DeviceAwareLoaderWrapper(val_loader, device), save_path=args.model_home)
 
 
 
