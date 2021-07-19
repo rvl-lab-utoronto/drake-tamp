@@ -266,7 +266,7 @@ class Oracle:
         is_matching() (see above function)
         """
         can_atom_map = make_atom_map(node_from_atom)
-        can_stream_map = make_stream_map(node_from_atom)
+        #can_stream_map = make_stream_map(node_from_atom)
         assert objects_from_facts(self.init) == objects_from_facts(
             {f for f in can_atom_map if not can_atom_map[f]}
         )
@@ -278,7 +278,7 @@ class Oracle:
             can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
 
         for can_fact in result.get_certified():
-            is_match, match = is_matching(
+            is_match, _ = is_matching(
                 fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init
             )
 
