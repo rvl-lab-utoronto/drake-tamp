@@ -77,7 +77,7 @@ class HyperClassifier(nn.Module):
                     inp_size += 1*edge_inp_size
                 else:
                     # every non-unary fact has two edges (bidirectional)
-                    inp_size += nPr(len(fact)- 1, 2)*edge_inp_size
+                    inp_size += 2*edge_inp_size
             #inp_size *= feature_size
             inp_size += problem_graph_output_size
             self.mlps.append(
@@ -88,7 +88,7 @@ class HyperClassifier(nn.Module):
             setattr(self, f"mlp{i}", mlp)
 
         self.use_gnns = use_gnns
-        if use_gnns and (not with_problem_graph):
+        if (not use_gnns) and (not with_problem_graph):
             raise NotImplementedError(
                 "Currently using problem graph is not supported without GNN's"
             )
