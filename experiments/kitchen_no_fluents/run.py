@@ -525,7 +525,7 @@ def run_kitchen(
     print("Goal:", str_from_object(problem.goal))
 
     given_oracle = oracle if mode == "oracle" else None
-    search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 0.01
+    search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 10
     solution = solve(
         problem,
         algorithm=algorithm,
