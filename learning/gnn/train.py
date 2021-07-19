@@ -48,7 +48,7 @@ def train_model_graphnetwork(
 
         print(f"== [EPOCH {e:03d} / {epochs}] Train loss: {(running_loss / running_num_samples):03.5f}")
 
-        if e % save_every == 0:
+        if e % save_every == (save_every - 1):
 
             model.eval()
 

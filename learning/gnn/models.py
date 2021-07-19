@@ -37,7 +37,7 @@ class HyperClassifier(nn.Module):
         mlp_out=1,
         use_gnns = True,
     ):
-
+        self.use_gnns = use_gnns
         node_feature_size = model_info.node_feature_size
         edge_feature_size = model_info.edge_feature_size
         stream_domains = model_info.stream_domains[1:]

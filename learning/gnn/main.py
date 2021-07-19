@@ -137,7 +137,7 @@ if __name__ == '__main__':
             use_problem_graph = False
         model_fn = lambda model_info: HyperClassifier(
             model_info,
-            with_problem_graph=use_problem_graph,
+            with_problem_graph = use_problem_graph,
             use_gnns = not args.ablation
         )
     elif args.model == 'streamclass':
