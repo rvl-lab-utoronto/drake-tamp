@@ -77,7 +77,7 @@ class HyperClassifier(nn.Module):
                     inp_size += 1*edge_inp_size
                 else:
                     # every non-unary fact has two edges (bidirectional)
-                    inp_size += 2*edge_inp_size
+                    inp_size += nPr(len(fact)- 1, 2)*edge_inp_size
             #inp_size *= feature_size
             inp_size += problem_graph_output_size
             self.mlps.append(
