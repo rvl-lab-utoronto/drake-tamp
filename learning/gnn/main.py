@@ -2,8 +2,10 @@
 import argparse
 import json
 import os
+
+from torch_geometric.data.dataloader import DataLoader
 from learning.data_models import StreamInstanceClassifierInfo
-from learning.gnn.data import EvaluationDataset, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
+from learning.gnn.data import DeviceAwareLoaderWrapper, EvaluationDatasetSampler, TrainingDatasetSampler, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
@@ -32,7 +34,7 @@ def make_argument_parser():
         default=500
     )
     parser.add_argument(
-        "--save_every",
+        "--save-every",
         type=int,
         default=10
     )
@@ -41,10 +43,10 @@ def make_argument_parser():
         type=float,
         default=3.
     )
-    parser.add_argument(
-        "--augment-data",
-        action="store_true"
-    )
+    # parser.add_argument(
+    #     "--augment-data",
+    #     action="store_true"
+    # )
     parser.add_argument(
         "--stratify-train-prop",
         type=float,
@@ -57,7 +59,17 @@ def make_argument_parser():
     )
     parser.add_argument(
         "--gradient-batch-size",
-        default=16,
+        default=1,
+        type=int
+    )
+    parser.add_argument(
+        "--batch-size",
+        default=128,
+        type=int
+    )
+    parser.add_argument(
+        "--num-preprocessors",
+        default=8,
         type=int
     )
     parser.add_argument(
@@ -82,8 +94,17 @@ def make_argument_parser():
         action='store_true'
     )
     parser.add_argument(
+        "--epoch-size",
+        default = 1280,
+        type = int
+    )
+    parser.add_argument(
+        "--preprocess-all",
+        action = "store_true"
+    )
+    parser.add_argument(
         "--ablation",
-        action="store_true"
+        action = "store_true"
     )
     return parser
 
@@ -95,6 +116,8 @@ if __name__ == '__main__':
         data = json.load(f)
     train_files = [os.path.join(base_datapath, d) for d in data['train']]
     val_files = [os.path.join(base_datapath, d) for d in data['validation']]
+    print(f"Number of training files: len(train_files)")
+    print("Number of validation files: len(val_files)")
 
     if args.debug:
         train_files = train_files[:1]
@@ -108,10 +131,13 @@ if __name__ == '__main__':
         if args.use_problem_graph:
             input_fn = construct_with_problem_graph(input_fn)
         model_info_class = HyperModelInfo
+        # TODO: decide what we want to do about this, using problem graph currently requires GNNS
+        if args.ablation:
+            assert not args.use_problem_graph, "Can't use problem graph without gnns"
         model_fn = lambda model_info: HyperClassifier(
             model_info,
-            with_problem_graph=args.use_problem_graph,
-            use_gnns=(not args.ablation)
+            with_problem_graph = args.use_problem_graph,
+            use_gnns = not args.ablation
         )
     elif args.model == 'streamclass':
         input_fn = construct_input
@@ -124,37 +150,50 @@ if __name__ == '__main__':
     else:
         raise ValueError
 
-    valset = EvaluationDataset(
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+
+    valset = Dataset(
         input_fn,
         model_info_class,
-        preprocess_all=False,
-        max_per_run=200
+        preprocess_all=args.preprocess_all,
     )
     valset.from_pkl_files(*val_files)
     valset.prepare()
+    val_sampler = EvaluationDatasetSampler(valset)
+    val_loader = DataLoader(valset, sampler=val_sampler, batch_size=args.batch_size, num_workers=args.num_preprocessors)
 
     model = model_fn(valset.model_info)
     criterion = torch.nn.BCEWithLogitsLoss(pos_weight=args.pos_weight*torch.ones([1]))
 
+
+    criterion.to(device)
+    model.to(device)
+
     if args.from_best:
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
-
 
     if not args.test_only:
         trainset = TrainingDataset(
             input_fn,
             model_info_class,
-            augment=args.augment_data,
-            stratify_prop=args.stratify_train_prop,
-            preprocess_all=False
+            preprocess_all=args.preprocess_all,
         )
         trainset.from_pkl_files(*train_files)
         trainset.prepare()
-
+        train_sampler = TrainingDatasetSampler(trainset, epoch_size=args.epoch_size, stratify_prop=args.stratify_train_prop)
+        train_loader = DataLoader(trainset, sampler=train_sampler, batch_size=args.batch_size, num_workers=args.num_preprocessors)
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
         train_model_graphnetwork(
             model,
-            dict(train=trainset, val=valset),
+            dict(
+                train=DeviceAwareLoaderWrapper(train_loader, device),
+                val=DeviceAwareLoaderWrapper(val_loader, device)
+            ),
             criterion=criterion,
             optimizer=optimizer,
             step_every=args.gradient_batch_size,
@@ -164,11 +203,8 @@ if __name__ == '__main__':
         )
         # Load the best checkoibt for evaluation
         model.load_state_dict(torch.load(os.path.join(args.model_home, 'best.pt')))
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-    evaluate_model(model, criterion, valset, device, save_path=args.model_home)
+ 
+    evaluate_model(model, criterion, DeviceAwareLoaderWrapper(val_loader, device), save_path=args.model_home)
 
 
 

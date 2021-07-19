@@ -1,6 +1,7 @@
 from collections import namedtuple
 from learning.pddlstream_utils import make_atom_map, make_stream_map, fact_to_pddl, obj_to_pddl
 from dataclasses import dataclass
+from torch_geometric.data import Data
 from pddlstream.algorithms.downward import Domain
 
 @dataclass
@@ -88,6 +89,7 @@ class ProblemInfo:
     goal_facts: list
     initial_facts: list
     model_poses: list
+    problem_graph: Data = None
     object_mapping: dict = None
 
 # TODO: Do these shared classes need a new home?

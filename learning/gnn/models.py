@@ -1,10 +1,20 @@
+from math import factorial
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter_mean
-from torch_geometric.nn import MetaLayer
-from torch_geometric.nn import GCNConv
+from torch.cuda import stream
 from torch.nn.utils.rnn import pad_sequence
+from torch_geometric.data import Batch
+from torch_geometric.nn import GCNConv, MetaLayer
+from torch_scatter import scatter_mean
+
+
+def nPr(n, r):
+    assert isinstance(n, int), "n must be an int"
+    assert isinstance(r, int), "r must be an int"
+    return factorial(n)//factorial(n-r)
 
 class HyperClassifier(nn.Module):
     """
@@ -52,6 +62,7 @@ class HyperClassifier(nn.Module):
         self.stream_num_inputs = stream_num_inputs
         # each domain fact and stream input has its own input feature vector
 
+        self.use_gnns = use_gnns
         node_inp_size = feature_size
         edge_inp_size = feature_size
         if not self.use_gnns:
@@ -63,10 +74,10 @@ class HyperClassifier(nn.Module):
             inp_size = num_inputs*node_inp_size
             for fact in domain:
                 if len(fact) == 2: # unary facts have one edge
-                    inp_size += edge_inp_size
+                    inp_size += 1*edge_inp_size
                 else:
                     # every non-unary fact has two edges (bidirectional)
-                    inp_size += 2*edge_inp_size 
+                    inp_size += nPr(len(fact)- 1, 2)*edge_inp_size
             #inp_size *= feature_size
             inp_size += problem_graph_output_size
             self.mlps.append(
@@ -77,40 +88,66 @@ class HyperClassifier(nn.Module):
             setattr(self, f"mlp{i}", mlp)
 
         self.use_gnns = use_gnns
+        if (not use_gnns) and (not with_problem_graph):
+            raise NotImplementedError(
+                "Currently using problem graph is not supported without GNN's"
+            )
 
-    def forward(self, data, score = False, return_rep=False):
+    def forward(self, data, score = False):
         # first get node and edge embeddings from GNN
         x, edge_attr = data.x, data.edge_attr
         if self.use_gnns:
             x, edge_attr = self.graph_network(data, return_edge_attr = True)
-        # candidate object embeddings, and candidate fact embeddings to mlp
-        cand = data.candidate
-        assert cand[0] > 0, "Considering an initial condition"
-        ind = cand[0] - 1
-        stream_mlp = self.mlps[ind]
-        stream_num_inp = self.stream_num_inputs[ind]
-        input_node_inds = cand[1:1 + stream_num_inp]
-        dom_edge_inds = cand[1+ stream_num_inp:]
-
-        input_node_embeddings = [x[i] for i in input_node_inds]
-        dom_edge_embeddings = [edge_attr[i] for i in dom_edge_inds]
-
+        assert hasattr(data, "batch"), "Must batch the data"
         if self.with_problem_graph:
-            problem_rep = [data.problem_graph]
+            prob_rep = Batch().from_data_list(data.problem_graph)
             if self.use_gnns:
-                problem_rep = [self.problem_graph_network(data.problem_graph)]
-        else:
-            problem_rep = []
-        input_and_domain = torch.cat(
-           problem_rep + input_node_embeddings + dom_edge_embeddings
-        )
-        if return_rep:
-            return input_and_domain
-        x = stream_mlp(input_and_domain)
-        if score:
-            return torch.sigmoid(x)
-        return x
+                prob_rep = self.problem_graph_network(prob_rep)
+        # candidate object embeddings, and candidate fact embeddings to mlp
 
+        # group batch by stream type 
+        mlp_to_input = {}
+        mlp_to_batch_inds = {}
+
+        for i, cand in enumerate(data.candidate):
+            assert cand[0] > 0, "Considering an initial condition"
+            stream_ind = cand[0] - 1
+            stream_num_inp = self.stream_num_inputs[stream_ind]
+            input_node_inds = cand[1:1 + stream_num_inp]
+            dom_edge_inds = cand[1+ stream_num_inp:]
+
+            mlp = self.mlps[stream_ind]
+            subgraph_node_inds = torch.where(data.batch == i)
+            node_inp = x[subgraph_node_inds][input_node_inds]
+            edge_inp = edge_attr[
+                torch.where(
+                    (data.edge_index[0] >= min(subgraph_node_inds[0]).item()) &
+                    (data.edge_index[0] <= max(subgraph_node_inds[0]).item())
+                )
+            ][dom_edge_inds]
+            inp = torch.cat(
+                (prob_rep[i].unsqueeze(0), node_inp.reshape(1, -1), edge_inp.reshape(1, -1)), dim = 1
+            )
+            if mlp in mlp_to_input:
+                mlp_to_input[mlp] = torch.cat((mlp_to_input[mlp], inp), dim = 0)
+                mlp_to_batch_inds[mlp] = torch.cat(
+                    (mlp_to_batch_inds[mlp], torch.tensor([i]))
+                )
+            else:
+                mlp_to_input[mlp] = inp
+                mlp_to_batch_inds[mlp] = torch.tensor([i])
+
+        out = torch.zeros((len(data.candidate), 1), device = x.device)
+        for mlp, inp in mlp_to_input.items():
+            mlpout = mlp(inp)
+            batch_inds = mlp_to_batch_inds[mlp]
+            out[batch_inds] = mlpout
+
+        if score:
+            return torch.sigmoid(out)
+
+        return out
+            
 class StreamInstanceClassifier(nn.Module):
     def __init__(self, model_info, feature_size=8, lstm_size=10,  mlp_out=1, use_gcn=True, use_object_model=True):
         node_feature_size = model_info.node_feature_size
@@ -244,35 +281,36 @@ class GlobalModel(torch.nn.Module):
         # u: [B, F_u]
         # batch: [N] with max entry B - 1.
         if u is not None:
-            out = torch.cat([u, torch.mean(x, dim=0)], dim=0)
+            out = torch.cat([u, scatter_mean(x, batch, dim=0)], dim=1)
         else:
-            out = torch.mean(x, dim=0)
+            out = scatter_mean(x, batch, dim=0)
         return self.global_mlp(out)
 
 class GraphAwareNodeModel(torch.nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, graph_feature_size, output_size, dropout = 0.0):
         super().__init__()
         self.node_mlp_1 = nn.Sequential(
-            nn.Linear(node_feature_size + edge_feature_size + graph_feature_size, output_size),
+            nn.Linear(node_feature_size + edge_feature_size, output_size),
             nn.LeakyReLU(),
             nn.LayerNorm(output_size),
             nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
             nn.Linear(output_size, output_size),
         )
         self.node_mlp_2 = nn.Sequential(
-            nn.Linear(node_feature_size + output_size, output_size),
+            nn.Linear(node_feature_size + output_size + graph_feature_size, output_size),
             nn.LeakyReLU(),
             nn.LayerNorm(output_size),
             nn.Dropout(dropout) if dropout > 0.0 else nn.Identity(),
             nn.Linear(output_size, output_size),
         )
 
-    def forward(self, x, edge_index, edge_attr, u, batch):
-        src, dest = edge_index
-        out = torch.cat([x[src], edge_attr, u.unsqueeze(0).repeat(edge_attr.shape[0], 1)], dim = 1)
-        out= self.node_mlp_1(out)
-        out = scatter_mean(out, dest, dim = 0, dim_size = x.size(0))
-        return self.node_mlp_2(torch.cat([x, out], dim = 1))
+    def forward(self, x, edge_index, edge_attr, u, batch = None):
+        cand, col = edge_index
+        out = torch.cat([x[cand], edge_attr], dim=1)
+        out = self.node_mlp_1(out)
+        out = scatter_mean(out, col, dim=0, dim_size=x.size(0))
+        out = torch.cat([x, out, u[batch]], dim=1)
+        return self.node_mlp_2(out)
 
 class GraphAwareEdgeModel(torch.nn.Module):
     def __init__(self, node_feature_size, edge_feature_size, graph_feature_size, hidden_size, dropout=0.0):
@@ -288,7 +326,10 @@ class GraphAwareEdgeModel(torch.nn.Module):
     def forward(self, src, dst, edge_attr, u, batch=None):
         # src, dst: [E, F_x], where E is num edges, F_x is node-feature dimensionality
         # edge_attr: [E, F_e], where E is num edges, F_e is edge-feature dimensionality
-        out = torch.cat([src, dst, edge_attr, u.unsqueeze(0).repeat(src.shape[0], 1)], dim=1)
+        out = torch.cat(
+            [src, dst, edge_attr, u[batch]],
+            dim=1
+        )
         return self.edge_mlp(out)
 
 
@@ -312,9 +353,10 @@ class ProblemGraphNetwork(nn.Module):
         )
     def forward(self, data, attr='x'):
         x, edge_idx, edge_attr = getattr(data, attr), data.edge_index, data.edge_attr
-        x, edge_attr, u = self.meta_layer_1(x, edge_idx, edge_attr, u=None)
-        x, edge_attr, u = self.meta_layer_2(x, edge_idx, edge_attr, u=u)
-        x, edge_attr, u = self.meta_layer_3(x, edge_idx, edge_attr, u=u)
+        assert hasattr(data, "batch"), "Need to batch the data"
+        x, edge_attr, u = self.meta_layer_1(x, edge_idx, edge_attr, u=None, batch = data.batch)
+        x, edge_attr, u = self.meta_layer_2(x, edge_idx, edge_attr, u=u, batch = data.batch)
+        x, edge_attr, u = self.meta_layer_3(x, edge_idx, edge_attr, u=u, batch = data.batch)
         return u
 
 class SimpleGCN(nn.Module):

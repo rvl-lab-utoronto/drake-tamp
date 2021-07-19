@@ -4,7 +4,8 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
-import subprocess
+import json
+from json.decoder import JSONDecodeError
 import time
 import numpy as np
 import random
@@ -63,7 +64,6 @@ DUMMY_STREAMS = False
 file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
 stream_pddl = open(f"{file_path}/stream.pddl", "r").read()
-
 
 def lprint(string):
     if VERBOSE:
@@ -525,6 +525,7 @@ def run_kitchen(
     print("Goal:", str_from_object(problem.goal))
 
     given_oracle = oracle if mode == "oracle" else None
+    search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 10
     solution = solve(
         problem,
         algorithm=algorithm,
@@ -533,6 +534,7 @@ def run_kitchen(
         oracle=given_oracle,
         use_unique=mode == "oracle",
         max_time=max_time,
+        search_sample_ratio=search_sample_ratio
     )
 
     print(f"\n\n{algorithm} solution:")
@@ -658,6 +660,15 @@ def generate_data(
         mode="oracle",
         max_time=max_time,
     )
+    if not res:
+        data = []
+        if os.path.isfile(os.path.join(file_path, "oracle_failures.json")):
+            with open("oracle_failures.json", "r") as f:
+                data = json.load(f)
+        data.append(problem_file)
+        with open("oracle_failures.json", "w") as f:
+            json.dump(data, f, sort_keys=True, indent = 4)
+
 
 
 if __name__ == "__main__":
