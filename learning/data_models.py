@@ -89,7 +89,6 @@ class ProblemInfo:
     goal_facts: list
     initial_facts: list
     model_poses: list
-    object_mapping: dict = None
     problem_graph: Data = None
     object_mapping: dict = None
 

@@ -132,12 +132,11 @@ if __name__ == '__main__':
             input_fn = construct_with_problem_graph(input_fn)
         model_info_class = HyperModelInfo
         # TODO: decide what we want to do about this, using problem graph currently requires GNNS
-        use_problem_graph = args.use_problem_graph
         if args.ablation:
-            use_problem_graph = False
+            assert not args.use_problem_graph, "Can't use problem graph without gnns"
         model_fn = lambda model_info: HyperClassifier(
             model_info,
-            with_problem_graph = use_problem_graph,
+            with_problem_graph = args.use_problem_graph,
             use_gnns = not args.ablation
         )
     elif args.model == 'streamclass':
@@ -162,7 +161,6 @@ if __name__ == '__main__':
         input_fn,
         model_info_class,
         preprocess_all=args.preprocess_all,
-        max_per_run=200,
     )
     valset.from_pkl_files(*val_files)
     valset.prepare()

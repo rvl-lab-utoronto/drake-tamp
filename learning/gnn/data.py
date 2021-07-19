@@ -698,7 +698,6 @@ class Dataset:
         construct_input_fn,
         model_info_class,
         preprocess_all=True,
-        max_per_run=None,
         clear_memory=True,
     ):
         self.construct_input_fn = construct_input_fn
@@ -709,7 +708,6 @@ class Dataset:
         self.model_info = None
         self.num_examples = 0
         self.preprocess_all = preprocess_all
-        self.max_per_run = max_per_run
         self.clear_memory = clear_memory
         self.datastores = []
 
