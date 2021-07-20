@@ -3,6 +3,7 @@ from learning.pddlstream_utils import make_atom_map, make_stream_map, fact_to_pd
 from dataclasses import dataclass
 from torch_geometric.data import Data
 from pddlstream.algorithms.downward import Domain
+import numpy as np
 
 @dataclass
 class ModelInfo:
@@ -91,6 +92,32 @@ class ProblemInfo:
     model_poses: list
     problem_graph: Data = None
     object_mapping: dict = None
+
+    def __eq__(self, other):
+        if self.goal_facts != other.goal_facts:
+            return False
+        if self.initial_facts != other.initial_facts:
+            return False
+        if len(self.model_poses) != len(other.model_poses):
+            return False
+        for p1, p2 in zip(self.model_poses, other.model_poses):
+            if p1["name"] != p2["name"]:
+                return False
+            if not np.all(p1["X"].GetAsMatrix34() == p2["X"].GetAsMatrix34()):
+                return False
+            if p1["static"] != p2["static"]:
+                return False
+        return True
+
+    def __hash__(self):
+        res = self.goal_facts
+        res += self.initial_facts
+        for pose in self.model_poses:
+            res += (pose["name"], )
+            res += (str(pose["X"]), )
+            res += (pose["static"], )
+        return hash(res)
+
 
 # TODO: Do these shared classes need a new home?
 SerializedResult = namedtuple(

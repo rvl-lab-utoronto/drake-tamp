@@ -525,7 +525,7 @@ def run_kitchen(
     print("Goal:", str_from_object(problem.goal))
 
     given_oracle = oracle if mode == "oracle" else None
-    search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 10
+    search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 1
     solution = solve(
         problem,
         algorithm=algorithm,
@@ -609,6 +609,7 @@ def generate_data(
     prob_tray=0.4,
     buffer_radius=0,
     num_goal = None,
+    num_repeat_per_problem = 5,
 ):
     """
     params:
@@ -638,6 +639,9 @@ def generate_data(
         num_goal: The maximum number of objects that will have a goal associated with
         them. If num_goal = None, then all objects will have a goal associated with
         them. Otherwise, max_goal_num must be greater than 0.
+
+        num_repeat_per_problem: the number of times this problem is repeated (ie
+        iterations of ("save" and "oracle"), ("save" and "oracle") ...)
     """
 
     res, problem_file = run_kitchen(
@@ -655,20 +659,24 @@ def generate_data(
     )
     if not res:
         return
-    res, _ = run_kitchen(
-        problem_file=problem_file,
-        mode="oracle",
-        max_time=max_time,
-    )
-    if not res:
-        data = []
-        if os.path.isfile(os.path.join(file_path, "oracle_failures.json")):
-            with open("oracle_failures.json", "r") as f:
-                data = json.load(f)
-        data.append(problem_file)
-        with open("oracle_failures.json", "w") as f:
-            json.dump(data, f, sort_keys=True, indent = 4)
-
+    mode = "oracle"
+    for i in range((num_repeat_per_problem * 2) - 1):
+        mode = "oracle" if (i % 2 == 0) else "save"
+        res, _ = run_kitchen(
+            max_time=max_time,
+            mode=mode,
+            url=url,
+            problem_file = problem_file,
+            simulate = simulate,
+        )
+        if not res:
+            data = []
+            if os.path.isfile(os.path.join(file_path, "oracle_failures.json")):
+                with open("oracle_failures.json", "r") as f:
+                    data = json.load(f)
+            data.append(problem_file)
+            with open("oracle_failures.json", "w") as f:
+                json.dump(data, f, sort_keys=True, indent = 4)
 
 
 if __name__ == "__main__":
@@ -701,6 +709,20 @@ if __name__ == "__main__":
             )
     """
 
+    generate_data(
+        num_cabbages=2,
+        num_raddishes=1,
+        num_glasses=1,
+        num_goal = 4,
+        buffer_radius=0.00,
+        url=url,
+        simulate=False,
+        max_time = 360,
+        num_repeat_per_problem=3
+    )
+
+    """
+
     L = ["c", "r", "g"]
 
     for num in range(3,5):
@@ -719,7 +741,7 @@ if __name__ == "__main__":
                     simulate=False,
                     max_time = 360
                 )
-
+    """
 
 
     """

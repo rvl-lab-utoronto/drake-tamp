@@ -1,16 +1,19 @@
 #%%
 
 import json
+import numpy as np
 import os
 import itertools
 import pickle
 
-# interesting runs: 
-p0 = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-18-23:18:28" #<- this one has the problem.yaml
-p1 = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-18-23:21:06"
-p2 = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-18-23:21:48"
+#%%
 
-paths = [p0, p1, p2]
+# interesting runs: 
+p0 = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-20-11:12:12" #<- this one has the problem.yaml
+p1 = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-20-11:12:29"
+#p2 = "/home/agrobenj/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-18-23:21:48"
+
+paths = [p0, p1]#, p2]
 
 from learning.oracle import item_to_dict, ancestors, ancestors_tuple, is_matching
 
@@ -58,7 +61,7 @@ def printv(s):
     if VERBOSE:
         print(s)
 
-for can_ind, gt_ind in itertools.permutations((0,1,2), r = 2):
+for can_ind, gt_ind in itertools.permutations(range(len(paths)), r = 2):
     can_preimage = preimages[0]
     can_atom_map = atom_maps[0]
     gt_preimage = preimages[gt_ind]
@@ -77,10 +80,10 @@ for can_ind, gt_ind in itertools.permutations((0,1,2), r = 2):
         can_num_relevant += int(rel)
     print(f"Fraction relevant: {can_num_relevant/len(can_preimage)}")
 
-l0 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-18-23:18:29.734.pkl"
-l1 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-18-23:21:07.956.pkl"
-l2 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-18-23:21:50.008.pkl"
-label_paths = [l0, l1, l2]
+l0 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-20-11:12:13.912.pkl"
+l1 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-20-11:12:30.953.pkl"
+#l2 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-20-11:12:45.932.pkl"
+label_paths = [l0, l1]#, l2]
 
 def load_pkl(fullpath):
     with open(fullpath, "rb") as f:
@@ -93,7 +96,9 @@ def load_pkl(fullpath):
         with open(f"{os.path.join(folder, name)}" , "rb") as f:
             inv = pickle.load(f)
             invs.append(inv)
-    return invs
+
+    last_preimage, atom_map = load_stats(data["stats_path"])
+    return invs, {"last_preimage": last_preimage, "atom_map": atom_map}
 
 
 def is_inv_relevant(inv, ground_truth_preimage, ground_truth_atom_map):
@@ -148,22 +153,83 @@ for can_ind, gt_ind in itertools.permutations((0,1,2), r = 2):
 
 """
 
-def rel_to_others(inv, others_list):
-    pass
+def rel_to_others(inv, can_pkl, pkl_to_data):
+    for pkl, data in pkl_to_data.items():
+        if pkl == can_pkl:
+            continue
+        rel = is_inv_relevant(inv, data["last_preimage"], data["atom_map"])[0]
+        if rel:
+            return True
+    return False
 
 def merge_labels(pkl_list):
     invs_list = []
-    for l in label_paths:
-        invs_list.append(load_pkl(l))
+
+    pkl_to_data = {}
+    for pkl in pkl_list:
+        invs, stats = load_pkl(pkl)
+        invs_list.append(invs)
+        pkl_to_data[pkl] = stats
 
     merged = []
     
-    for invs in invs_list:
+
+    original = {"pos": 0, "neg" : 0}
+    after = {"pos": 0, "neg" : 0}
+    #num_become_positive = 0
+    for pkl, invs in zip(pkl_list ,invs_list):
         for inv in invs:
-            if inv.label:
-                merged.append(inv)
-                continue
+            original["pos"] += int(inv.label)
+            original["neg"] += int(not inv.label)
+            if not inv.label:
+                inv.label = rel_to_others(inv, pkl, pkl_to_data) # do any of the other oracles think this invocation is relevant?
+            after["pos"] += int(inv.label)
+            after["neg"] += int(not inv.label)
+            merged.append(inv)
+    tot = sum(list(original.values()))
+    print("Before consensus:")
+    pos, neg = original["pos"], original["neg"]
+    print(f"Fraction positive: {pos/tot}. Fraction negative: {neg/tot}")
+    print("After consensus:")
+    pos, neg = after["pos"], after["neg"]
+    print(f"Fraction positive: {pos/tot}. Fraction negative: {neg/tot}")
 
+    return merged
 
+merged = merge_labels(label_paths)
 
 # %%
+        
+
+l1 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-20-11:05:16.964.pkl"
+l2 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-20-11:05:36.588.pkl"
+l3 = "/home/agrobenj/drake-tamp/learning/data/labeled/2021-07-20-11:06:47.634.pkl"
+d1 = pickle.load(open(l1, "rb"))
+d2 = pickle.load(open(l2, "rb"))
+d3 = pickle.load(open(l3, "rb"))
+
+#%%
+
+def same_problem(problem_info1, problem_info2):
+    if problem_info1.goal_facts != problem_info2.goal_facts:
+        return False
+    if problem_info1.initial_facts != problem_info2.initial_facts:
+        return False
+    if len(problem_info1.model_poses) != len(problem_info2.model_poses):
+        return False
+    for p1, p2 in zip(problem_info1.model_poses, problem_info2.model_poses):
+        if p1["name"] != p2["name"]:
+            return False
+        if not np.all(p1["X"].GetAsMatrix34() == p2["X"].GetAsMatrix34()):
+            return False
+        if p1["static"] != p2["static"]:
+            return False
+    return True
+    
+#%%
+
+
+r = d1["problem_info"] == d2["problem_info"]
+print(r)
+print(d1["problem_info"] == d3["problem_info"])
+print(list(d1.keys()))
