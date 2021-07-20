@@ -1003,7 +1003,8 @@ def query_data(pddl: str, query: list):
 
 
 def get_base_datapath():
-    datapath = "/".join(FILEPATH.split("/")[:-1]) + "/data/labeled/"
+    sep = os.path.sep
+    datapath = os.path.join(sep.join(FILEPATH.split(sep)[:-1]),"data/labeled/")
     return datapath
 
 
