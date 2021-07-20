@@ -709,39 +709,25 @@ if __name__ == "__main__":
             )
     """
 
-    generate_data(
-        num_cabbages=2,
-        num_raddishes=1,
-        num_glasses=1,
-        num_goal = 4,
-        buffer_radius=0.00,
-        url=url,
-        simulate=False,
-        max_time = 360,
-        num_repeat_per_problem=3
-    )
-
-    """
 
     L = ["c", "r", "g"]
 
-    for num in range(3,5):
+    for num in range(2,6):
         for comb in itertools.combinations_with_replacement(L, num):
-            for rep in range(4):
-                num_c = comb.count('c')
-                num_r = comb.count('r')
-                num_g = comb.count('g')
-                generate_data(
-                    num_cabbages=num_c,
-                    num_raddishes=num_r,
-                    num_glasses=num_g,
-                    num_goal = None,
-                    buffer_radius=0.00,
-                    url=url,
-                    simulate=False,
-                    max_time = 360
-                )
-    """
+            num_c = comb.count('c')
+            num_r = comb.count('r')
+            num_g = comb.count('g')
+            generate_data(
+                num_cabbages=num_c,
+                num_raddishes=num_r,
+                num_glasses=num_g,
+                num_goal = None,
+                buffer_radius=0.00,
+                url=url,
+                simulate=False,
+                max_time = 360,
+                num_repeat_per_problem=3
+            )
 
 
     """
