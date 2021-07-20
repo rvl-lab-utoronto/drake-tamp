@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 import json
+from datetime import datetime
+import shutil
+from multiprocessing import Pool
+from functools import partial
 import numpy as np
 import os
 import itertools
 import pickle
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 from learning.oracle import item_to_dict, ancestors, ancestors_tuple, is_matching
 from learning.gnn.data import get_base_datapath, query_data
 
@@ -99,37 +104,127 @@ def consensus(inv, can_pkl, pkl_to_data):
             return True
     return False
 
+def conditional_consensus(inv, pkl, pkl_to_stats):
+    if not inv.label:
+        inv.label = consensus(inv, pkl, pkl_to_stats)
+
 def merge_labels(group):
     if len(group) <= 1:
         return
-    inv_list = []
-    pkl_list = []
     pkl_to_data = {}
+    pkl_to_stats = {}
     for data in group:
         # (last_preimage, atom_map)
-        pkl_to_data[data["dir"]] = load_stats(data["stats_path"]) 
-        pkl_list.append(data["dir"])
-        inv_list.append(load_invs(data))
+        pkl_to_stats[data["dir"]] = load_stats(data["stats_path"]) 
+        pkl_to_data[data["dir"]] = data
     original = {"pos": 0, "neg" : 0}
     after = {"pos": 0, "neg" : 0}
-    merged = []
-    for pkl, invs in zip(pkl_list, inv_list):
+    #merged = []
+    newname = "merged" + "_" + datetime.utcnow().strftime("%Y-%m-%d-%H:%M:%S.%f")[:-3] 
+    newdir = os.path.join(get_base_datapath(), newname)
+
+
+    os.mkdir(newdir)
+    num_labels = 0
+    for pkl in pkl_to_data.keys():
+        invs = load_invs(pkl_to_data[pkl])
         for inv in tqdm(invs):
             original["pos"] += int(inv.label)
             original["neg"] += int(not inv.label)
-            if not inv.label:
-                inv.label = consensus(inv, pkl, pkl_to_data)
+            conditional_consensus(inv, pkl, pkl_to_stats)
             after["pos"] += int(inv.label)
             after["neg"] += int(not inv.label)
-            merged.append(inv)
+
+            name = f"label_{num_labels}.pkl"
+            with open(os.path.join(newdir, name), "wb") as stream:
+                pickle.dump(inv, stream)
+            num_labels +=1
+        
+        #merged += invs
     tot = sum(list(original.values()))
     dp = (after["pos"] - original["pos"])/tot
     dn = (after["neg"] - original["neg"])/tot
     print(f"Change in proportion positive: {dp:.5f}. Change in proportion negative {dn:.5f}")
-    return merged
+
+    # write new high level data file
+    newdata = {}
+    newdata["problem_info"] = group[0]["problem_info"]
+    newdata["model_info"] = group[0]["model_info"]
+    newdata["stats_paths"] = [
+        d["stats_path"] for d in group
+    ]
+    newdata["merged"] = True
+    newdata["domain_pddl"] = group[0]["domain_pddl"]
+    newdata["stream_pddl"] = group[0]["stream_pddl"]
+    newdata["num_labels"] = num_labels
+    newdata["dir"] = newdir
+    with open(newdir + ".pkl", "wb") as stream:
+        pickle.dump(newdata, stream)
+
+    # update data_info.json
+
+    with open(os.path.join(get_base_datapath(), "data_info.json")) as stream:
+        data_info = json.load(stream)
+    pddl = newdata["domain_pddl"] + newdata["stream_pddl"]
+    names = [os.path.split(d["dir"])[1] + ".pkl" for d in group]
+    i = 0
+    sum_comp = 0
+    sum_evals = 0
+    sum_iters = 0
+    sum_run = 0
+    sum_sample = 0
+    sum_search = 0
+    rem = False
+    while i < len(data_info[pddl]):
+        info = data_info[pddl][i]
+        if info[1] in names:
+            rem = True
+            stats = data_info[pddl].pop(i)[0]
+            sum_comp += stats["complexity"]
+            sum_evals += stats["evaluations"]
+            sum_iters += stats["iterations"]
+            sum_run += stats["run_time"]
+            sum_sample += stats["sample_time"]
+            sum_search += stats["search_time"]
+            continue
+        i += 1
+    if not rem: # must have already merged these files
+        return
+    length = len(group)
+    data_info[pddl].append(
+        [
+            {
+                "buffer_radius": stats["buffer_radius"],
+                "complexity": sum_comp/length,
+                "evaluations": sum_evals/length,
+                "iterations": sum_iters/length,
+                "run_time": sum_run/length,
+                "sample_time": sum_sample/length,
+                "search_time": sum_search/length,
+                "num_cabbages": stats["num_cabbages"],
+                "num_glasses": stats["num_glasses"],
+                "num_goal": stats["num_goal"],
+                "num_raddishes": stats["num_raddishes"],
+                "prob_sink": stats["prob_sink"],
+                "prob_tray": stats["prob_tray"],
+            },
+            newname,
+            num_labels
+        ]
+    )
+    with open(os.path.join(get_base_datapath(), "data_info.json"), "w") as stream:
+        json.dump(data_info, stream, indent = 4, sort_keys = True)
+
+    # delete old pickles
+
+    for dir in pkl_to_data:
+        os.remove(dir + ".pkl")
+        shutil.rmtree(
+            dir
+        )
 
 def merge_groups(groups):
-    for group in groups.values():
+    for group in list(groups.values()):
         if len(group) <= 1:
             continue
         print(f"Group size: {len(group)}")
