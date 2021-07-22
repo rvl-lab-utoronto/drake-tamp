@@ -50,28 +50,57 @@ def ancestors(fact, atom_map):
         res |= ancestors(parent, atom_map)
     return set(res)
 
+
 def siblings(fact, atom_map):
-    sib = []
+
+    sib = set()
     for can_sib, can_sib_parents in atom_map.items():
         if can_sib_parents == atom_map[fact]:
-            sib.append(can_sib)
-    return set(sib)
+            sib.add(can_sib)
 
-def elders(fact, atom_map):
+    return sib
+
+def make_sibling_map(atom_map):
+
+    res = {}
+    for sib, parents in atom_map.items():
+        res.setdefault(tuple(parents), set()).add(sib)
+    return res
+
+def get_siblings_from_map(fact, atom_map, sibling_map):
+    chl = sibling_map[tuple(atom_map[fact])]
+    sib = chl.copy()
+    sib.remove(fact)
+    return sib
+
+def elders(fact, atom_map, level, sibling_map, elders_cache = {}):
     """
     Getting uncles and parents
     (certified facts + domain facts
     both count as ancestors) 
+
+    level is a dictionary mapping from fact to its level
     """
 
     parents = atom_map[fact]
     uncles = set()
     for p in parents:
-        uncles |= siblings(p, atom_map)
+        uncles |= get_siblings_from_map(p, atom_map, sibling_map)#siblings(p, atom_map)
     res = set(parents) | uncles
     init = res.copy()
     for elder in init:
-        res |= elders(elder, atom_map)
+        if elder in elders_cache:
+            res |= elders_cache[elder]
+        else:
+            res |= elders(elder, atom_map, level, sibling_map, elders_cache = elders_cache)
+
+    elders_cache[fact] = res
+
+    if len(parents) == 0:
+        level[fact] = 0
+    else:
+        level[fact] = 1 + max([level[e] for e in init])
+
     return res
 
 def ancestors_tuple(fact, atom_map):
@@ -136,7 +165,18 @@ def objects_from_facts(init):
             objects.add(arg)
     return objects
 
+def objects_from_fact(fact):
+    return {arg for arg in fact[1:]}
 
+def objects_from_fact(fact):
+
+    obj_to_inds = dict()
+    res = set()
+    for i, arg in enumerate(fact[1:]):
+        ind = i + 1
+        obj_to_inds[arg] = ind
+        res.add(arg)
+    return res, obj_to_inds
 
 def make_stream_map(node_from_atom):
     stream_map = {}
