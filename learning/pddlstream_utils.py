@@ -103,6 +103,24 @@ def elders(fact, atom_map, level, sibling_map, elders_cache = {}):
 
     return res
 
+# depreciated
+def dep_elders(fact, atom_map):
+    """
+    Getting uncles and parents
+    (certified facts + domain facts
+    both count as ancestors) 
+    """
+
+    parents = atom_map[fact]
+    uncles = set()
+    for p in parents:
+        uncles |= siblings(p, atom_map)
+    res = set(parents) | uncles
+    init = res.copy()
+    for elder in init:
+        res |= dep_elders(elder, atom_map)
+    return res
+
 def ancestors_tuple(fact, atom_map):
     """
     Given a fact, return a pre-order from bottom-up tuple of

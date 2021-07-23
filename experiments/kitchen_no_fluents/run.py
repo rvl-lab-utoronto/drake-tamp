@@ -10,6 +10,7 @@ import time
 import numpy as np
 import random
 import itertools
+import psutil
 
 np.random.seed(seed=int(time.time()))
 random.seed(int(time.time()))
@@ -60,6 +61,7 @@ ARRAY = tuple
 SIM_INIT_TIME = 0.0
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
+rams = []
 
 file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
@@ -183,23 +185,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             "static": True,
         }
     )
-
-    """
-    goal = ["and",
-        #("in", "cabbage1", ("leftplate", "base_link")),
-        ("cooked", "cabbage1"),
-        #("in", "cabbage2", ("rightplate", "base_link")),
-        #("cooked", "cabbage2"),
-        ("clean", "glass1"),
-        #("clean", "glass2"),
-        ("in", "glass1", ("leftplacemat", "leftside")),
-        #("in", "glass2", ("rightplacemat", "leftside")),
-        #("in", "raddish1", ("tray", "base_link")),
-        #("in", "raddish7", ("tray", "base_link")),
-        #("in", "raddish4", ("tray", "base_link")),
-        #("in", "raddish5", ("tray", "base_link")),
-    ]
-    """
 
     oracle = ora.Oracle(
         domain_pddl,
@@ -494,6 +479,14 @@ def run_kitchen(
     num_goal = None,
 ):
 
+    memory_percent = psutil.virtual_memory().percent
+    rams.append(memory_percent)
+    if memory_percent >= 95:
+        print(f"{Colors.RED}You have used up all the memory!{Colors.RESET}")
+        with open("mem.json", "w") as f:
+            json.dump(rams, f)
+        sys.exit(1)
+
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
     if not os.path.isdir(f"{file_path}/logs"):
         os.mkdir(f"{file_path}/logs")
@@ -685,7 +678,7 @@ if __name__ == "__main__":
 
     L = ["c", "r", "g"]
 
-    for num in range(1,6):
+    for num in range(5,7):
         for comb in itertools.combinations_with_replacement(L, num):
             num_c = comb.count('c')
             num_r = comb.count('r')

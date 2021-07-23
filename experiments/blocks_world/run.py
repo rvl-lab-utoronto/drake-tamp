@@ -5,9 +5,12 @@ See `problem 2` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
 import time
+import psutil
 import numpy as np
 import random
 import itertools
+import json
+import sys
 
 np.random.seed(seed=int(time.time()))
 random.seed(int(time.time()))
@@ -20,6 +23,7 @@ from re import I
 import argparse
 from datetime import datetime
 import pydrake.all
+from pydrake.all import RigidTransform
 from pydrake.all import Role
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
@@ -56,6 +60,7 @@ ARRAY = tuple
 SIM_INIT_TIME = 0.0
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
+rams = []
 
 file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
@@ -66,6 +71,35 @@ def lprint(string):
     if VERBOSE:
         print(string)
 
+def retrieve_model_poses(
+    main_station, main_station_context, model_names, link_names,
+):
+    """
+    For each model = model_names[i], return the worldpose of main_link_name[i]
+
+  
+    where X_WM is a RigidTransform reprsenting the model worldpose
+    """
+
+    plant = main_station.get_multibody_plant()
+    plant_context = main_station.GetSubsystemContext(plant, main_station_context)
+
+    res = []
+
+    for model_name, link_name in zip(model_names, link_names):
+        body = plant.GetBodyByName(
+            link_name,
+            plant.GetModelInstanceByName(model_name)
+        )
+        X_WB = plant.EvalBodyPoseInWorld(plant_context, body)
+        res.append(
+            {
+                "name": (model_name,link_name),
+                "X": X_WB,
+            }
+        )
+
+    return res
 
 def construct_problem_from_sim(simulator, stations, problem_info):
     """
@@ -126,26 +160,51 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("atconf", arm, conf),
         ]
 
+    static_model_names = []
+    static_link_names = []
+
     for object_name in problem_info.surfaces:
         for link_name in problem_info.surfaces[object_name]:
             table = (object_name, link_name)
             init += [("table", table)]
+            static_model_names.append(object_name)
+            static_link_names.append(link_name)
 
-    """
-    goal = ["and",
+    static_model_poses = retrieve_model_poses(
+        main_station,
+        main_station_context,
+        static_model_names,
+        static_link_names
+    )
 
-        ("on-block", "block1", "block2"),
-        #("on-block", "green_block", "blocker1"),
-        #("on-table", "blocker1", ("blue_table", "base_link")),
-        #("on-table", "blue_block", ("green_table", "base_link")),
-    ]
-    """
+    for s in static_model_poses:
+        s["static"] = True
+    
+    start_poses_d = []
+    for s in start_poses.items():
+        start_poses_d.append(
+            {
+                "name": s[0],
+                "X": s[1],
+                "static": False
+            }
+        )
+
+    model_poses = start_poses_d + static_model_poses
+    model_poses.append(
+        {
+            "name": "panda",
+            "X": RigidTransform(),
+            "static": True,
+        }
+    )
 
     oracle = ora.Oracle(
         domain_pddl,
         stream_pddl,
         init,
         goal,
+        model_poses = model_poses
     )
     oracle.set_run_attr(problem_info.attr)
 
@@ -445,8 +504,15 @@ def run_blocks_world(
     max_stack_num = None
 ):
 
-    time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
+    memory_percent = psutil.virtual_memory().percent
+    rams.append(memory_percent)
+    if memory_percent >= 95:
+        print(f"{Colors.RED}You have used up all the memory!{Colors.RESET}")
+        with open("mem.json", "w") as f:
+            json.dump(rams, f)
+        sys.exit(1)
 
+    time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
     if not os.path.isdir(f"{file_path}/logs"):
         os.mkdir(f"{file_path}/logs")
     if not os.path.isdir(f"{file_path}/logs/{time}"):
@@ -479,6 +545,7 @@ def run_blocks_world(
     print("Goal:", str_from_object(problem.goal))
 
     given_oracle = oracle if mode == "oracle" else None
+    search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 1
     solution = solve(
         problem,
         algorithm=algorithm,
@@ -487,6 +554,7 @@ def run_blocks_world(
         oracle=given_oracle,
         use_unique=mode == "oracle",
         max_time=max_time,
+        search_sample_ratio=search_sample_ratio
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
@@ -571,6 +639,7 @@ def generate_data(
     url=None,
     simulate=False,
     max_stack_num=None,
+    num_repeat_per_problem = 3
 ):
 
     """
@@ -611,11 +680,25 @@ def generate_data(
     )
     if not res:
         return
-    res, _ = run_blocks_world(
-        problem_file=problem_file,
-        mode="oracle",
-        max_time=max_time,
-    )
+    mode = "oracle"
+    for i in range((num_repeat_per_problem*2) - 1):
+        mode = "oracle" if (i % 2 == 0) else "save"
+        res, _ = run_blocks_world(
+            problem_file=problem_file,
+            mode="oracle",
+            url = url,
+            simulate = simulate,
+            max_time=max_time,
+        )
+        if not res:
+            data = []
+            if os.path.isfile(os.path.join(file_path, "oracle_failures.json")):
+                with open("oracle_failures.json", "r") as f:
+                    data = json.load(f)
+            data.append(problem_file)
+            with open("oracle_failures.json", "w") as f:
+                json.dump(data, f, sort_keys=True, indent = 4)
+
 
 
 if __name__ == "__main__":
@@ -627,7 +710,6 @@ if __name__ == "__main__":
     max_num_blocks = 6
     max_num_blockers = 6
 
-
     for num_blocks, num_blockers in itertools.product(
         range(max_num_blocks + 1), range(max_num_blockers + 1)
     ):
@@ -636,30 +718,13 @@ if __name__ == "__main__":
 
         for max_stack in range(1, num_blocks + 1):
 
-            for i in range(2):
-                generate_data(
-                    num_blocks,
-                    num_blockers,
-                    buffer_radius=0,
-                    url=url,
-                    max_stack_num= max_stack,
-                    simulate = False,
-                    max_time = 180
-                )
-
-    """
-    parser = setup_parser()
-    args = parser.parse_args()
-    mode = args.mode.lower()
-    run_blocks_world(
-        num_blocks = 2,
-        num_blockers = 1,
-        problem_file = args.problem,
-        mode = "oracle",
-    )
-    #reset_globals()
-    run_blocks_world(
-        problem_file = args.problem,
-        mode = "oracle",
-    )
-    """
+            generate_data(
+                num_blocks,
+                num_blockers,
+                buffer_radius=0,
+                url=url,
+                max_stack_num= max_stack,
+                simulate = False,
+                max_time = 360,
+                num_repeat_per_problem= 3
+            )
