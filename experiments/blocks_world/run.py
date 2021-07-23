@@ -568,16 +568,17 @@ def run_blocks_world(
         print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
-    if mode == "save":
-        oracle.save_stats(path + "stats.json")
-
-    if mode == "oracle":
-        oracle.save_labeled(path + "stats.json")
 
     make_plot(path + "stats.json", save_path=path + "plots.png")
     visualization.stats_to_graph(
         path + "stats.json", save_path=path + "preimage_graph.html"
     )
+
+    if mode == "save":
+        oracle.save_stats(path + "stats.json")
+
+    if mode == "oracle":
+        oracle.save_labeled(path + "stats.json")
 
     if simulate:
         action_map = {

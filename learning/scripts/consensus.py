@@ -77,8 +77,10 @@ def get_all_datas():
     for lst in info.values():
         for item in lst:
             pkl = item[1]
-            pkl_names.append(pkl)
             file = os.path.join(datapath, pkl)
+            if "merged" in file:
+                continue
+            pkl_names.append(pkl)
             with open(file, "rb") as f:
                 data = pickle.load(f)
             data["dir"] = os.path.splitext(file)[0]
@@ -191,24 +193,16 @@ def merge_labels(group):
     if not rem: # must have already merged these files
         return
     length = len(group)
+    stats["complexity"] = sum_comp/length
+    stats["evaluations"] = sum_evals/length
+    stats["iterations"] = sum_iters/length
+    stats["run_time"] = sum_run/length
+    stats["sample_time"] = sum_sample/length
+    stats["search_time"] = sum_search/length
     data_info[pddl].append(
         [
-            {
-                "buffer_radius": stats["buffer_radius"],
-                "complexity": sum_comp/length,
-                "evaluations": sum_evals/length,
-                "iterations": sum_iters/length,
-                "run_time": sum_run/length,
-                "sample_time": sum_sample/length,
-                "search_time": sum_search/length,
-                "num_cabbages": stats["num_cabbages"],
-                "num_glasses": stats["num_glasses"],
-                "num_goal": stats["num_goal"],
-                "num_raddishes": stats["num_raddishes"],
-                "prob_sink": stats["prob_sink"],
-                "prob_tray": stats["prob_tray"],
-            },
-            newname,
+            stats,
+            newname + ".pkl",
             num_labels
         ]
     )
@@ -224,7 +218,9 @@ def merge_labels(group):
         )
 
 def merge_groups(groups):
-    for group in list(groups.values()):
+    num_groups = len(groups.values())
+    for i,group in enumerate(list(groups.values())):
+        print(f"Processing group number {i+1} our of {num_groups}")
         if len(group) <= 1:
             continue
         print(f"Group size: {len(group)}")
