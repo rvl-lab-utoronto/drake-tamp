@@ -201,7 +201,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     ]
     """
 
-    oracle = ora.Oracle(
+    oracle = ora.ComplexityModel(
         domain_pddl,
         stream_pddl,
         init,
@@ -532,7 +532,7 @@ def run_kitchen(
         verbose=VERBOSE,
         logpath=path,
         oracle=given_oracle,
-        use_unique=mode == "oracle",
+        use_unique=False,
         max_time=max_time,
         search_sample_ratio=search_sample_ratio
     )
@@ -710,25 +710,31 @@ if __name__ == "__main__":
     """
 
 
-    L = ["c", "r", "g"]
+    # L = ["c", "r", "g"]
 
-    for num in range(2,6):
-        for comb in itertools.combinations_with_replacement(L, num):
-            num_c = comb.count('c')
-            num_r = comb.count('r')
-            num_g = comb.count('g')
-            generate_data(
-                num_cabbages=num_c,
-                num_raddishes=num_r,
-                num_glasses=num_g,
-                num_goal = None,
-                buffer_radius=0.00,
-                url=url,
-                simulate=False,
-                max_time = 360,
-                num_repeat_per_problem=3
-            )
+    # for num in range(2,6):
+    #     for comb in itertools.combinations_with_replacement(L, num):
+    #         num_c = comb.count('c')
+    #         num_r = comb.count('r')
+    #         num_g = comb.count('g')
+    #         generate_data(
+    #             num_cabbages=num_c,
+    #             num_raddishes=num_r,
+    #             num_glasses=num_g,
+    #             num_goal = None,
+    #             buffer_radius=0.00,
+    #             url=url,
+    #             simulate=False,
+    #             max_time = 360,
+    #             num_repeat_per_problem=3
+    #         )
 
+    res, problem_file = run_kitchen(
+        problem_file='/home/mohammed/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-22-16:47:31/problem.yaml',
+        max_time=float('INF'),
+        mode="oracle",
+        algorithm='informed'
+    )
 
     """
     parser = setup_parser()

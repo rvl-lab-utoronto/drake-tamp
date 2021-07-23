@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 from datetime import datetime
+import numpy as np
 
 import torch
 
@@ -349,3 +350,12 @@ class Model(Oracle):
         )
         logit = self.model(data, score=True).detach().numpy()[0]
         return logit
+
+class StupidModel(Oracle):
+    def predict(self, instance, atom_map, instantiator):
+        return np.random.uniform()
+
+class ComplexityModel(Oracle):
+    def predict(self, instance, atom_map, instantiator):
+        complexity = instantiator.compute_complexity(instance)
+        return complexity
