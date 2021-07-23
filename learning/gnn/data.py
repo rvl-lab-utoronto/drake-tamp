@@ -23,7 +23,7 @@ from learning.data_models import (
     ProblemInfo,
     StreamInstanceClassifierInfo,
 )
-from learning.pddlstream_utils import get_siblings_from_map, make_sibling_map, objects_from_facts, ancestors, siblings, elders, objects_from_fact
+from learning.pddlstream_utils import dep_elders, get_siblings_from_map, make_sibling_map, objects_from_facts, ancestors, siblings, elders, objects_from_fact
 from torch_geometric.data import Data
 from tqdm import tqdm
 
@@ -210,7 +210,7 @@ def construct_hypermodel_input_faster(
             #node_attr.append(feature)
 
         f_lev = fact_levels.get(fact, 0)
-        #assert fact_level(fact, label) == f_lev, "FAIL"
+        assert fact_level(fact, label) == f_lev, "FAIL"
 
         if fact[0] not in pred_to_rel_actions:
             rel_actions = fact_to_relevant_actions(fact, model_info.domain)
@@ -220,43 +220,45 @@ def construct_hypermodel_input_faster(
 
         if len(fact_objects) == 1:  # unary
             o = fact_objects.pop()
-            ind = len(edges)
+            edge_ind = len(edges)
             edges.append((node_to_ind[o], node_to_ind[o]))
-            edge_features[ind, predicate_to_index[fact[0]]] = 1
+            edge_features[edge_ind, predicate_to_index[fact[0]]] = 1
             ind = num_preds
-            for preq,eff in zip(*rel_actions):
-                edge_features[ind, ind + action_to_index[preq]] = 1
-                edge_features[ind, ind + num_actions  + action_to_index[eff]] = 1
+            for action in rel_actions[0]:
+                edge_features[edge_ind, ind + action_to_index[action]] = 1
+            for action in rel_actions[1]:
+                edge_features[edge_ind, ind + num_actions  + action_to_index[action]] = 1
             ind += 2*num_actions
-            edge_features[ind, ind + stream_to_index[label.stream_map[fact]]] = 1
+            edge_features[edge_ind, ind + stream_to_index[label.stream_map[fact]]] = 1
             ind += len(stream_to_index)
-            edge_features[ind, ind] = f_lev
-            edge_features[ind, ind + 1] = int(bool(fact_objects.intersection(goal_objects)))
+            edge_features[edge_ind, ind] = f_lev
+            edge_features[edge_ind, ind + 1] = len(fact_objects.intersection(goal_objects))
             ind += 2
-            edge_features[ind, ind] = 1
+            edge_features[edge_ind, ind] = 1
             ind += max_predicate_num_args
-            edge_features[ind, ind] = 1
-            fact_to_edge_ind.setdefault(fact, []).append(ind)
+            edge_features[edge_ind, ind] = 1
+            fact_to_edge_ind.setdefault(fact, []).append(edge_ind)
         else:
             for (o1, o2) in itertools.permutations(fact_objects, 2):
-                ind = len(edges)
+                edge_ind = len(edges)
                 edges.append((node_to_ind[o1], node_to_ind[o2]))
-                edge_features[ind, predicate_to_index[fact[0]]] = 1
+                edge_features[edge_ind, predicate_to_index[fact[0]]] = 1
                 ind = num_preds
-                for preq,eff in zip(*rel_actions):
-                    edge_features[ind, ind + action_to_index[preq]] = 1
-                    edge_features[ind, ind + num_actions  + action_to_index[eff]] = 1
+                for action in rel_actions[0]:
+                    edge_features[edge_ind, ind + action_to_index[action]] = 1
+                for action in rel_actions[1]:
+                    edge_features[edge_ind, ind + num_actions  + action_to_index[action]] = 1
                 ind += 2*num_actions
-                edge_features[ind, ind + stream_to_index[label.stream_map[fact]]] = 1
+                edge_features[edge_ind, ind + stream_to_index[label.stream_map[fact]]] = 1
                 ind += len(stream_to_index)
-                edge_features[ind, ind] = f_lev
-                edge_features[ind, ind + 1] = int(bool(fact_objects.intersection(goal_objects)))
+                edge_features[edge_ind, ind] = f_lev
+                edge_features[edge_ind, ind + 1] = len(fact_objects.intersection(goal_objects))
                 ind += 2
                 #TODO: how do deal with facts where an object appears more than once
-                edge_features[ind, ind + objs_to_ind[o1] - 1] = 1
+                edge_features[edge_ind, ind + objs_to_ind[o1] - 1] = 1
                 ind += max_predicate_num_args
-                edge_features[ind, ind + objs_to_ind[o2] - 1] = 1
-                fact_to_edge_ind.setdefault(fact, []).append(ind)
+                edge_features[edge_ind, ind + objs_to_ind[o2] - 1] = 1
+                fact_to_edge_ind.setdefault(fact, []).append(edge_ind)
 
     assert num_edges == len(edges), "FAIL num_edges"
     assert num_nodes == len(nodes), "FAIL num_edges"
@@ -325,7 +327,7 @@ def construct_object_hypergraph(
     for dom_fact in label.result.domain:
         fact_ans.add(dom_fact)
         fact_ans |= siblings(dom_fact, label.atom_map)
-        fact_ans |= elders(dom_fact, label.atom_map)
+        fact_ans |= dep_elders(dom_fact, label.atom_map)
 
     for fact in label.atom_map:
         fact_objects = objects_from_facts([fact])
@@ -354,7 +356,7 @@ def construct_object_hypergraph(
                     "overlap_with_goal": fact_objects.intersection(goal_objects),
                     "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
-                    "relevant_actions": fact_to_relevant_actions(
+                    "relevant_actions": dep_fact_to_relevant_actions(
                         fact, model_info.domain, indices=False
                     ),
                     "full_fact": fact,  # not used as an attribute, but for indexing
@@ -370,7 +372,7 @@ def construct_object_hypergraph(
                     "overlap_with_goal": fact_objects.intersection(goal_objects),
                     "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
-                    "relevant_actions": fact_to_relevant_actions(
+                    "relevant_actions": dep_fact_to_relevant_actions(
                         fact, model_info.domain, indices=False
                     ),
                     "full_fact": fact,  # not used as an attribute, but for indexing
@@ -457,7 +459,7 @@ def construct_hypermodel_input(
     label: InvocationInfo,
     problem_info: ProblemInfo,
     model_info: ModelInfo,
-    reduced: bool = False,
+    reduced: bool = True,
 ):
 
     assert False, "You should be using the new function `construct_hypermodel_input_faster`"
@@ -522,13 +524,21 @@ def construct_hypermodel_input(
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
-    return Data(
+    #check = construct_hypermodel_input_faster(label, problem_info, model_info)
+
+    res = Data(
         nodes=nodes,
         x=node_features,
         edge_attr=edge_features,
         edge_index=edge_index,
         candidate=candidate,
     )
+
+    #assert torch.equal(res.x, check.x)
+    #assert torch.equal(res.edge_attr, check.edge_attr)
+    #assert torch.equal(res.edge_index, check.edge_index)
+
+    return res
 
 
 def construct_problem_graph(problem_info: ProblemInfo):
@@ -1168,6 +1178,49 @@ def get_pddl_key(domain):
         if domain in pddl:
             return pddl
     raise ValueError(f"{domain} not in data_info.json")
+
+
+#DEPRECIATED
+def dep_fact_to_relevant_actions(fact, domain, indices = True):
+    """
+    Given a fact, determine which actions it is part of the
+    preconditions and effects of.
+    params:
+        fact: A pddl stream fact represented as a tuple
+        domain: a pddlstream.algorithms.downward.Domain object
+        indices (optional): if true, return multi-hot encoding,
+        else return a tuple of list of action names 
+        ([appears in precondition of ], [appears in postcondition of])
+    """
+
+    assert len(fact) > 0, "must input a non-empty fact tuple"
+    fact_name = fact[0]
+    actions = domain.actions
+
+    in_prec = []
+    in_eff = []
+    multi_hot = np.zeros(len(actions*2))
+
+    action_index = 0
+    for action in actions:
+        for precondition in action.precondition.parts:
+            precondition = precondition.predicate
+            if fact_name == precondition:
+                multi_hot[action_index] = 1
+                in_prec.append(action.name)
+                break
+        for effect in action.effects:
+            effect = effect.literal.predicate
+            if fact_name == effect:
+                in_eff.append(action.name)
+                multi_hot[action_index + len(actions)] = 1
+                break 
+        action_index += 1
+
+    if indices:
+        return multi_hot
+
+    return in_prec, in_eff
 
 
 if __name__ == "__main__":

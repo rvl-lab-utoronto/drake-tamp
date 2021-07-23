@@ -683,36 +683,9 @@ if __name__ == "__main__":
 
     url = None #"tcp://127.0.0.1:6000"
 
-    """
-    max_cabbages = 4
-    max_raddishes = 4
-    max_glasses = 4
-
-
-    for num_c, num_r, num_g in itertools.product(
-        range(max_cabbages + 1), range(max_raddishes + 1), range(max_glasses + 1)
-    ):
-
-        if num_c + num_r + num_g == 0:
-            continue
-
-        for num_goal in range(1, num_c + num_r + num_g + 1):
-            generate_data(
-                num_cabbages=num_c,
-                num_raddishes=num_r,
-                num_glasses=num_g,
-                num_goal = num_goal,
-                buffer_radius=0.00,
-                url=url,
-                simulate=False,
-                max_time = 360
-            )
-    """
-
-
     L = ["c", "r", "g"]
 
-    for num in range(2,6):
+    for num in range(1,6):
         for comb in itertools.combinations_with_replacement(L, num):
             num_c = comb.count('c')
             num_r = comb.count('r')
@@ -728,16 +701,3 @@ if __name__ == "__main__":
                 max_time = 360,
                 num_repeat_per_problem=3
             )
-
-
-    """
-    parser = setup_parser()
-    args = parser.parse_args()
-    mode = args.mode.lower()
-    run_kitchen(
-        num_cabbages=2,
-        num_raddishes= 2,
-        num_glasses = 2,
-        url = args.url
-    )
-    """

@@ -8,6 +8,7 @@ from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
     EvaluationDatasetSampler,
     TrainingDatasetSampler,
+    construct_hypermodel_input,
     construct_input,
     HyperModelInfo,
     TrainingDataset,
@@ -47,7 +48,7 @@ def make_argument_parser():
     parser.add_argument("--batch-size", default=128, type=int)
     parser.add_argument("--num-preprocessors", default=8, type=int)
     parser.add_argument("--from-best", action="store_true")
-    parser.add_argument("--use-reduced-graph", action="store_true")
+    #parser.add_argument("--use-reduced-graph", action="store_true")
     parser.add_argument("--use-problem-graph", action="store_true")
     parser.add_argument(
         "--datafile",
@@ -79,7 +80,7 @@ if __name__ == "__main__":
         os.makedirs(args.model_home, exist_ok=True)
 
     if args.model == "hyper":
-        input_fn = partial(construct_hypermodel_input_faster, reduced=args.use_reduced_graph)
+        input_fn = construct_hypermodel_input_faster
         if args.use_problem_graph:
             input_fn = construct_with_problem_graph(input_fn)
         model_info_class = HyperModelInfo
