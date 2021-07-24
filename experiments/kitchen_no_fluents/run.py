@@ -730,7 +730,10 @@ if __name__ == "__main__":
     #         )
 
     res, problem_file = run_kitchen(
-        problem_file='/home/mohammed/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-22-16:47:31/problem.yaml',
+        num_cabbages=2,
+        num_raddishes=1,
+        num_glasses=1,
+        # problem_file='/home/mohammed/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-22-16:47:31/problem.yaml',
         max_time=float('INF'),
         mode="oracle",
         algorithm='informed'
