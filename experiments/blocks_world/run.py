@@ -712,13 +712,10 @@ if __name__ == "__main__":
     max_num_blockers = 6
 
     for num_blocks, num_blockers in itertools.product(
-        range(max_num_blocks + 1), range(max_num_blockers + 1)
+        range(1, max_num_blocks + 1), range(max_num_blockers + 1)
     ):
-        if num_blocks + num_blockers == 0:
-            continue
 
         for max_stack in range(1, num_blocks + 1):
-
             generate_data(
                 num_blocks,
                 num_blockers,
