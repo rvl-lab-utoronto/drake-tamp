@@ -1237,6 +1237,21 @@ if __name__ == "__main__":
         if "kitchen" in pddl:
             kitchen = pddl
 
+    if blocks_world is not None:
+        print(f"Num blocks world pkls: {len(data[blocks_world])}")
+        query = DifficultClasses.easy
+        easy = len(query_data(blocks_world, query))
+        print(f"Number of easy runs {easy}")
+        query = DifficultClasses.medium
+        med = len(query_data(blocks_world, query))
+        print(f"Number of medium runs {med}")
+        query = DifficultClasses.hard
+        hard = len(query_data(blocks_world, query))
+        print(f"Number of hard runs {hard}")
+        query = DifficultClasses.very_hard
+        very_hard = len(query_data(blocks_world, query))
+        print(f"Number of very hard runs {very_hard}")
+
     if kitchen is not None:
         print(f"Num kitchen pkls: {len(data[kitchen])}")
         query = DifficultClasses.easy
