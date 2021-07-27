@@ -719,6 +719,7 @@ if __name__ == "__main__":
     ):
 
         for i in range(3):
+
             for max_stack in range(1, num_blocks + 1):
                 generate_data(
                     num_blocks,
@@ -727,6 +728,6 @@ if __name__ == "__main__":
                     url=url,
                     max_stack_num= max_stack,
                     simulate = False,
-                    max_time = 360,
+                    max_time = 500,
                 )
 

@@ -1,4 +1,4 @@
-(define (domain blocks_world)
+(define (domain two_arm_blocks_world)
     (:requirements :strips :derived-predicates :disjunctive-preconditions :equality)
 
     (:predicates 

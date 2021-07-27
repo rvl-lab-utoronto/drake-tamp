@@ -1231,11 +1231,29 @@ if __name__ == "__main__":
     data = json.load(datafile)
     blocks_world = None
     kitchen = None
+    two_arm_blocks_world = None
     for pddl in data:
-        if "blocks_world" in pddl:
+        if "two_arm_blocks_world" in pddl:
+            two_arm_blocks_world = pddl
+        elif "blocks_world" in pddl:
             blocks_world = pddl
-        if "kitchen" in pddl:
+        elif "kitchen" in pddl:
             kitchen = pddl
+
+    if two_arm_blocks_world is not None:
+        print(f"Num two arm blocks world pkls: {len(data[two_arm_blocks_world])}")
+        query = DifficultClasses.easy
+        easy = len(query_data(blocks_world, query))
+        print(f"Number of easy runs {easy}")
+        query = DifficultClasses.medium
+        med = len(query_data(blocks_world, query))
+        print(f"Number of medium runs {med}")
+        query = DifficultClasses.hard
+        hard = len(query_data(blocks_world, query))
+        print(f"Number of hard runs {hard}")
+        query = DifficultClasses.very_hard
+        very_hard = len(query_data(blocks_world, query))
+        print(f"Number of very hard runs {very_hard}")
 
     if blocks_world is not None:
         print(f"Num blocks world pkls: {len(data[blocks_world])}")
