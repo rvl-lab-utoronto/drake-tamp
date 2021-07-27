@@ -550,16 +550,17 @@ def run_kitchen(
         print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
-    make_plot(path + "stats.json", save_path=path + "plots.png")
-    visualization.stats_to_graph(
-        path + "stats.json", save_path=path + "preimage_graph.html"
-    )
+    if algorithm != "informed":
+        make_plot(path + "stats.json", save_path=path + "plots.png")
+        visualization.stats_to_graph(
+            path + "stats.json", save_path=path + "preimage_graph.html"
+        )
 
-    if mode == "save":
-        oracle.save_stats(path + "stats.json")
+        if mode == "save":
+            oracle.save_stats(path + "stats.json")
 
-    if mode == "oracle":
-        oracle.save_labeled(path + "stats.json")
+        if mode == "oracle":
+            oracle.save_labeled(path + "stats.json")
 
     if simulate:
 
@@ -681,7 +682,7 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    url = None #"tcp://127.0.0.1:6000"
+    url = "tcp://127.0.0.1:6003"
 
     """
     max_cabbages = 4
@@ -730,13 +731,11 @@ if __name__ == "__main__":
     #         )
 
     res, problem_file = run_kitchen(
-        num_cabbages=2,
-        num_raddishes=1,
-        num_glasses=1,
-        # problem_file='/home/mohammed/drake-tamp/experiments/kitchen_no_fluents/logs/2021-07-22-16:47:31/problem.yaml',
-        max_time=float('INF'),
+        problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
         mode="oracle",
-        algorithm='informed'
+        algorithm='informed',
+        url = url,
+        simulate = True
     )
 
     """
