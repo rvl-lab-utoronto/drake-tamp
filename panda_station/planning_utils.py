@@ -54,10 +54,7 @@ class ProblemInfo:
         """
         info = None
         with open(problem_file, "r") as stream:
-            try:
-                info = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(f"{Colors.RED}exc{Colors.RESET}")
+            info = yaml.safe_load(stream)
         assert "directive" in info, "Problem specification missing directive"
         assert "objects" in info, "Problem specification missing objects"
         assert "surfaces" in info, "Problem specification missing surfaces"
