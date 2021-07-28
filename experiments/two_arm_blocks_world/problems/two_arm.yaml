@@ -28,7 +28,13 @@ objects:
 
      green_block:
           path: "models/blocks_world/sdf/green_block.sdf"
-          X_WO: [1.0, 0, 0.325, 0, 0, 0]
+          X_WO: [1.0, -0.1, 0.325, 0, 0, 0]
+          main_link: "base_link"
+          on-table: ["right_table", "base_link"]
+
+     indigo_block:
+          path: "models/blocks_world/sdf/indigo_block.sdf"
+          X_WO: [1.0, 0.1, 0.325, 0, 0, 0]
           main_link: "base_link"
           on-table: ["right_table", "base_link"]
 
@@ -37,6 +43,7 @@ goal:
      - [on-table, red_block, [middle_table, base_link]]
      - [on-block, green_block, red_block]
      - [on-block, blue_block, green_block]
+     - [on-block, indigo_block, blue_block]
      
 
 main_links:

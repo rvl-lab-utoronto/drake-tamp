@@ -709,6 +709,20 @@ def generate_data(
 
 if __name__ == "__main__":
 
+
+    """
+    url = "tcp://127.0.0.1:6004"
+    res, _ = run_blocks_world(
+        #problem_file=os.path.join(file_path, "problems", "two_arm.yaml"),
+        num_blocks = 12,
+        num_blockers = 6,
+        max_stack_num = 6,
+        mode="save",
+        url = url,
+        simulate = True,
+    )
+    """
+
     url = None#"tcp://127.0.0.1:6000"
 
     max_num_blocks = 6
@@ -730,4 +744,3 @@ if __name__ == "__main__":
                     simulate = False,
                     max_time = 500,
                 )
-
