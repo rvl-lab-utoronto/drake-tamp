@@ -1,9 +1,13 @@
 from collections import namedtuple
+
+from numpy.lib.arraysetops import isin
 from learning.pddlstream_utils import make_atom_map, make_stream_map, fact_to_pddl, obj_to_pddl
 from dataclasses import dataclass
 from torch_geometric.data import Data
 from pddlstream.algorithms.downward import Domain
 import numpy as np
+
+from pddlstream.language.constants import Evaluation
 
 @dataclass
 class ModelInfo:
@@ -125,7 +129,7 @@ SerializedResult = namedtuple(
 )
 class InvocationInfo:
     def __init__(self, result, node_from_atom, label=None):
-        self.atom_map = make_atom_map(node_from_atom)
+        self.atom_map = make_atom_map(node_from_atom) 
         self.stream_map = make_stream_map(node_from_atom)
         self.object_stream_map = self.make_obj_to_stream_map(node_from_atom)
         self.result = self.result_to_serializable(result)
@@ -159,3 +163,11 @@ class InvocationInfo:
                     "input_objects": [obj_to_pddl(f) for f in result.input_objects]
                 }
         return obj_to_stream_map
+
+class RuntimeInvocationInfo(InvocationInfo):
+
+    def __init__(self, result, atom_map, stream_map, obj_to_stream_map):
+        self.atom_map = atom_map
+        self.stream_map = stream_map
+        self.object_stream_map = obj_to_stream_map
+        self.result = self.result_to_serializable(result)

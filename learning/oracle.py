@@ -6,7 +6,7 @@ import numpy as np
 
 import torch
 
-from learning.data_models import InvocationInfo, ModelInfo, ProblemInfo
+from learning.data_models import InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo
 from learning.gnn.data import construct_input, construct_problem_graph
 from learning.gnn.models import StreamInstanceClassifier
 from learning.pddlstream_utils import *
@@ -341,8 +341,8 @@ class Model(Oracle):
 
         return checker
 
-    def predict(self, result, node_from_atom):
-        invocation_info = InvocationInfo(result, node_from_atom)
+    def predict(self, result, atom_map, instantiator):
+        invocation_info = RuntimeInvocationInfo(result, atom_map, instantiator.stream_map, instantiator.obj_to_stream_map)
         data = construct_input(
             invocation_info,
             self.problem_info,
