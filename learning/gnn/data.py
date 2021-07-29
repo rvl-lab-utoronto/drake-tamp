@@ -1,4 +1,5 @@
 import itertools
+import math
 import json
 from operator import mod
 import os
@@ -22,7 +23,7 @@ from learning.data_models import (
     ProblemInfo,
     StreamInstanceClassifierInfo,
 )
-from learning.pddlstream_utils import objects_from_facts, ancestors, siblings, elders
+from learning.pddlstream_utils import dep_elders, get_siblings_from_map, make_sibling_map, objects_from_facts, ancestors, siblings, elders, objects_from_fact
 from torch_geometric.data import Data
 from tqdm import tqdm
 
@@ -128,6 +129,158 @@ def fact_level(fact, label):
     else:
         return 1 + max([fact_level(d, label) for d in label.atom_map[fact]])
 
+def num_edges_from_fact(fact):
+    num_obj = len(fact) - 1
+    if num_obj <= 1:
+        return num_obj
+    else:
+        return math.factorial(num_obj)/math.factorial(num_obj - 2)
+
+
+#@profile
+def construct_hypermodel_input_faster(
+    label: InvocationInfo,
+    problem_info: ProblemInfo,
+    model_info: ModelInfo,
+    reduced: bool = True,
+):
+
+    assert reduced == True, "reduced = False is not longer supported"
+
+    goal_facts = problem_info.goal_facts
+    nodes, edges = [], []
+    node_to_ind = {}
+    goal_objects = objects_from_facts(goal_facts)
+    fact_to_edge_ind = {}
+    pred_to_rel_actions = {}
+    
+    stream_to_index = model_info.stream_to_index
+    predicate_to_index = model_info.predicate_to_index
+    action_to_index = model_info.action_to_index
+    num_preds = model_info.num_predicates
+    num_actions = model_info.num_actions
+    max_predicate_num_args = model_info.max_predicate_num_args
+
+    # reduced_obj = get_ancestor_objects(label) | get_initial_objects(label)
+    fact_ans = set()
+    fact_levels = {}
+    elders_cache = {}
+
+    # find ALL siblings (will be faster). Map from parents to a set of all children
+    sibling_map = make_sibling_map(label.atom_map)
+
+    for dom_fact in label.result.domain:
+        fact_ans.add(dom_fact)
+        sib = get_siblings_from_map(dom_fact, label.atom_map, sibling_map)
+        for s in sib:
+            fact_levels[s] = fact_level(s, label)
+        fact_ans |= sib
+        fact_ans |= elders(dom_fact, label.atom_map, fact_levels, sibling_map, elders_cache = elders_cache)
+
+    num_nodes = len(objects_from_facts(list(fact_ans)))
+    num_edges = int(sum([num_edges_from_fact(f) for f in fact_ans]))
+
+    node_features = torch.zeros(
+        (num_nodes, model_info.node_feature_size), dtype = torch.float
+    )
+    edge_features = torch.zeros(
+        (num_edges, model_info.edge_feature_size), dtype = torch.float
+    )
+
+    for fact in label.atom_map:
+        if reduced and label.atom_map[fact]:
+            if not fact in fact_ans:
+                continue
+        fact_objects, objs_to_ind = objects_from_fact(fact)
+        for o in fact_objects:
+            if o in nodes:
+                continue
+
+            ind = len(nodes)
+            node_to_ind[o] = ind
+            nodes.append(o)
+            #feature = torch.zeros((1, model_info.node_feature_size), dtype = torch.float)
+            stream =  label.object_stream_map.get(o, None)
+            if stream is not None:
+                stream = stream["name"]
+
+            node_features[ind, stream_to_index[stream]] = 1
+            node_features[ind, -2] = int(o in goal_objects)
+            node_features[ind, -1] = obj_level(o, label)
+            #node_attr.append(feature)
+
+        f_lev = fact_levels.get(fact, 0)
+        assert fact_level(fact, label) == f_lev, "FAIL"
+
+        if fact[0] not in pred_to_rel_actions:
+            rel_actions = fact_to_relevant_actions(fact, model_info.domain)
+            pred_to_rel_actions[fact[0]] = rel_actions
+        else:
+            rel_actions = pred_to_rel_actions[fact[0]]
+
+        if len(fact_objects) == 1:  # unary
+            o = fact_objects.pop()
+            edge_ind = len(edges)
+            edges.append((node_to_ind[o], node_to_ind[o]))
+            edge_features[edge_ind, predicate_to_index[fact[0]]] = 1
+            ind = num_preds
+            for action in rel_actions[0]:
+                edge_features[edge_ind, ind + action_to_index[action]] = 1
+            for action in rel_actions[1]:
+                edge_features[edge_ind, ind + num_actions  + action_to_index[action]] = 1
+            ind += 2*num_actions
+            edge_features[edge_ind, ind + stream_to_index[label.stream_map[fact]]] = 1
+            ind += len(stream_to_index)
+            edge_features[edge_ind, ind] = f_lev
+            edge_features[edge_ind, ind + 1] = len(fact_objects.intersection(goal_objects))
+            ind += 2
+            edge_features[edge_ind, ind] = 1
+            ind += max_predicate_num_args
+            edge_features[edge_ind, ind] = 1
+            fact_to_edge_ind.setdefault(fact, []).append(edge_ind)
+        else:
+            for (o1, o2) in itertools.permutations(fact_objects, 2):
+                edge_ind = len(edges)
+                edges.append((node_to_ind[o1], node_to_ind[o2]))
+                edge_features[edge_ind, predicate_to_index[fact[0]]] = 1
+                ind = num_preds
+                for action in rel_actions[0]:
+                    edge_features[edge_ind, ind + action_to_index[action]] = 1
+                for action in rel_actions[1]:
+                    edge_features[edge_ind, ind + num_actions  + action_to_index[action]] = 1
+                ind += 2*num_actions
+                edge_features[edge_ind, ind + stream_to_index[label.stream_map[fact]]] = 1
+                ind += len(stream_to_index)
+                edge_features[edge_ind, ind] = f_lev
+                edge_features[edge_ind, ind + 1] = len(fact_objects.intersection(goal_objects))
+                ind += 2
+                #TODO: how do deal with facts where an object appears more than once
+                edge_features[edge_ind, ind + objs_to_ind[o1] - 1] = 1
+                ind += max_predicate_num_args
+                edge_features[edge_ind, ind + objs_to_ind[o2] - 1] = 1
+                fact_to_edge_ind.setdefault(fact, []).append(edge_ind)
+
+    assert num_edges == len(edges), "FAIL num_edges"
+    assert num_nodes == len(nodes), "FAIL num_edges"
+
+    edge_index = torch.tensor(edges, dtype = torch.long).t().contiguous()
+    candidate = (
+        (stream_to_index[label.result.name],)
+        + tuple([nodes.index(p) for p in label.result.input_objects])
+        + tuple(
+            [i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]]
+        )
+    )
+
+
+    return Data(
+        nodes = nodes,
+        x = node_features, #torch.cat(node_attr, dim = 0),
+        edge_attr = edge_features, #torch.cat(edge_attr, dim = 0),
+        edge_index = edge_index,
+        candidate = candidate
+    )
+
 
 def construct_object_hypergraph(
     label: InvocationInfo,
@@ -174,7 +327,7 @@ def construct_object_hypergraph(
     for dom_fact in label.result.domain:
         fact_ans.add(dom_fact)
         fact_ans |= siblings(dom_fact, label.atom_map)
-        fact_ans |= elders(dom_fact, label.atom_map)
+        fact_ans |= dep_elders(dom_fact, label.atom_map)
 
     for fact in label.atom_map:
         fact_objects = objects_from_facts([fact])
@@ -203,7 +356,7 @@ def construct_object_hypergraph(
                     "overlap_with_goal": fact_objects.intersection(goal_objects),
                     "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
-                    "relevant_actions": fact_to_relevant_actions(
+                    "relevant_actions": dep_fact_to_relevant_actions(
                         fact, model_info.domain, indices=False
                     ),
                     "full_fact": fact,  # not used as an attribute, but for indexing
@@ -219,7 +372,7 @@ def construct_object_hypergraph(
                     "overlap_with_goal": fact_objects.intersection(goal_objects),
                     "level": fact_level(fact, label),
                     "stream": label.stream_map[fact],
-                    "relevant_actions": fact_to_relevant_actions(
+                    "relevant_actions": dep_fact_to_relevant_actions(
                         fact, model_info.domain, indices=False
                     ),
                     "full_fact": fact,  # not used as an attribute, but for indexing
@@ -300,12 +453,17 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
     return nodes, node_attributes_list, edges, edge_attributes_list
 
 
+
+# TODO: depreciate/remove 
 def construct_hypermodel_input(
     label: InvocationInfo,
     problem_info: ProblemInfo,
     model_info: ModelInfo,
-    reduced: bool = False,
+    reduced: bool = True,
 ):
+
+    assert False, "You should be using the new function `construct_hypermodel_input_faster`"
+
     nodes, node_attr, edges, edge_attr = construct_object_hypergraph(
         label, problem_info, model_info, reduced=reduced
     )
@@ -366,13 +524,21 @@ def construct_hypermodel_input(
 
     edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
 
-    return Data(
+    #check = construct_hypermodel_input_faster(label, problem_info, model_info)
+
+    res = Data(
         nodes=nodes,
         x=node_features,
         edge_attr=edge_features,
         edge_index=edge_index,
         candidate=candidate,
     )
+
+    #assert torch.equal(res.x, check.x)
+    #assert torch.equal(res.edge_attr, check.edge_attr)
+    #assert torch.equal(res.edge_index, check.edge_index)
+
+    return res
 
 
 def construct_problem_graph(problem_info: ProblemInfo):
@@ -463,6 +629,8 @@ def construct_problem_graph_input(problem_info: ProblemInfo, model_info: ModelIn
 def construct_with_problem_graph(input_fn):
     def new_fn(invocation, problem, model_info):
         data = input_fn(invocation, problem, model_info)
+        if problem.problem_graph is None:
+            problem.problem_graph = construct_problem_graph(problem)
         data.problem_graph = construct_problem_graph_input(problem, model_info)
         return data
 
@@ -619,7 +787,7 @@ def parse_hyper_labels(pkl_path):
     return dataset, model_info
 
 
-def fact_to_relevant_actions(fact, domain, indices=True):
+def fact_to_relevant_actions(fact, domain):
     """
     Given a fact, determine which actions it is part of the
     preconditions and effects of.
@@ -633,31 +801,25 @@ def fact_to_relevant_actions(fact, domain, indices=True):
     """
 
     assert len(fact) > 0, "must input a non-empty fact tuple"
-    fact_name = fact[0]
+    predicate = fact[0]
     actions = domain.actions
 
     in_prec = []
     in_eff = []
-    multi_hot = np.zeros(len(actions * 2))
 
     action_index = 0
     for action in actions:
         for precondition in action.precondition.parts:
             precondition = precondition.predicate
-            if fact_name == precondition:
-                multi_hot[action_index] = 1
+            if predicate == precondition:
                 in_prec.append(action.name)
                 break
         for effect in action.effects:
             effect = effect.literal.predicate
-            if fact_name == effect:
+            if predicate == effect:
                 in_eff.append(action.name)
-                multi_hot[action_index + len(actions)] = 1
                 break
         action_index += 1
-
-    if indices:
-        return multi_hot
 
     return in_prec, in_eff
 
@@ -1018,19 +1180,95 @@ def get_pddl_key(domain):
     raise ValueError(f"{domain} not in data_info.json")
 
 
+#DEPRECIATED
+def dep_fact_to_relevant_actions(fact, domain, indices = True):
+    """
+    Given a fact, determine which actions it is part of the
+    preconditions and effects of.
+    params:
+        fact: A pddl stream fact represented as a tuple
+        domain: a pddlstream.algorithms.downward.Domain object
+        indices (optional): if true, return multi-hot encoding,
+        else return a tuple of list of action names 
+        ([appears in precondition of ], [appears in postcondition of])
+    """
+
+    assert len(fact) > 0, "must input a non-empty fact tuple"
+    fact_name = fact[0]
+    actions = domain.actions
+
+    in_prec = []
+    in_eff = []
+    multi_hot = np.zeros(len(actions*2))
+
+    action_index = 0
+    for action in actions:
+        for precondition in action.precondition.parts:
+            precondition = precondition.predicate
+            if fact_name == precondition:
+                multi_hot[action_index] = 1
+                in_prec.append(action.name)
+                break
+        for effect in action.effects:
+            effect = effect.literal.predicate
+            if fact_name == effect:
+                in_eff.append(action.name)
+                multi_hot[action_index + len(actions)] = 1
+                break 
+        action_index += 1
+
+    if indices:
+        return multi_hot
+
+    return in_prec, in_eff
+
+
 if __name__ == "__main__":
 
     datafile = open(
-        "/home/agrobenj/drake-tamp/learning/data/labeled/data_info.json", "r"
+        os.path.join(get_base_datapath(), "data_info.json"), "r"
     )
     data = json.load(datafile)
     blocks_world = None
     kitchen = None
+    two_arm_blocks_world = None
     for pddl in data:
-        if "blocks_world" in pddl:
+        if "two_arm_blocks_world" in pddl:
+            two_arm_blocks_world = pddl
+        elif "blocks_world" in pddl:
             blocks_world = pddl
-        if "kitchen" in pddl:
+        elif "kitchen" in pddl:
             kitchen = pddl
+
+    if two_arm_blocks_world is not None:
+        print(f"Num two arm blocks world pkls: {len(data[two_arm_blocks_world])}")
+        query = DifficultClasses.easy
+        easy = len(query_data(blocks_world, query))
+        print(f"Number of easy runs {easy}")
+        query = DifficultClasses.medium
+        med = len(query_data(blocks_world, query))
+        print(f"Number of medium runs {med}")
+        query = DifficultClasses.hard
+        hard = len(query_data(blocks_world, query))
+        print(f"Number of hard runs {hard}")
+        query = DifficultClasses.very_hard
+        very_hard = len(query_data(blocks_world, query))
+        print(f"Number of very hard runs {very_hard}")
+
+    if blocks_world is not None:
+        print(f"Num blocks world pkls: {len(data[blocks_world])}")
+        query = DifficultClasses.easy
+        easy = len(query_data(blocks_world, query))
+        print(f"Number of easy runs {easy}")
+        query = DifficultClasses.medium
+        med = len(query_data(blocks_world, query))
+        print(f"Number of medium runs {med}")
+        query = DifficultClasses.hard
+        hard = len(query_data(blocks_world, query))
+        print(f"Number of hard runs {hard}")
+        query = DifficultClasses.very_hard
+        very_hard = len(query_data(blocks_world, query))
+        print(f"Number of very hard runs {very_hard}")
 
     if kitchen is not None:
         print(f"Num kitchen pkls: {len(data[kitchen])}")

@@ -201,21 +201,21 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     ]
     """
 
-    oracle = ora.ComplexityModel(
-        domain_pddl,
-        stream_pddl,
-        init,
-        goal,
-        model_poses = model_poses
-    )
-    #oracle = ora.Model(
+    #oracle = ora.ComplexityModelV2(
     #    domain_pddl,
     #    stream_pddl,
     #    init,
     #    goal,
-    #    model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
-    #    #model_poses = model_poses
+    #    model_poses = model_poses
     #)
+    oracle = ora.Model(
+        domain_pddl,
+        stream_pddl,
+        init,
+        goal,
+        model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
+        model_poses = model_poses
+    )
     oracle.set_run_attr(problem_info.attr)
 
     def get_station(name):
@@ -540,7 +540,7 @@ def run_kitchen(
         verbose=VERBOSE,
         logpath=path,
         oracle=given_oracle,
-        use_unique=False,
+        use_unique=True,
         max_time=max_time,
         search_sample_ratio=search_sample_ratio
     )
@@ -558,7 +558,7 @@ def run_kitchen(
         print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
-    if algorithm != "informed":
+    if not algorithm.startswith("informed"):
         make_plot(path + "stats.json", save_path=path + "plots.png")
         visualization.stats_to_graph(
             path + "stats.json", save_path=path + "preimage_graph.html"
@@ -743,7 +743,7 @@ if __name__ == "__main__":
         #mode="save",
         #algorithm='adaptive',
         mode="oracle",
-        algorithm='informed',
+        algorithm='informedV2',
         url = url,
         simulate = False
     )

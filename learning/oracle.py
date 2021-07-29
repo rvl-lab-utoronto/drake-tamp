@@ -6,11 +6,12 @@ import numpy as np
 
 import torch
 
-from learning.data_models import InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo
-from learning.gnn.data import construct_input, construct_problem_graph
-from learning.gnn.models import StreamInstanceClassifier
+from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo
+from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_with_problem_graph, fact_level
+from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import fact_from_evaluation
+from torch_geometric.data.batch import Batch
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
@@ -108,7 +109,8 @@ class Oracle:
         self.problem_info = ProblemInfo(
             goal_facts=tuple([fact_to_pddl(f) for f in goal_exp[1:]]),
             initial_facts=tuple([fact_to_pddl(fact_from_evaluation(f)) for f in evaluations]),
-            model_poses=self.model_poses
+            model_poses=self.model_poses,
+            object_mapping = {k:v.value for k,v in Object._obj_from_name.items()}
         )
 
     def set_run_attr(self, run_attr):
@@ -309,18 +311,38 @@ class Oracle:
 
 class Model(Oracle):
     def __init__(
-        self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path
+        self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path, model_poses
     ):
-        super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions)
+        super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_poses = model_poses)
         self.model_path = model_path
+        self.model = None
+
+    def set_model_info(self, domain, externals):
+        new_externals = []
+        for external in externals:
+            new_externals.append(
+                {
+                    "certified": external.certified,
+                    "domain": external.domain,
+                    "fluents": external.fluents,
+                    "inputs": external.inputs,
+                    "outputs": external.outputs,
+                    "name": external.name,
+                }
+            )
+        self.model_info = HyperModelInfo(
+            predicates=[p.name for p in domain.predicates],
+            streams=[None] + [e["name"] for e in new_externals],
+            stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
+            stream_num_inputs = [None] + [len(e["inputs"]) for e in new_externals],
+            stream_domains = [None] + [e["domain"] for e in new_externals],
+            domain = domain
+        )
 
     def load_model(self):
-        self.model = StreamInstanceClassifier(
-            self.model_info.node_feature_size,
-            self.model_info.edge_feature_size,
-            self.model_info.stream_num_domain_facts[1:],
-            feature_size=4,
-            use_gcn=False,
+        self.model = HyperClassifier(
+            self.model_info,
+            with_problem_graph= True,
         )
         self.model.load_state_dict(torch.load(self.model_path))
         self.model.eval()
@@ -341,14 +363,21 @@ class Model(Oracle):
 
         return checker
 
-    def predict(self, result, atom_map, instantiator):
-        invocation_info = RuntimeInvocationInfo(result, atom_map, instantiator.stream_map, instantiator.obj_to_stream_map)
-        data = construct_input(
+    def predict(self, result, node_from_atom):
+        if not result.is_refined() or any([d not in node_from_atom for d in result.domain]):
+            return 1
+        if self.model is None:
+            self.load_model()
+            assert self.model is not None
+        invocation_info = InvocationInfo(result, node_from_atom)
+        data = construct_with_problem_graph(construct_hypermodel_input_faster)(
             invocation_info,
             self.problem_info,
             self.model_info,
         )
-        logit = self.model(data, score=True).detach().numpy()[0]
+        #TODO: fix this 
+        data = Batch().from_data_list([data])
+        logit = self.model(data, score=True).detach().numpy()[0][0]
         return logit
 
 class StupidModel(Oracle):
@@ -359,3 +388,18 @@ class ComplexityModel(Oracle):
     def predict(self, instance, atom_map, instantiator):
         complexity = instantiator.compute_complexity(instance)
         return complexity
+
+
+class ComplexityModelV2(Oracle):
+
+    def predict(self, result, node_from_atom):
+
+        if not result.is_refined() or not any([d not in node_from_atom for d in result.domain]):
+            return 1
+
+        invocation_info = InvocationInfo(result, node_from_atom)
+        level = -1
+        for f in result.domain:
+            level = max(level, 1 + fact_level(fact_to_pddl(f), invocation_info))
+
+        return level/10
