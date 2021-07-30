@@ -217,14 +217,14 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
             goal,
             model_poses = model_poses
         )
-    #oracle = ora.Model(
-    #    domain_pddl,
-    #    stream_pddl,
-    #    init,
-    #    goal,
-    #    model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
-    #    model_poses = model_poses
-    #)
+        #oracle = ora.Model(
+        #    domain_pddl,
+        #    stream_pddl,
+        #    init,
+        #    goal,
+        #    model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
+        #    model_poses = model_poses
+        #)
     oracle.set_run_attr(problem_info.attr)
 
     def get_station(name):
