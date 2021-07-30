@@ -394,7 +394,7 @@ class ComplexityModelV2(Oracle):
 
     def predict(self, result, node_from_atom):
 
-        if not result.is_refined() or not any([d not in node_from_atom for d in result.domain]):
+        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
             return 1
 
         invocation_info = InvocationInfo(result, node_from_atom)
