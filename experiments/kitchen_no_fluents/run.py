@@ -99,7 +99,7 @@ def retrieve_model_poses(
 
     return res
 
-def construct_problem_from_sim(simulator, stations, problem_info):
+def construct_problem_from_sim(simulator, stations, problem_info, algorithm = None):
     """
     Construct pddlstream problem from simulator
     """
@@ -201,13 +201,22 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     ]
     """
 
-    oracle = ora.ComplexityModelV2(
-        domain_pddl,
-        stream_pddl,
-        init,
-        goal,
-        model_poses = model_poses
-    )
+    if algorithm == "informed":
+        oracle = ora.ComplexityModel(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif algorithm == "informedV2":
+        oracle = ora.ComplexityModelV2(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
     #oracle = ora.Model(
     #    domain_pddl,
     #    stream_pddl,
@@ -527,7 +536,7 @@ def run_kitchen(
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         url, problem_file
     )
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
+    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info, algorithm = algorithm)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
