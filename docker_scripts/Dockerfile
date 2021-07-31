@@ -49,27 +49,13 @@ RUN apt-get -y install ffmpeg
 RUN apt-get -y install xdg-utils
 RUN apt-get -y install liboctomap-dev libfcl-dev
 
+RUN apt-get -y install apt-transport-https gnupg
+RUN curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
+RUN mv bazel.gpg /etc/apt/trusted.gpg.d/ 
+RUN echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
+RUN apt-get update
+RUN apt-get -y install bazel
 
-WORKDIR /root/
-# mujoco
-RUN wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco.zip
-RUN unzip mujoco.zip -d .mujoco
-RUN mv .mujoco/mujoco200_linux .mujoco/mujoco200
-# add mujoco to LD_LIBRARY_PATH
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/.mujoco/mujoco200/bin
-
-WORKDIR /python_venvs/tamp/
-# start ikea specific stuff #
-RUN git clone https://github.com/clvrai/furniture.git furniture
-WORKDIR /python_venvs/tamp/furniture
-RUN git checkout aug2020
-RUN ln -s /root/.mujoco/mujoco200 /root/.mujoco/mujoco200_linux
-#RUN pip install --upgrade pip
-RUN pip3 install scikit-build
-RUN pip3 install glfw>=1.4.0 numpy>=1.11 Cython>=0.27.2 imageio>=2.1.2 cffi>=1.10 fasteners~=0.15 lockfile
-# copy mujoco license key `mjkey.txt` 
-COPY mjkey.txt /root/.mujoco/mjkey.txt
-RUN pip3 install -r requirements.txt
 
 # pddlstream
 #RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream
@@ -95,7 +81,28 @@ RUN chown -R $user /python_venvs
 ENV PATH="/python_venvs/tamp/bin:$PATH"
 USER $user
 
+WORKDIR /home/$user/
+# mujoco
+RUN wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco.zip
+RUN unzip mujoco.zip -d .mujoco
+RUN mv .mujoco/mujoco200_linux .mujoco/mujoco200
+# add mujoco to LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin
 
+WORKDIR /home/$user/
+# start ikea specific stuff #
+RUN git clone https://github.com/clvrai/furniture.git
+WORKDIR /home/$user/furniture
+RUN git checkout aug2020
+RUN ln -s /home/$user/.mujoco/mujoco200 /home/$user/.mujoco/mujoco200_linux
+#RUN pip install --upgrade pip
+RUN pip3 install scikit-build
+RUN pip3 install glfw>=1.4.0 numpy>=1.11 Cython>=0.27.2 imageio>=2.1.2 cffi>=1.10 fasteners~=0.15 lockfile
+# copy mujoco license key `mjkey.txt` 
+COPY mjkey.txt /home/$user/.mujoco/mjkey.txt
+RUN pip3 install -r requirements.txt
+
+WORKDIR /home/$user/
 # other requirements
 COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
@@ -103,6 +110,7 @@ RUN pip3 install torch==1.9.0+cu111 -f https://download.pytorch.org/whl/torch_st
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://pytorch-geometric.com/whl/torch-1.9.0+cu111.html
 ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
 ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/
+ENV PYTHONPATH=${PYTHONPATH}:/home/$user/furniture/
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
