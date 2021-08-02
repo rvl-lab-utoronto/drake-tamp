@@ -22,9 +22,14 @@ if [[ ! $UID  ]]; then
     exit 1
 fi
 
+gitemail=$(git config user.email)
+gitname=$(git config user.name)
+
 echo "root password: $1"
 echo "user: $USER"
 echo "id: $UID"
+echo "git name: $gitname"
+echo "git email: $gitemail"
 echo ""
 
-sudo docker image build --build-arg password=$1 --build-arg user=$USER --build-arg id=$UID -t drake-tamp-$USER .
+sudo docker image build --build-arg password=$1 --build-arg user=$USER --build-arg id=$UID --build-arg gitemail="$gitemail" --build-arg gitname="$gitname" -t drake-tamp-$USER .

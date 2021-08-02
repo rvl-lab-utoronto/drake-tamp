@@ -115,6 +115,12 @@ RUN echo "export  USER=$user" >> ~/.bashrc
 RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/experiments/ikea_induction/" >> ~/.bashrc
 RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin" >> ~/.bashrc
 
+ARG gitname 
+ARG gitemail 
+
+RUN git config --global user.name $gitname
+RUN git config --global user.email $gitemail
+
 WORKDIR /home/$user/drake-tamp
 COPY .tmux.conf /home/$user/.tmux.conf
 COPY .vimrc /home/$user/.vimrc
