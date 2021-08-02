@@ -356,34 +356,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             lprint(f"{Colors.RED}Found collisions with {item}{Colors.RESET}")
         return res
 
-    def check_freetraj(traj, item, X_WI):
-        if DUMMY_STREAMS:
-            return True
-        lprint(f"{Colors.BLUE}Checking free traj for collisions with {item}{Colors.RESET}")
-        station, station_context = get_station("move_free")
-        update_station(
-            station, station_context, [("atpose", item, X_WI)], set_others_to_inf=True
-        )
-        for q in traj:
-            check = kitchen_streamsv2.check_safe_conf(station, station_context, q)
-            if not check:
-                return False
-        return True
-        
-    def check_holdingtraj(traj, holdingitem, X_HI, otheritem, X_WI):
-        if DUMMY_STREAMS:
-            return True
-        lprint(f"{Colors.BLUE}Checking holding traj for collisions with {holdingitem}{Colors.RESET}")
-        station, station_context = get_station(holdingitem)
-        update_station(
-            station, station_context, [("holding", holdingitem, X_HI), ("atpose", otheritem, X_WI)], set_others_to_inf=True
-        )
-        for q in traj:
-            check = kitchen_streamsv2.check_safe_conf(station, station_context, q)
-            if not check:
-                return False
-        return True
-
     # def dist_fn(traj):
     #    res = 0
     #    for i in range(len(traj) - 1):
@@ -396,8 +368,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         "find-place": from_gen_fn(find_place),
         "find-ik": from_gen_fn(find_ik),
         "check-safe": from_test(check_safe),
-        "check-freetraj": from_test(check_freetraj),
-        "check-holdingtraj": from_test(check_holdingtraj),
         # "distance": dist_fn,
     }
 
@@ -587,12 +557,7 @@ def run_kitchen(
     if simulate:
 
         action_map = {
-            "move-free": {
-                "function": PlanToTrajectory.move,
-                "argument_indices": [1],
-                "arm_name": "panda",
-            },
-            "move-holding": {
+            "move": {
                 "function": PlanToTrajectory.move,
                 "argument_indices": [1],
                 "arm_name": "panda",
@@ -709,15 +674,7 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    url = "tcp://127.0.0.1:6000"
-
-    res, problem_file = run_kitchen(
-        problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
-        url = url,
-        simulate = True,
-        mode = "normal",
-    )
-    sys.exit(1)
+    url = None #"tcp://127.0.0.1:6000"
 
     L = ["c", "r", "g"]
 
