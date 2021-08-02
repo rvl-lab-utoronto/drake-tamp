@@ -91,13 +91,13 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin
 
 WORKDIR /home/$user/
 # start ikea specific stuff #
-RUN git clone https://github.com/clvrai/furniture.git
+RUN git clone https://github.com/Khodeir/furniture.git
 WORKDIR /home/$user/furniture
-RUN git checkout aug2020
+RUN git checkout origin/aug2020_fixes
 RUN ln -s /home/$user/.mujoco/mujoco200 /home/$user/.mujoco/mujoco200_linux
 #RUN pip install --upgrade pip
 RUN pip3 install scikit-build
-RUN pip3 install glfw>=1.4.0 numpy>=1.11 Cython>=0.27.2 imageio>=2.1.2 cffi>=1.10 fasteners~=0.15 lockfile
+RUN pip3 install glfw>=1.4.0 numpy>=1.19.5 Cython>=0.27.2 imageio>=2.1.2 cffi>=1.10 fasteners~=0.15 lockfile
 # copy mujoco license key `mjkey.txt` 
 COPY mjkey.txt /home/$user/.mujoco/mjkey.txt
 RUN pip3 install -r requirements.txt
@@ -108,15 +108,12 @@ COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
 RUN pip3 install torch==1.9.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://pytorch-geometric.com/whl/torch-1.9.0+cu111.html
-ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
-ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/
-ENV PYTHONPATH=${PYTHONPATH}:/home/$user/furniture/
+ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/furniture/:/home/$user/drake-tamp/experiments/ikea_induction/
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
-RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/" >> ~/.bashrc
-RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/" >> ~/.bashrc
-#RUN echo "export  PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream/"
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/experiments/ikea_induction/" >> ~/.bashrc
+RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin" >> ~/.bashrc
 
 WORKDIR /home/$user/drake-tamp
 COPY .tmux.conf /home/$user/.tmux.conf
