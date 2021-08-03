@@ -13,6 +13,8 @@ from learning.pddlstream_utils import *
 from pddlstream.language.conversion import fact_from_evaluation
 from torch_geometric.data.batch import Batch
 
+from pddlstream.language.object import SharedOptValue
+
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
 
@@ -364,8 +366,9 @@ class Model(Oracle):
         return checker
 
     def predict(self, result, node_from_atom):
-        if not result.is_refined() or any([d not in node_from_atom for d in result.domain]):
+        if not result.is_refined() or any(isinstance(o.value, SharedOptValue) for o in result.input_objects):
             return 1
+        assert all([d in node_from_atom for d in result.domain])
         if self.model is None:
             self.load_model()
             assert self.model is not None
@@ -391,12 +394,10 @@ class ComplexityModel(Oracle):
 
 
 class ComplexityModelV2(Oracle):
-
     def predict(self, result, node_from_atom):
-
-        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
+        if not result.is_refined() or any(isinstance(o.value, SharedOptValue) for o in result.input_objects):
             return 1
-
+        assert all([d in node_from_atom for d in result.domain])
         invocation_info = InvocationInfo(result, node_from_atom)
         level = -1
         for f in result.domain:

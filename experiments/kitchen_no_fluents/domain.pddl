@@ -74,6 +74,22 @@
         :precondition (and 
             (motion ?q1 ?traj ?q2)
             (atconf ?q1)
+            (or
+                (empty)
+                (forall (?item)
+                    (or
+                        (grasped ?item)
+                        (not (exists
+                                (?X_WI ?X_HI ?q)
+                                (and
+                                    (ik ?item ?X_WI ?X_HI ?q2 ?q)
+                                    (atpose ?item ?X_WI)
+                                )    
+                            )
+                        )
+                    )
+                )
+            )
         )
         :effect (and 
             (atconf ?q2)

@@ -50,6 +50,7 @@ from tamp_statistics import make_plot
 from learning import visualization
 import kitchen_streamsv2
 from kitchen_data_generation import make_problem
+from pddlstream.language.stream import StreamInfo
 
 VERBOSE = False
 
@@ -209,6 +210,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
             goal,
             model_poses = model_poses
         )
+        oracle.set_run_attr(problem_info.attr)
     elif algorithm == "informedV2":
         oracle = ora.ComplexityModelV2(
             domain_pddl,
@@ -225,7 +227,9 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
         #    model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
         #    model_poses = model_poses
         #)
-    oracle.set_run_attr(problem_info.attr)
+        oracle.set_run_attr(problem_info.attr)
+    else:
+        oracle = None
 
     def get_station(name):
         if name in stations:
@@ -272,7 +276,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
                 q1,
                 q2,
                 ignore_endpoint_collisions=False,
-                verbose=False,
+                verbose=True,
             )
             if traj is None:  # if a trajectory could not be found (invalid)
                 if holdingitem:
@@ -551,7 +555,10 @@ def run_kitchen(
         oracle=given_oracle,
         use_unique=False,
         max_time=max_time,
-        search_sample_ratio=search_sample_ratio
+        search_sample_ratio=search_sample_ratio,
+        stream_info = {
+            'find-ik': StreamInfo(use_unique=True)
+        }
     )
 
     print(f"\n\n{algorithm} solution:")
@@ -699,7 +706,7 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    url = "tcp://127.0.0.1:6003"
+    url = None #"tcp://127.0.0.1:6003"
 
     """
     max_cabbages = 4
@@ -754,7 +761,8 @@ if __name__ == "__main__":
         mode="oracle",
         algorithm='informedV2',
         url = url,
-        simulate = False
+        simulate = False,
+        max_time = 60
     )
 
     """
