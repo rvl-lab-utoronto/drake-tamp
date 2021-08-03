@@ -100,7 +100,7 @@ def retrieve_model_poses(
 
     return res
 
-def construct_problem_from_sim(simulator, stations, problem_info, algorithm = None):
+def construct_problem_from_sim(simulator, stations, problem_info, algorithm = None, mode = 'normal'):
     """
     Construct pddlstream problem from simulator
     """
@@ -201,8 +201,15 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
         #("in", "raddish5", ("tray", "base_link")),
     ]
     """
-
-    if algorithm == "informed":
+    if mode in ["oracle", "save"]:
+        oracle = ora.Oracle(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "complexity":
         oracle = ora.ComplexityModel(
             domain_pddl,
             stream_pddl,
@@ -210,8 +217,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
             goal,
             model_poses = model_poses
         )
-        oracle.set_run_attr(problem_info.attr)
-    elif algorithm == "informedV2":
+    elif mode == "complexityV2":
         oracle = ora.ComplexityModelV2(
             domain_pddl,
             stream_pddl,
@@ -219,17 +225,21 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
             goal,
             model_poses = model_poses
         )
-        #oracle = ora.Model(
-        #    domain_pddl,
-        #    stream_pddl,
-        #    init,
-        #    goal,
-        #    model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
-        #    model_poses = model_poses
-        #)
-        oracle.set_run_attr(problem_info.attr)
-    else:
+    elif mode == "model":
+        oracle = ora.Model(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
+           model_poses = model_poses
+        )
+    elif mode == "normal":
         oracle = None
+    else:
+        raise ValueError(f"Unrecognized mode {mode}")
+    if oracle is not None:
+        oracle.set_run_attr(problem_info.attr)
 
     def get_station(name):
         if name in stations:
@@ -540,12 +550,12 @@ def run_kitchen(
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         url, problem_file
     )
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info, algorithm = algorithm)
+    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info, algorithm = algorithm, mode = mode)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
 
-    given_oracle = oracle if mode == "oracle" else None
+    given_oracle = oracle if mode not in ["normal", "save"] else None
     search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 1
     solution = solve(
         problem,
@@ -762,7 +772,7 @@ if __name__ == "__main__":
         algorithm='informedV2',
         url = url,
         simulate = False,
-        max_time = 60
+        # max_time = 60
     )
 
     """
