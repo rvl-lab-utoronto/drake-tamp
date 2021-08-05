@@ -3,10 +3,8 @@ This module contains the functions/generators used in TAMP: picking, placing,
 and collision free motion planning
 """
 import numpy as np
-import ompl
 from ompl import base as ob
 from ompl import geometric as og
-import pydrake.all
 from pydrake.all import (
     Box,
     Cylinder,
