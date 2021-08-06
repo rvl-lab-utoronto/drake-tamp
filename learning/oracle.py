@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 import os
 import pickle
@@ -13,7 +14,7 @@ from learning.pddlstream_utils import *
 from pddlstream.language.conversion import fact_from_evaluation
 from torch_geometric.data.batch import Batch
 
-from pddlstream.language.object import SharedOptValue
+from pddlstream.language.object import SharedOptValue, UniqueOptValue
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
@@ -38,8 +39,8 @@ def is_matching(l, ans_l, preimage, atom_map, init):
         if not (g in atom_map):
             raise NotImplementedError(f"Something wrong here. {g} is not in atom_map.")
         ans_g = ancestors_tuple(g, atom_map)
-        if not ans_g:
-            continue  # never need to match initial conditions
+        # if not ans_g:
+        #     continue  # never need to match initial conditions
         if len(ans_g) != len(ans_l):
             continue  # avoid cost of unnecessary computation
         all = True
@@ -283,7 +284,7 @@ class Oracle:
             can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
 
         for can_fact in result.get_certified():
-            is_match, _ = is_matching(
+            is_match, match = is_matching(
                 fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init
             )
 
@@ -291,7 +292,7 @@ class Oracle:
                 break
         self.labels.append(InvocationInfo(result, node_from_atom, label=is_match))
 
-        return is_match
+        return is_match, match
 
 
     def make_is_relevant_checker(self, remove_matched=False):
@@ -302,7 +303,7 @@ class Oracle:
             raise NotImplementedError("Removed matched does not work ... yet")
 
         def unique_is_relevant(result, node_from_atom):
-            is_match = self.is_relevant(result, node_from_atom, preimage)
+            is_match, _ = self.is_relevant(result, node_from_atom, preimage)
             # if remove_matched and is_match:
             #    lifted, grounded = match
             #    preimage.remove(grounded)
@@ -310,6 +311,28 @@ class Oracle:
 
         return unique_is_relevant
 
+class OracleModel(Oracle):
+    def make_is_relevant_checker(self):
+        if self.last_preimage is None or self.atom_map is None:
+            self.load_stats()
+        preimage = self.last_preimage.copy()
+        def unique_is_relevant(result, node_from_atom):
+            is_match, match = self.is_relevant(result, node_from_atom, preimage)
+            return is_match, match
+
+        return unique_is_relevant
+    def predict(self, result, node_from_atom, **kwargs):
+        if not hasattr(self, 'relevant_checker'):
+            self.relevant_checker = self.make_is_relevant_checker()
+            self.previously_matched = defaultdict(int)
+        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
+            return 1
+        is_match, match = self.relevant_checker(result, node_from_atom)
+        if is_match:
+            self.previously_matched[match] += 1
+            score = 2 / self.previously_matched[match]
+            return score
+        return 0
 
 class Model(Oracle):
     def __init__(
@@ -365,10 +388,9 @@ class Model(Oracle):
 
         return checker
 
-    def predict(self, result, node_from_atom):
-        if not result.is_refined() or any(isinstance(o.value, SharedOptValue) for o in result.input_objects):
+    def predict(self, result, node_from_atom, **kwargs):
+        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
             return 1
-        assert all([d in node_from_atom for d in result.domain])
         if self.model is None:
             self.load_model()
             assert self.model is not None
@@ -394,13 +416,17 @@ class ComplexityModel(Oracle):
 
 
 class ComplexityModelV2(Oracle):
-    def predict(self, result, node_from_atom):
-        if not result.is_refined() or any(isinstance(o.value, SharedOptValue) for o in result.input_objects):
+    def predict(self, result, node_from_atom, **kwargs):
+        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
             return 1
-        assert all([d in node_from_atom for d in result.domain])
         invocation_info = InvocationInfo(result, node_from_atom)
         level = -1
         for f in result.domain:
             level = max(level, 1 + fact_level(fact_to_pddl(f), invocation_info))
 
         return level/10
+
+class ComplexityModelV3(Oracle):
+    def predict(self, result, node_from_atom, levels, **kwargs):
+        l = max(levels[f] for f in result.domain) + 1  + result.num_calls
+        return 1  / l

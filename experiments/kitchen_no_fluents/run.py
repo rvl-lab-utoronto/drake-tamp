@@ -209,6 +209,14 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
             goal,
             model_poses = model_poses
         )
+    elif mode == "oraclemodel":
+        oracle = ora.OracleModel(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
     elif mode == "complexity":
         oracle = ora.ComplexityModel(
             domain_pddl,
@@ -219,6 +227,14 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
         )
     elif mode == "complexityV2":
         oracle = ora.ComplexityModelV2(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "complexityV3":
+        oracle = ora.ComplexityModelV3(
             domain_pddl,
             stream_pddl,
             init,
@@ -768,11 +784,11 @@ if __name__ == "__main__":
         problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
         #mode="save",
         #algorithm='adaptive',
-        mode="oracle",
+        mode="oraclemodel",
         algorithm='informedV2',
         url = url,
         simulate = False,
-        # max_time = 60
+        max_time = 60
     )
 
     """
