@@ -11,7 +11,7 @@ from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, Prob
 from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_with_problem_graph, fact_level
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.pddlstream_utils import *
-from pddlstream.language.conversion import fact_from_evaluation
+from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
 from torch_geometric.data.batch import Batch
 
 from pddlstream.language.object import SharedOptValue, UniqueOptValue
@@ -428,5 +428,5 @@ class ComplexityModelV2(Oracle):
 
 class ComplexityModelV3(Oracle):
     def predict(self, result, node_from_atom, levels, **kwargs):
-        l = max(levels[f] for f in result.domain) + 1  + result.num_calls
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         return 1  / l
