@@ -430,3 +430,29 @@ class ComplexityModelV3(Oracle):
     def predict(self, result, node_from_atom, levels, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         return 1  / l
+
+class OracleModelExpansion(OracleModel):
+    def load_stats(self):
+        super().load_stats()
+        preimage_no_leaves = set()
+        for atom in self.last_preimage:
+            if not any(atom in parents and child in self.last_preimage for child, parents in self.atom_map.items()):
+                print('Filtered leaf', atom)
+            else:
+                preimage_no_leaves.add(atom) 
+                print('Added internal node', atom)
+
+        self.last_preimage = preimage_no_leaves
+
+    def predict(self, result, node_from_atom, **kwargs):
+        if not hasattr(self, 'relevant_checker'):
+            self.relevant_checker = self.make_is_relevant_checker()
+            self.previously_matched = defaultdict(int)
+        if not all([d in node_from_atom for d in result.domain]):
+            return 1
+        is_match, match = self.relevant_checker(result, node_from_atom)
+        if is_match:
+            self.previously_matched[match] += 1
+            score = 2 / self.previously_matched[match]
+            return score
+        return 0

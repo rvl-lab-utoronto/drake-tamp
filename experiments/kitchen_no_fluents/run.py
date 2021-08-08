@@ -217,6 +217,14 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
             goal,
             model_poses = model_poses
         )
+    elif mode == "oracleexpansion":
+        oracle = ora.OracleModelExpansion(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
     elif mode == "complexity":
         oracle = ora.ComplexityModel(
             domain_pddl,
