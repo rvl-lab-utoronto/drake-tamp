@@ -32,6 +32,7 @@ from pddlstream.algorithms.meta import solve
 from pddlstream.algorithms.algorithm import reset_globals
 from learning import visualization
 from learning import oracle as ora
+from experiments.shared import construct_oracle
 from panda_station import (
     ProblemInfo,
     parse_start_poses,
@@ -199,15 +200,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             "static": True,
         }
     )
-
-    oracle = ora.Oracle(
-        domain_pddl,
-        stream_pddl,
-        init,
-        goal,
-        model_poses = model_poses
-    )
-    oracle.set_run_attr(problem_info.attr)
 
     def get_station(name, arm_name=None):
         if arm_name is None:
@@ -397,7 +389,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         "check-colfree-block": from_test(check_colfree_block),
     }
 
-    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), oracle
+    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), model_poses
 
 
 def make_and_init_simulation(zmq_url, prob):
@@ -505,7 +497,10 @@ def run_blocks_world(
     algorithm="adaptive",
     buffer_radius=0,
     simulate=False,
-    max_stack_num = None
+    max_stack_num = None,
+    use_unique=False,
+    oracle_kwargs={},
+    should_save=False
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -543,12 +538,13 @@ def run_blocks_world(
         meshcat_vis,
         prob_info,
     ) = make_and_init_simulation(url, problem_file)
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
+    problem, model_poses = construct_problem_from_sim(sim, station_dict, prob_info)
+    oracle = construct_oracle(mode, problem, prob_info, model_poses, **oracle_kwargs)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
 
-    given_oracle = oracle if mode == "oracle" else None
+    given_oracle = oracle if mode not in ["normal", "save"] else None
     search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 1
     solution = solve(
         problem,
@@ -556,7 +552,7 @@ def run_blocks_world(
         verbose=VERBOSE,
         logpath=path,
         oracle=given_oracle,
-        use_unique=mode == "oracle",
+        use_unique=use_unique,
         max_time=max_time,
         search_sample_ratio=search_sample_ratio
     )
@@ -578,7 +574,7 @@ def run_blocks_world(
         path + "stats.json", save_path=path + "preimage_graph.html"
     )
 
-    if mode == "save":
+    if should_save:
         oracle.save_stats(path + "stats.json")
 
     if mode == "oracle":
@@ -707,22 +703,7 @@ def generate_data(
 
 
 
-if __name__ == "__main__":
-
-
-    """
-    url = "tcp://127.0.0.1:6004"
-    res, _ = run_blocks_world(
-        #problem_file=os.path.join(file_path, "problems", "two_arm.yaml"),
-        num_blocks = 12,
-        num_blockers = 6,
-        max_stack_num = 6,
-        mode="save",
-        url = url,
-        simulate = True,
-    )
-    """
-
+def main_generation_loop():
     url = None#"tcp://127.0.0.1:6000"
 
     max_num_blocks = 6
@@ -744,3 +725,19 @@ if __name__ == "__main__":
                     simulate = False,
                     max_time = 500,
                 )
+
+if __name__ == '__main__':
+    # main_generation_loop()
+    url = None
+    res, problem_file = run_blocks_world(
+        num_blocks=2,
+        num_blockers=0,
+        mode="complexityV3",
+        should_save=False,
+        algorithm="informedV2",
+        max_time=60,
+        url=url,
+        simulate=False,
+        use_unique=False,
+        # problem_file=
+    )

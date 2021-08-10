@@ -487,7 +487,7 @@ def run_kitchen(
     buffer_radius=0,
     num_goal = None,
     use_unique = False,
-    oracle_kwargs = {}
+    oracle_kwargs = {},
 ):
 
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
@@ -741,7 +741,8 @@ if __name__ == "__main__":
         algorithm='informedV2',
         url = url,
         simulate = False,
-        max_time = 60
+        max_time = 60,
+        use_unique=False
     )
     # pr.disable()
     # s = io.StringIO()
