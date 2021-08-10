@@ -255,7 +255,40 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
            stream_pddl,
            init,
            goal,
-           model_path = "/home/agrobenj/drake-tamp/model_files/kitchen_diffclasses_batch_smalllr/best.pt",
+           model_path = "/home/mohammed/drake-tamp/model_files/newthing/best.pt",
+           model_poses = model_poses
+        )
+    elif mode == "cachingmodel":
+        oracle = ora.CachingModel(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_poses = model_poses,
+           model_path = "/home/mohammed/drake-tamp/model_files/newthing/best.pt"
+        )
+    elif mode == "complexitycollector":
+        oracle = ora.ComplexityDataCollector(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_poses = model_poses
+        )
+    elif mode == "complexityV3oracle":
+        oracle = ora.OracleAndComplexityModelExpansion(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_poses = model_poses
+        )
+    elif mode == "oracledagger":
+        oracle = ora.OracleDAggerModel(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
            model_poses = model_poses
         )
     elif mode == "normal":
@@ -740,7 +773,7 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    url = None #"tcp://127.0.0.1:6003"
+    url = None#"tcp://127.0.0.1:6000"
 
     """
     max_cabbages = 4
@@ -788,16 +821,26 @@ if __name__ == "__main__":
     #             num_repeat_per_problem=3
     #         )
 
+    # import cProfile, pstats, io
+    # pr = cProfile.Profile()
+    # pr.enable()
     res, problem_file = run_kitchen(
         problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
         #mode="save",
         #algorithm='adaptive',
-        mode="oraclemodel",
+        mode="complexityV3",
         algorithm='informedV2',
         url = url,
         simulate = False,
         max_time = 60
     )
+    # pr.disable()
+    # s = io.StringIO()
+    # ps = pstats.Stats(pr, stream=s)
+    # ps.print_stats()
+    # ps.dump_stats('complexityv3_opt.profile')
+    # print(s.getvalue())
+
 
     """
     parser = setup_parser()

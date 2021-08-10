@@ -183,6 +183,19 @@ def objects_from_facts(init):
             objects.add(arg)
     return objects
 
+def standardize_facts(facts, init_objects):
+    seen = {o:o for o in init_objects}
+    new_facts = tuple()
+    for fact in facts:
+        new_fact = (fact[0], )
+        for arg in fact[1:]:
+            if arg not in seen:
+                seen[arg] = str(len(seen))
+            new_fact = new_fact + (seen[arg],)
+        new_facts = new_facts + (new_fact, )
+
+    return new_facts
+
 def objects_from_fact(fact):
     return {arg for arg in fact[1:]}
 

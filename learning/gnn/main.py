@@ -5,7 +5,7 @@ import os
 
 from torch_geometric.data.dataloader import DataLoader
 from learning.data_models import StreamInstanceClassifierInfo
-from learning.gnn.data import DeviceAwareLoaderWrapper, EvaluationDatasetSampler, TrainingDatasetSampler, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
+from learning.gnn.data import DeviceAwareLoaderWrapper, EvaluationDatasetSampler, TrainingDatasetSampler, construct_input, HyperModelInfo, TrainingDataset, Dataset, construct_hypermodel_input_faster, construct_with_problem_graph, get_base_datapath, get_pddl_key, query_data
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
@@ -127,7 +127,7 @@ if __name__ == '__main__':
         os.makedirs(args.model_home, exist_ok=True)
 
     if args.model == 'hyper':
-        input_fn = partial(construct_hypermodel_input, reduced = args.use_reduced_graph)
+        input_fn = partial(construct_hypermodel_input_faster, reduced = args.use_reduced_graph)
         if args.use_problem_graph:
             input_fn = construct_with_problem_graph(input_fn)
         model_info_class = HyperModelInfo
