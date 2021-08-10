@@ -1,0 +1,67 @@
+directive: "directives/blocks_world.yaml"
+# the internal representation used for planning
+planning_directive: "directives/blocks_world.yaml"  
+
+arms:
+     left_panda:
+          panda_name: left_panda
+          hand_name: left_panda_hand
+          X_WB: [-0.525, 0, 0, 0, 0, 1.57]
+     right_panda:
+          panda_name: right_panda
+          hand_name: right_panda_hand
+          X_WB: [0.525, 0, 0, 0, 0, 1.57]
+
+objects:
+
+     red_block:
+          path: "models/blocks_world/sdf/red_block.sdf"
+          X_WO: [-1.0, -0.1, 0.325, 0, 0, 0]
+          main_link: "base_link"
+          on-table: ["left_table", "base_link"]
+
+     blue_block:
+          path: "models/blocks_world/sdf/blue_block.sdf"
+          X_WO: [-1.0, 0.1, 0.325, 0, 0, 0]
+          main_link: "base_link"
+          on-table: ["left_table", "base_link"]
+
+     green_block:
+          path: "models/blocks_world/sdf/green_block.sdf"
+          X_WO: [1.0, -0.1, 0.325, 0, 0, 0]
+          main_link: "base_link"
+          on-table: ["right_table", "base_link"]
+
+     indigo_block:
+          path: "models/blocks_world/sdf/indigo_block.sdf"
+          X_WO: [1.0, 0.1, 0.325, 0, 0, 0]
+          main_link: "base_link"
+          on-table: ["right_table", "base_link"]
+
+goal:
+     - and
+     - [on-table, red_block, [middle_table, base_link]]
+     - [on-block, green_block, red_block]
+     - [on-block, blue_block, green_block]
+     - [on-block, indigo_block, blue_block]
+     
+
+main_links:
+     right_table: "base_link"
+     left_table: "base_link"
+     middle_table: "base_link"
+
+surfaces:
+     right_table:
+          - "base_link"
+     left_table:
+          - "base_link"
+     middle_table:
+          - "base_link"
+
+run_attr:
+     buffer_radius: 0
+     max_goal_stack: 1
+     max_start_stack: 1
+     num_blockers: 0
+     num_blocks: 2

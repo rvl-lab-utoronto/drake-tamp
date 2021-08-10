@@ -51,7 +51,7 @@ from panda_station import (
 )
 from tamp_statistics import make_plot
 import blocks_world_streams
-from data_generation import make_problem
+from two_arm_data_generation import make_problem
 
 VERBOSE = False
 
@@ -157,6 +157,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("arm", arm),
             ("empty", arm),
             ("conf", arm, conf),
+            ("armsafeconf", arm, conf),
             ("atconf", arm, conf),
         ]
 
@@ -296,6 +297,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         X_WP = panda_info.X_WB
         dy = p_WB[1] - X_WP.translation()[1]
         dx = p_WB[0] - X_WP.translation()[0]
+        dist = np.sqrt(dx**2 + dy**2)
+        if dist > 0.855: # https://www.generationrobots.com/media/panda-franka-emika-datasheet.pdf (max panda reach)
+            return 
         q0 = np.arctan2(dy, dx) - pydrake.math.RollPitchYaw(X_WP.rotation()).yaw_angle()
         q_initial = Q_NOMINAL[:]
         q_initial[0] = q0
@@ -404,7 +408,7 @@ def make_and_init_simulation(zmq_url, prob):
 
     builder = pydrake.systems.framework.DiagramBuilder()
     problem_info = ProblemInfo(prob)
-    station = problem_info.make_main_station(time_step=1e-3)
+    station = problem_info.make_main_station()#time_step=1e-3)
     stations = {"main": station, "move_free": problem_info.make_move_free_station()}
     builder.AddSystem(station)
     scene_graph = station.get_scene_graph()
@@ -640,7 +644,7 @@ def generate_data(
     url=None,
     simulate=False,
     max_stack_num=None,
-    num_repeat_per_problem = 3
+    num_repeat_per_problem = 1
 ):
 
     """
@@ -668,7 +672,7 @@ def generate_data(
 
         simulate: whether or not the plan should be simulated
     """
-
+    print(f"{Colors.BOLD}Running save mode{Colors.RESET}")
     res, problem_file = run_blocks_world(
         num_blocks=num_blocks,
         num_blockers=num_blockers,
@@ -684,6 +688,7 @@ def generate_data(
     mode = "oracle"
     for i in range((num_repeat_per_problem*2) - 1):
         mode = "oracle" if (i % 2 == 0) else "save"
+        print(f"{Colors.BOLD}Running {mode} mode{Colors.RESET}")
         res, _ = run_blocks_world(
             problem_file=problem_file,
             mode="oracle",
@@ -704,8 +709,20 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    #num_blocks = 3
-    #num_blockers = 1
+
+    """
+    url = "tcp://127.0.0.1:6004"
+    res, _ = run_blocks_world(
+        #problem_file=os.path.join(file_path, "problems", "two_arm.yaml"),
+        num_blocks = 12,
+        num_blockers = 6,
+        max_stack_num = 6,
+        mode="save",
+        url = url,
+        simulate = True,
+    )
+    """
+
     url = None#"tcp://127.0.0.1:6000"
 
     max_num_blocks = 6
@@ -715,14 +732,15 @@ if __name__ == "__main__":
         range(1, max_num_blocks + 1), range(max_num_blockers + 1)
     ):
 
-        for max_stack in range(1, num_blocks + 1):
-            generate_data(
-                num_blocks,
-                num_blockers,
-                buffer_radius=0,
-                url=url,
-                max_stack_num= max_stack,
-                simulate = False,
-                max_time = 360,
-                num_repeat_per_problem= 3
-            )
+        for i in range(3):
+
+            for max_stack in range(1, num_blocks + 1):
+                generate_data(
+                    num_blocks,
+                    num_blockers,
+                    buffer_radius=0,
+                    url=url,
+                    max_stack_num= max_stack,
+                    simulate = False,
+                    max_time = 500,
+                )

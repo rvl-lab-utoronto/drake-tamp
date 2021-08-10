@@ -1,5 +1,5 @@
 (define (domain kitchen)
-    (:requirements :strips :derived-predicates :disjunctive-preconditions :equality :negative-preconditions)
+    (:requirements :strips :derived-predicates :disjunctive-preconditions :equality)
     (:predicates 
         ;static predicates
         (item ?item)
@@ -8,7 +8,6 @@
         (burner ?region)
         (cooked ?item)
         (clean ?item)
-        (traj ?traj)
         ; I: item frame, W: world frame, H: hand frame
         (worldpose ?item ?X_WI)
         (handpose ?item ?X_HI)
@@ -20,9 +19,10 @@
         (contained ?item ?X_WI ?region)
         (motion ?q1 ?traj ?q2)
         (ik ?item ?X_WI ?X_HI ?pre_q ?q)
+        ; TODO check collisiosn between placed items and other items
         (colfree ?q ?item ?X_WI)
-        (colfree-freetraj ?traj ?item ?X_WI)
-        (colfree-holdingtraj ?traj ?holdingitem ?X_HI ?otheritem ?X_WI)
+        ;(colfreeholding ?q ?itemholding ?X_HI ?item ?X_WI)
+
 
         ;fluents predicates
         (atconf ?q)
@@ -33,8 +33,7 @@
         ;derived
         (in ?item ?region)
         (safe ?q ?item)
-        (safe-freetraj ?traj ?item)
-        (safe-holdingtraj ?traj ?holdingitem ?X_HI ?otheritem)
+        (grasped ?item)
         ;(safeplace ?q ?itemholding ?X_HI ?item)
     )
 
@@ -68,60 +67,27 @@
             )
         )
     )
+    (:derived (grasped ?item) (exists (?X_HI) (holding ?item ?X_HI)))
 
-    (:derived (safe-freetraj ?traj ?item)
-        (exists (?X_WI) (and
-                (worldpose ?item ?X_WI)
-                (atpose ?item ?X_WI)
-                (colfree-freetraj ?traj ?item ?X_WI) 
-            )
-        ) 
-    )
-
-    (:derived (safe-holdingtraj ?traj ?holdingitem ?X_HI ?otheritem)
-        (exists (?X_WI) (and
-                (worldpose ?otheritem ?X_WI)
-                (atpose ?otheritem ?X_WI)
-                (colfree-holdingtraj ?traj ?holdingitem ?X_HI ?otheritem ?X_WI) 
-            )
-        ) 
-    )
-
-    (:action move-free
+    (:action move
         :parameters(?q1 ?traj ?q2) 
         :precondition (and 
             (motion ?q1 ?traj ?q2)
-            (empty)
             (atconf ?q1)
-            (forall (?item)
-                (imply
-                    (item ?item) 
-                    (safe-freetraj ?traj ?item)
-                ) 
-            )
-        )
-        :effect (and 
-            (atconf ?q2)
-            (not (atconf ?q1))
-            ;(increase (total-cost) (distance ?traj)) 
-            ; TODO(agro): add cost here
-        )
-    )
-
-    (:action move-holding
-        :parameters(?q1 ?traj ?q2 ?holdingitem ?X_HI) 
-        :precondition (and 
-            (handpose ?holdingitem ?X_HI)
-            (not (empty))
-            (motion ?q1 ?traj ?q2)
-            (atconf ?q1)
-            (forall (?otheritem)
-                (or
-                    (= ?otheritem ?holdingitem) 
-                    (imply
-                        (item ?otheritem) 
-                        (safe-holdingtraj ?traj ?holdingitem ?X_HI ?otheritem)
-                    ) 
+            (or
+                (empty)
+                (forall (?item)
+                    (or
+                        (grasped ?item)
+                        (not (exists
+                                (?X_WI ?X_HI ?q)
+                                (and
+                                    (ik ?item ?X_WI ?X_HI ?q2 ?q)
+                                    (atpose ?item ?X_WI)
+                                )    
+                            )
+                        )
+                    )
                 )
             )
         )

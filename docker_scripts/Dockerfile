@@ -47,6 +47,14 @@ RUN apt-get -y install gedit
 RUN apt-get -y install trash-cli
 RUN apt-get -y install ffmpeg
 RUN apt-get -y install xdg-utils
+RUN apt-get -y install liboctomap-dev libfcl-dev
+
+RUN apt-get -y install apt-transport-https gnupg
+RUN curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
+RUN mv bazel.gpg /etc/apt/trusted.gpg.d/ 
+RUN echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
+RUN apt-get update
+RUN apt-get -y install bazel
 
 
 # pddlstream
@@ -73,23 +81,45 @@ RUN chown -R $user /python_venvs
 ENV PATH="/python_venvs/tamp/bin:$PATH"
 USER $user
 
+WORKDIR /home/$user/
+# mujoco
+RUN wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco.zip
+RUN unzip mujoco.zip -d .mujoco
+RUN mv .mujoco/mujoco200_linux .mujoco/mujoco200
+# add mujoco to LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin
+
+WORKDIR /home/$user/
+# start ikea specific stuff #
+RUN git clone https://github.com/BenAgro314/furniture.git
+WORKDIR /home/$user/furniture
+RUN git checkout origin/aug2020_fixes
+RUN ln -s /home/$user/.mujoco/mujoco200 /home/$user/.mujoco/mujoco200_linux
+#RUN pip install --upgrade pip
+RUN pip3 install scikit-build
+RUN pip3 install glfw>=1.4.0 numpy>=1.19.5 Cython>=0.27.2 imageio>=2.1.2 cffi>=1.10 fasteners~=0.15 lockfile
+# copy mujoco license key `mjkey.txt` 
+COPY mjkey.txt /home/$user/.mujoco/mjkey.txt
+RUN pip3 install -r requirements.txt
+
+WORKDIR /home/$user/
 # other requirements
 COPY requirements.txt requirements.txt
 RUN pip3 install -r requirements.txt
 RUN pip3 install torch==1.9.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://pytorch-geometric.com/whl/torch-1.9.0+cu111.html
-#RUN pip3 install torch
-#RUN pip3 install torch-geometric
-#RUN pip3 install torch-scatter
-#RUN pip3 install torch-sparse
-ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/
-ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/
+ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/furniture/:/home/$user/drake-tamp/experiments/ikea_induction/
 
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
-RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/" >> ~/.bashrc
-RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/pddlstream/" >> ~/.bashrc
-#RUN echo "export  PYTHONPATH=${PYTHONPATH}:/python_venvs/tamp/pddlstream/"
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/experiments/ikea_induction/:/home/$user/drake-tamp/pddlstream/examples/pybullet/utils/" >> ~/.bashrc
+RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin" >> ~/.bashrc
+
+ARG gitname 
+ARG gitemail 
+
+RUN git config --global user.name $gitname
+RUN git config --global user.email $gitemail
 
 WORKDIR /home/$user/drake-tamp
 COPY .tmux.conf /home/$user/.tmux.conf

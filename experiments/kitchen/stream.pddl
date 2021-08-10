@@ -6,6 +6,7 @@
 
     (:stream find-traj
         :inputs (?q1 ?q2) 
+        :fluents (atpose holding)
         :domain (and
             (conf ?q1) 
             (conf ?q2)
@@ -13,33 +14,6 @@
         :outputs (?traj)
         :certified (and
             (motion ?q1 ?traj ?q2) 
-            (traj ?traj)
-        )
-    )
-
-    (:stream check-freetraj
-        :inputs (?traj ?item ?X_WI) 
-        :domain (and
-            (item ?item) 
-            (worldpose ?item ?X_WI)
-            (traj ?traj)
-        )
-        :certified (and
-            (colfree-freetraj ?traj ?item ?X_WI) 
-        )
-    )
-
-    (:stream check-holdingtraj
-        :inputs (?traj ?holdingitem ?X_HI ?otheritem ?X_WI) 
-        :domain (and
-            (item ?holdingitem) 
-            (item ?otheritem) 
-            (worldpose ?otheritem ?X_WI)
-            (handpose ?holdingitem ?X_HI)
-            (traj ?traj)
-        )
-        :certified (and
-            (colfree-holdingtraj ?traj ?holdingitem ?X_HI ?otheritem ?X_WI) 
         )
     )
 

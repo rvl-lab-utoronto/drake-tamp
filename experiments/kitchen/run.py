@@ -10,7 +10,6 @@ import time
 import numpy as np
 import random
 import itertools
-import psutil
 
 np.random.seed(seed=int(time.time()))
 random.seed(int(time.time()))
@@ -51,6 +50,7 @@ from tamp_statistics import make_plot
 from learning import visualization
 import kitchen_streamsv2
 from kitchen_data_generation import make_problem
+from pddlstream.language.stream import StreamInfo
 
 VERBOSE = False
 
@@ -61,7 +61,6 @@ ARRAY = tuple
 SIM_INIT_TIME = 0.0
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
-rams = []
 
 file_path, _ = os.path.split(os.path.realpath(__file__))
 domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
@@ -101,7 +100,7 @@ def retrieve_model_poses(
 
     return res
 
-def construct_problem_from_sim(simulator, stations, problem_info):
+def construct_problem_from_sim(simulator, stations, problem_info, algorithm = None, mode = 'normal'):
     """
     Construct pddlstream problem from simulator
     """
@@ -186,14 +185,118 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         }
     )
 
-    oracle = ora.Oracle(
-        domain_pddl,
-        stream_pddl,
-        init,
-        goal,
-        model_poses = model_poses
-    )
-    oracle.set_run_attr(problem_info.attr)
+    """
+    goal = ["and",
+        #("in", "cabbage1", ("leftplate", "base_link")),
+        ("cooked", "cabbage1"),
+        #("in", "cabbage2", ("rightplate", "base_link")),
+        #("cooked", "cabbage2"),
+        ("clean", "glass1"),
+        #("clean", "glass2"),
+        ("in", "glass1", ("leftplacemat", "leftside")),
+        #("in", "glass2", ("rightplacemat", "leftside")),
+        #("in", "raddish1", ("tray", "base_link")),
+        #("in", "raddish7", ("tray", "base_link")),
+        #("in", "raddish4", ("tray", "base_link")),
+        #("in", "raddish5", ("tray", "base_link")),
+    ]
+    """
+    if mode in ["oracle", "save"]:
+        oracle = ora.Oracle(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "oraclemodel":
+        oracle = ora.OracleModel(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "oracleexpansion":
+        oracle = ora.OracleModelExpansion(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "complexity":
+        oracle = ora.ComplexityModel(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "complexityV2":
+        oracle = ora.ComplexityModelV2(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "complexityV3":
+        oracle = ora.ComplexityModelV3(
+            domain_pddl,
+            stream_pddl,
+            init,
+            goal,
+            model_poses = model_poses
+        )
+    elif mode == "model":
+        oracle = ora.Model(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_path = "/home/mohammed/drake-tamp/model_files/newthing/best.pt",
+           model_poses = model_poses
+        )
+    elif mode == "cachingmodel":
+        oracle = ora.CachingModel(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_poses = model_poses,
+           model_path = "/home/mohammed/drake-tamp/model_files/newthing/best.pt"
+        )
+    elif mode == "complexitycollector":
+        oracle = ora.ComplexityDataCollector(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_poses = model_poses
+        )
+    elif mode == "complexityV3oracle":
+        oracle = ora.OracleAndComplexityModelExpansion(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_poses = model_poses
+        )
+    elif mode == "oracledagger":
+        oracle = ora.OracleDAggerModel(
+           domain_pddl,
+           stream_pddl,
+           init,
+           goal,
+           model_poses = model_poses
+        )
+    elif mode == "normal":
+        oracle = None
+    else:
+        raise ValueError(f"Unrecognized mode {mode}")
+    if oracle is not None:
+        oracle.set_run_attr(problem_info.attr)
 
     def get_station(name):
         if name in stations:
@@ -240,7 +343,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 q1,
                 q2,
                 ignore_endpoint_collisions=False,
-                verbose=False,
+                verbose=True,
             )
             if traj is None:  # if a trajectory could not be found (invalid)
                 if holdingitem:
@@ -356,34 +459,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             lprint(f"{Colors.RED}Found collisions with {item}{Colors.RESET}")
         return res
 
-    def check_freetraj(traj, item, X_WI):
-        if DUMMY_STREAMS:
-            return True
-        lprint(f"{Colors.BLUE}Checking free traj for collisions with {item}{Colors.RESET}")
-        station, station_context = get_station("move_free")
-        update_station(
-            station, station_context, [("atpose", item, X_WI)], set_others_to_inf=True
-        )
-        for q in traj:
-            check = kitchen_streamsv2.check_safe_conf(station, station_context, q)
-            if not check:
-                return False
-        return True
-        
-    def check_holdingtraj(traj, holdingitem, X_HI, otheritem, X_WI):
-        if DUMMY_STREAMS:
-            return True
-        lprint(f"{Colors.BLUE}Checking holding traj for collisions with {holdingitem}{Colors.RESET}")
-        station, station_context = get_station(holdingitem)
-        update_station(
-            station, station_context, [("holding", holdingitem, X_HI), ("atpose", otheritem, X_WI)], set_others_to_inf=True
-        )
-        for q in traj:
-            check = kitchen_streamsv2.check_safe_conf(station, station_context, q)
-            if not check:
-                return False
-        return True
-
     # def dist_fn(traj):
     #    res = 0
     #    for i in range(len(traj) - 1):
@@ -396,8 +471,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         "find-place": from_gen_fn(find_place),
         "find-ik": from_gen_fn(find_ik),
         "check-safe": from_test(check_safe),
-        "check-freetraj": from_test(check_freetraj),
-        "check-holdingtraj": from_test(check_holdingtraj),
         # "distance": dist_fn,
     }
 
@@ -509,14 +582,6 @@ def run_kitchen(
     num_goal = None,
 ):
 
-    memory_percent = psutil.virtual_memory().percent
-    rams.append(memory_percent)
-    if memory_percent >= 95:
-        print(f"{Colors.RED}You have used up all the memory!{Colors.RESET}")
-        with open("mem.json", "w") as f:
-            json.dump(rams, f)
-        sys.exit(1)
-
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
     if not os.path.isdir(f"{file_path}/logs"):
         os.mkdir(f"{file_path}/logs")
@@ -542,12 +607,12 @@ def run_kitchen(
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         url, problem_file
     )
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
+    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info, algorithm = algorithm, mode = mode)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
 
-    given_oracle = oracle if mode == "oracle" else None
+    given_oracle = oracle if mode not in ["normal", "save"] else None
     search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 1
     solution = solve(
         problem,
@@ -555,9 +620,12 @@ def run_kitchen(
         verbose=VERBOSE,
         logpath=path,
         oracle=given_oracle,
-        use_unique=mode == "oracle",
+        use_unique=False,
         max_time=max_time,
-        search_sample_ratio=search_sample_ratio
+        search_sample_ratio=search_sample_ratio,
+        stream_info = {
+            'find-ik': StreamInfo(use_unique=True)
+        }
     )
 
     print(f"\n\n{algorithm} solution:")
@@ -573,26 +641,22 @@ def run_kitchen(
         print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
-    make_plot(path + "stats.json", save_path=path + "plots.png")
-    visualization.stats_to_graph(
-        path + "stats.json", save_path=path + "preimage_graph.html"
-    )
+    if not algorithm.startswith("informed"):
+        make_plot(path + "stats.json", save_path=path + "plots.png")
+        visualization.stats_to_graph(
+            path + "stats.json", save_path=path + "preimage_graph.html"
+        )
 
-    if mode == "save":
-        oracle.save_stats(path + "stats.json")
+        if mode == "save":
+            oracle.save_stats(path + "stats.json")
 
-    if mode == "oracle":
-        oracle.save_labeled(path + "stats.json")
+        if mode == "oracle":
+            oracle.save_labeled(path + "stats.json")
 
     if simulate:
 
         action_map = {
-            "move-free": {
-                "function": PlanToTrajectory.move,
-                "argument_indices": [1],
-                "arm_name": "panda",
-            },
-            "move-holding": {
+            "move": {
                 "function": PlanToTrajectory.move,
                 "argument_indices": [1],
                 "arm_name": "panda",
@@ -709,31 +773,83 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    url = "tcp://127.0.0.1:6000"
+    url = None#"tcp://127.0.0.1:6000"
 
-    res, problem_file = run_kitchen(
-        problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
-        url = url,
-        simulate = True,
-        mode = "normal",
-    )
-    sys.exit(1)
+    """
+    max_cabbages = 4
+    max_raddishes = 4
+    max_glasses = 4
 
-    L = ["c", "r", "g"]
 
-    for num in range(5,7):
-        for comb in itertools.combinations_with_replacement(L, num):
-            num_c = comb.count('c')
-            num_r = comb.count('r')
-            num_g = comb.count('g')
+    for num_c, num_r, num_g in itertools.product(
+        range(max_cabbages + 1), range(max_raddishes + 1), range(max_glasses + 1)
+    ):
+
+        if num_c + num_r + num_g == 0:
+            continue
+
+        for num_goal in range(1, num_c + num_r + num_g + 1):
             generate_data(
                 num_cabbages=num_c,
                 num_raddishes=num_r,
                 num_glasses=num_g,
-                num_goal = None,
+                num_goal = num_goal,
                 buffer_radius=0.00,
                 url=url,
                 simulate=False,
-                max_time = 360,
-                num_repeat_per_problem=3
+                max_time = 360
             )
+    """
+
+
+    # L = ["c", "r", "g"]
+
+    # for num in range(2,6):
+    #     for comb in itertools.combinations_with_replacement(L, num):
+    #         num_c = comb.count('c')
+    #         num_r = comb.count('r')
+    #         num_g = comb.count('g')
+    #         generate_data(
+    #             num_cabbages=num_c,
+    #             num_raddishes=num_r,
+    #             num_glasses=num_g,
+    #             num_goal = None,
+    #             buffer_radius=0.00,
+    #             url=url,
+    #             simulate=False,
+    #             max_time = 360,
+    #             num_repeat_per_problem=3
+    #         )
+
+    # import cProfile, pstats, io
+    # pr = cProfile.Profile()
+    # pr.enable()
+    res, problem_file = run_kitchen(
+        problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
+        #mode="save",
+        #algorithm='adaptive',
+        mode="complexityV3",
+        algorithm='informedV2',
+        url = url,
+        simulate = False,
+        max_time = 60
+    )
+    # pr.disable()
+    # s = io.StringIO()
+    # ps = pstats.Stats(pr, stream=s)
+    # ps.print_stats()
+    # ps.dump_stats('complexityv3_opt.profile')
+    # print(s.getvalue())
+
+
+    """
+    parser = setup_parser()
+    args = parser.parse_args()
+    mode = args.mode.lower()
+    run_kitchen(
+        num_cabbages=2,
+        num_raddishes= 2,
+        num_glasses = 2,
+        url = args.url
+    )
+    """

@@ -51,7 +51,7 @@ class RigidTransformWrapper:
 
     def __str__(self):
         xyzrpy = rt_to_xyzrpy(self.rigid_transform)
-        return f"{xyzrpy}"
+        return f"{self.name} {xyzrpy}"
         #if self.name == "":
             #return f"\n[x,y,z] = {xyzrpy[0:3]}\n[r,p,y]: {xyzrpy[3:]}\n"
         #else:
@@ -62,3 +62,7 @@ class RigidTransformWrapper:
         Return the RigidTransform in this wrapper
         """
         return self.rigid_transform
+    
+    #override RigidTransform method
+    def GetAsMatrix34(self):
+        return self.get_rt().GetAsMatrix34()
