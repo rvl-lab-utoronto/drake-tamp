@@ -49,8 +49,8 @@ from panda_station import (
 )
 from tamp_statistics import make_plot
 from learning import visualization
-import kitchen_streamsv2
-from kitchen_data_generation import make_problem
+from experiments.kitchen import kitchen_streamsv2
+from experiments.kitchen.kitchen_data_generation import make_problem
 from pddlstream.language.stream import StreamInfo
 
 VERBOSE = False
@@ -487,6 +487,7 @@ def run_kitchen(
     buffer_radius=0,
     num_goal = None,
     use_unique = False,
+    eager_mode = False,
     oracle_kwargs = {},
 ):
 
@@ -530,6 +531,7 @@ def run_kitchen(
         logpath=path,
         oracle=given_oracle,
         use_unique=use_unique,
+        eager_mode=eager_mode,
         max_time=max_time,
         search_sample_ratio=search_sample_ratio,
         stream_info = {
@@ -550,14 +552,14 @@ def run_kitchen(
         print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
+    if should_save or mode == 'save':
+        oracle.save_stats(path + "stats.json")
+
     if not algorithm.startswith("informed"):
         make_plot(path + "stats.json", save_path=path + "plots.png")
         visualization.stats_to_graph(
             path + "stats.json", save_path=path + "preimage_graph.html"
         )
-
-        if mode == "save":
-            oracle.save_stats(path + "stats.json")
 
         if mode == "oracle":
             oracle.save_labeled(path + "stats.json")

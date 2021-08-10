@@ -19,7 +19,7 @@ def construct_oracle(mode, pddl_problem, problem_info, model_poses, **kwargs):
         oracle_class = ora.CachingModel
     elif mode == "complexitycollector":
         oracle_class = ora.ComplexityDataCollector
-    elif mode == "complexityV3oracle":
+    elif mode == "complexitoracle":
         oracle_class = ora.OracleAndComplexityModelExpansion
     elif mode == "oracledagger":
         oracle_class = ora.OracleDAggerModel

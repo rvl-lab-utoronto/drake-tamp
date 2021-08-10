@@ -51,8 +51,8 @@ from panda_station import (
     Q_NOMINAL,
 )
 from tamp_statistics import make_plot
-import blocks_world_streams
-from two_arm_data_generation import make_problem
+from experiment.two_arm_blocks_world import blocks_world_streams
+from experiment.two_arm_blocks_world.two_arm_data_generation import make_problem
 
 VERBOSE = False
 
@@ -500,7 +500,8 @@ def run_blocks_world(
     max_stack_num = None,
     use_unique=False,
     oracle_kwargs={},
-    should_save=False
+    should_save=False,
+    eager_mode=False
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -554,7 +555,8 @@ def run_blocks_world(
         oracle=given_oracle,
         use_unique=use_unique,
         max_time=max_time,
-        search_sample_ratio=search_sample_ratio
+        search_sample_ratio=search_sample_ratio,
+        eager_mode=eager_mode
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
@@ -574,7 +576,7 @@ def run_blocks_world(
         path + "stats.json", save_path=path + "preimage_graph.html"
     )
 
-    if should_save:
+    if should_save or mode == 'save':
         oracle.save_stats(path + "stats.json")
 
     if mode == "oracle":

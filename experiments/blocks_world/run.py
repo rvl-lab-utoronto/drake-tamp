@@ -51,8 +51,8 @@ from panda_station import (
     Q_NOMINAL,
 )
 from tamp_statistics import make_plot
-import blocks_world_streams
-from data_generation import make_problem
+from experiments.blocks_world import blocks_world_streams
+from experiment.blocks_world.data_generation import make_problem
 
 VERBOSE = False
 
@@ -496,7 +496,8 @@ def run_blocks_world(
     max_stack_num = None,
     use_unique=False,
     oracle_kwargs={},
-    should_save=False
+    should_save=False,
+    eager_mode=False
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -550,6 +551,7 @@ def run_blocks_world(
         oracle=given_oracle,
         use_unique=use_unique,
         max_time=max_time,
+        eager_mode=eager_mode,
         search_sample_ratio=search_sample_ratio
     )
     print(f"\n\n{algorithm} solution:")
@@ -564,7 +566,7 @@ def run_blocks_world(
         print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
-    if should_save:
+    if should_save or mode == 'save':
         oracle.save_stats(path + "stats.json")
 
     if not algorithm.startswith("informed"):

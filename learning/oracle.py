@@ -328,7 +328,7 @@ class OracleModel(Oracle):
         if not hasattr(self, 'relevant_checker'):
             self.relevant_checker = self.make_is_relevant_checker()
             self.previously_matched = defaultdict(int)
-        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
+        if not all([d in node_from_atom for d in result.domain]):
             return 1
         is_match, match = self.relevant_checker(result, node_from_atom)
         if is_match:
