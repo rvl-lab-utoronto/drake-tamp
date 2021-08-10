@@ -4,6 +4,7 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+from experiments.shared import construct_oracle
 import json
 from json.decoder import JSONDecodeError
 import time
@@ -100,7 +101,8 @@ def retrieve_model_poses(
 
     return res
 
-def construct_problem_from_sim(simulator, stations, problem_info, algorithm = None, mode = 'normal'):
+
+def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal', **oracle_kwargs):
     """
     Construct pddlstream problem from simulator
     """
@@ -201,103 +203,6 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
         #("in", "raddish5", ("tray", "base_link")),
     ]
     """
-    if mode in ["oracle", "save"]:
-        oracle = ora.Oracle(
-            domain_pddl,
-            stream_pddl,
-            init,
-            goal,
-            model_poses = model_poses
-        )
-    elif mode == "oraclemodel":
-        oracle = ora.OracleModel(
-            domain_pddl,
-            stream_pddl,
-            init,
-            goal,
-            model_poses = model_poses
-        )
-    elif mode == "oracleexpansion":
-        oracle = ora.OracleModelExpansion(
-            domain_pddl,
-            stream_pddl,
-            init,
-            goal,
-            model_poses = model_poses
-        )
-    elif mode == "complexity":
-        oracle = ora.ComplexityModel(
-            domain_pddl,
-            stream_pddl,
-            init,
-            goal,
-            model_poses = model_poses
-        )
-    elif mode == "complexityV2":
-        oracle = ora.ComplexityModelV2(
-            domain_pddl,
-            stream_pddl,
-            init,
-            goal,
-            model_poses = model_poses
-        )
-    elif mode == "complexityV3":
-        oracle = ora.ComplexityModelV3(
-            domain_pddl,
-            stream_pddl,
-            init,
-            goal,
-            model_poses = model_poses
-        )
-    elif mode == "model":
-        oracle = ora.Model(
-           domain_pddl,
-           stream_pddl,
-           init,
-           goal,
-           model_path = "/home/mohammed/drake-tamp/model_files/newthing/best.pt",
-           model_poses = model_poses
-        )
-    elif mode == "cachingmodel":
-        oracle = ora.CachingModel(
-           domain_pddl,
-           stream_pddl,
-           init,
-           goal,
-           model_poses = model_poses,
-           model_path = "/home/mohammed/drake-tamp/model_files/newthing/best.pt"
-        )
-    elif mode == "complexitycollector":
-        oracle = ora.ComplexityDataCollector(
-           domain_pddl,
-           stream_pddl,
-           init,
-           goal,
-           model_poses = model_poses
-        )
-    elif mode == "complexityV3oracle":
-        oracle = ora.OracleAndComplexityModelExpansion(
-           domain_pddl,
-           stream_pddl,
-           init,
-           goal,
-           model_poses = model_poses
-        )
-    elif mode == "oracledagger":
-        oracle = ora.OracleDAggerModel(
-           domain_pddl,
-           stream_pddl,
-           init,
-           goal,
-           model_poses = model_poses
-        )
-    elif mode == "normal":
-        oracle = None
-    else:
-        raise ValueError(f"Unrecognized mode {mode}")
-    if oracle is not None:
-        oracle.set_run_attr(problem_info.attr)
-
     def get_station(name):
         if name in stations:
             return stations[name], station_contexts[name]
@@ -473,8 +378,9 @@ def construct_problem_from_sim(simulator, stations, problem_info, algorithm = No
         "check-safe": from_test(check_safe),
         # "distance": dist_fn,
     }
+    pddl_problem = PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
 
-    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), oracle
+    return pddl_problem, model_poses
 
 
 def make_and_init_simulation(zmq_url, prob):
@@ -580,6 +486,8 @@ def run_kitchen(
     prob_sink=0.1,
     buffer_radius=0,
     num_goal = None,
+    use_unique = False,
+    oracle_kwargs = {}
 ):
 
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
@@ -607,7 +515,8 @@ def run_kitchen(
     sim, station_dict, traj_director, meshcat_vis, prob_info = make_and_init_simulation(
         url, problem_file
     )
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info, algorithm = algorithm, mode = mode)
+    problem, model_poses = construct_problem_from_sim(sim, station_dict, prob_info, algorithm = algorithm, mode = mode)
+    oracle = construct_oracle(mode, problem, prob_info, model_poses, **oracle_kwargs)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
@@ -620,7 +529,7 @@ def run_kitchen(
         verbose=VERBOSE,
         logpath=path,
         oracle=given_oracle,
-        use_unique=False,
+        use_unique=use_unique,
         max_time=max_time,
         search_sample_ratio=search_sample_ratio,
         stream_info = {
