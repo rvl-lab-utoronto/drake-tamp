@@ -22,7 +22,7 @@ if __name__ == "__main__":
     station = PandaStation(name = "placement_station")
     station.setup_from_file(DIRECTIVE, names_and_links=NAMES_AND_LINKS)
     station.add_panda_with_hand(
-        weld_fingers=True, X_WB = RigidTransform(RotationMatrix(), [0, 0, 0.8])
+        weld_fingers=True, X_WB = RigidTransform(RotationMatrix(), [0.05, 0, 0.8])
     )
     plant = station.get_multibody_plant()
     station.finalize()

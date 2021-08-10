@@ -8,7 +8,7 @@ from pydrake.all import (
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-z", "--zmq_url", type=str, default="tcp://127.0.0.1:6000")
-parser.add_argument("-m", "--model_path", type=str, default="./basement/sdf/PFM52503.sdf")
+parser.add_argument("-m", "--model_path", type=str, default="./basement/sdf/wooden_table.sdf")
 
 args = parser.parse_args()
 zmq_url = args.zmq_url
