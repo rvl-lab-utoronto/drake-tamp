@@ -93,7 +93,8 @@ WORKDIR /home/$user/
 # start ikea specific stuff #
 RUN git clone https://github.com/BenAgro314/furniture.git
 WORKDIR /home/$user/furniture
-RUN git checkout origin/aug2020_fixes
+RUN git fetch origin aug2020_fixes:aug2020_fixes
+RUN git checkout aug2020_fixes
 RUN ln -s /home/$user/.mujoco/mujoco200 /home/$user/.mujoco/mujoco200_linux
 #RUN pip install --upgrade pip
 RUN pip3 install scikit-build
