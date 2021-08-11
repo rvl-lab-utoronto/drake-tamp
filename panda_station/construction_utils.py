@@ -39,7 +39,7 @@ def add_package_paths(parser):
 
 def add_panda(
     plant,
-    q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0]),
+    q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, np.pi/4]),
     X_WB=pydrake.math.RigidTransform(),
     name = "panda"
 ):
@@ -82,7 +82,7 @@ def add_panda(
 def add_panda_hand(
     plant,
     panda_model_instance_index=None,
-    roll=0,
+    roll=-np.pi/4,
     weld_fingers=False,
     name = "hand"
 ):

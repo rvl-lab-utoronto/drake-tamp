@@ -47,3 +47,19 @@ directives:
     - add_weld:
         parent: bracket_origin
         child: bracket::base_link
+
+    # wooden table
+    - add_frame:
+        name: wooden_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [0.755, 0, 0]
+
+    - add_model:
+        name: wooden_table
+        file: package://basement/sdf/wooden_table.sdf
+
+    - add_weld:
+        parent: wooden_table_origin
+        child: wooden_table::base_link

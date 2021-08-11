@@ -165,6 +165,42 @@ class PlanToTrajectory:
             hand_end = MAX_OPEN
         )
 
+    @staticmethod
+    def numpy_conf_to_str(q):
+        res = ""
+        for i in range(len(q)):
+            res += str(q[i])
+            if i < len(q) - 1:
+                res += ", "
+            else:
+                res += "\n"
+        return res
+        
+
+    def write_conf_file(self, plan, action_map, save_path):
+        """
+        Get a conf.txt we can execute on the panda hardware 
+        """ 
+
+        f = open(save_path, "w")
+        for action in plan:
+            if action.name not in action_map:
+                continue
+            func = action_map[action.name]["function"]
+            arg_map = action_map[action.name]["argument_indices"]
+            args = [action.args[i] for i in arg_map]
+            if func == PlanToTrajectory.pick:
+                f.write(self.numpy_conf_to_str(args[-2]))
+                f.write("grasp\n")
+            elif func == PlanToTrajectory.place:
+                f.write(self.numpy_conf_to_str(args[-2]))
+                f.write("release\n")
+            else:
+                traj = args[-1]
+                for q in traj:
+                    f.write(self.numpy_conf_to_str(q))
+        f.close()
+
     def make_trajectory(self, plan, start_time, action_map):
         #TODO(agro): fix docstring
         """

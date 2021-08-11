@@ -1,0 +1,39 @@
+directive: "directives/basement.yaml"
+planning_directive: "directives/basement.yaml"  
+
+arms:
+     panda:
+          panda_name: panda
+          hand_name: hand
+          X_WB: [0.05, 0, 0.8, 0, 0, 0]
+
+objects:
+     pink_block:
+          path: "models/basement/sdf/pink_block.sdf"
+          X_WO: [0.755, 0, 0.74, 0, 0, 0]
+          main_link: "base_link"
+          on-table: ["wooden_table", "base_link"]
+
+     indigo_block:
+          path: "models/basement/sdf/indigo_block.sdf"
+          X_WO: [0.755, 0.2, 0.74, 0, 0, 0]
+          main_link: "base_link"
+          on-table: ["wooden_table", "base_link"]
+
+     red_block:
+          path: "models/basement/sdf/red_block.sdf"
+          X_WO: [0.755, 0, 0.79, 0, 0, 0]
+          main_link: "base_link"
+          on-block: "pink_block"
+
+goal: 
+     - and
+     - [on-block, indigo_block, pink_block]
+
+main_links:
+     wooden_table: "base_link"
+     thor_table: "base_link"
+
+surfaces:
+     wooden_table: 
+          - "base_link"

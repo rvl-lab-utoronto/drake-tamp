@@ -121,7 +121,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
     def add_panda_with_hand(
         self,
         weld_fingers=False,
-        q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0]),
+        q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, np.pi/4]),
         X_WB = pydrake.math.RigidTransform(),
         panda_name = None,
         hand_name = None
