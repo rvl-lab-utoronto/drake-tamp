@@ -57,7 +57,7 @@ VERBOSE = False
 
 np.set_printoptions(precision=4, suppress=True)
 ARRAY = tuple
-SIM_INIT_TIME = 0.0
+SIM_INIT_TIME = 0.05
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
 rams = []
@@ -708,7 +708,7 @@ if __name__ == "__main__":
 
     #num_blocks = 3
     #num_blockers = 1
-    url = "tcp://127.0.0.1:6000"
+    url = "tcp://127.0.0.1:6001"
 
 
     res, _ = run_blocks_world(

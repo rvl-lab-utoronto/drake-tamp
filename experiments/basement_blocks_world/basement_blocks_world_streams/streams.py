@@ -47,7 +47,7 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    h = HAND_HEIGHT + length - 0.005
+    h = HAND_HEIGHT + length - 0.01
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
 
@@ -69,7 +69,7 @@ def find_table_place(station, station_context, shape_info, surface):
     S = surface.shape_info.offset_frame
     #TODO(agro): make this random choice smarter
     p_SI_S = np.random.uniform(lower,upper)
-    p_SI_S[2] = surface.bb_min[2] + 1e-3
+    p_SI_S[2] = surface.bb_min[2] + 0.005
     X_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S)
     p_WS_W = X_WS.translation()
     R_WS = X_WS.rotation()
@@ -83,7 +83,7 @@ def find_block_place(station, station_context, shape_info, surface):
     S = surface.shape_info.offset_frame
     middle = (surface.bb_min + surface.bb_max)*0.5
     p_SI_S = middle
-    p_SI_S[2] = surface.bb_min[2] + 1e-2
+    p_SI_S[2] = surface.bb_min[2] + 0.005
     X_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S)
     p_WS_W = X_WS.translation()
     R_WS = X_WS.rotation()

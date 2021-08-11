@@ -16,19 +16,20 @@ objects:
 
      indigo_block:
           path: "models/basement/sdf/indigo_block.sdf"
-          X_WO: [0.755, 0.2, 0.74, 0, 0, 0]
+          X_WO: [0.755, 0, 0.84, 0, 0, 0]
           main_link: "base_link"
-          on-table: ["wooden_table", "base_link"]
+          on-block: "red_block"
 
      red_block:
           path: "models/basement/sdf/red_block.sdf"
-          X_WO: [0.755, 0, 0.79, 0, 0, 0]
+          X_WO: [0.755, 0, 0.79, 0, 0, 0.785]
           main_link: "base_link"
           on-block: "pink_block"
 
 goal: 
      - and
-     - [on-block, indigo_block, pink_block]
+     - [on-block, indigo_block, red_block]
+     - [on-block, pink_block, indigo_block]
 
 main_links:
      wooden_table: "base_link"
