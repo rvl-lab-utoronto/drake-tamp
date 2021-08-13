@@ -1,3 +1,4 @@
+from panda_station.trajectory_generation import MotionGenerator
 import numpy as np
 from pydrake.all import PiecewisePolynomial
 from enum import Enum
@@ -8,17 +9,14 @@ MAX_CLOSE = 0.0
 GRASP_TIME = 2.0
 #TODO(agro): pass in as argument
 Q_INITIAL =np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0])
+SPEED_FACTOR = 0.2
 DOF = 7
-
-K_V = np.array([2.0, 2.0, 2.0, 2.0, 2.5, 2.5, 2.5])
-K_A = np.array([5, 5, 5, 5, 5, 5, 5])
-
 
 class TrajType(Enum):
 
     LINEAR = 1
     CUBIC = 2
-
+    GENERATOR = 3
 
 class PlanToTrajectory:
 
@@ -75,6 +73,28 @@ class PlanToTrajectory:
         and the times along the trajectory
         """
         #TODO(agro): make the speed slowest at start and end 
+
+        if self.traj_mode == TrajType.GENERATOR:
+            panda_traj = []
+            times = []
+            res_qs = []
+            for q1, q2 in zip(qs[:-1], qs[1:]):
+                gen = MotionGenerator(SPEED_FACTOR, q1, q2)
+                t = 0
+                while True:
+                    times.append(t + start_time)
+                    q, finished = gen(t)
+                    res_qs.append(q.reshape((DOF, 1)))
+                    if finished:
+                        break
+                    t += 1e-3
+
+            qs = np.concatenate(res_qs, axis = 1)
+            times = np.array(times)
+            panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs)
+            return panda_traj, times
+
+        print(qs.shape)
         times = [start_time]
         for i in range(len(qs) - 1):
             q_now = qs[i]
@@ -86,7 +106,6 @@ class PlanToTrajectory:
         if self.traj_mode == TrajType.LINEAR:
             panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
         elif self.traj_mode == TrajType.CUBIC:
-            print("CUBIC")
             panda_traj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times, qs.T, np.zeros((DOF, 1)), np.zeros((DOF, 1)))
         return panda_traj, times
 
@@ -140,7 +159,7 @@ class PlanToTrajectory:
         Return pick or place trajectories, depending on 
         `hand_start` and `hand_end`
         """
-        panda_traj = np.array([q_pre, q, q, q_post])
+        qs = np.array([q_pre, q, q, q_post])
         hand_traj = np.array([[hand_start], [hand_start], [hand_end], [hand_end]])
         down_time = max(self.jointspace_distance(q_pre, q)/JOINTSPACE_SPEED, 1e-2)
         up_time = max(self.jointspace_distance(q_post, q)/JOINTSPACE_SPEED, 1e-2)
@@ -151,7 +170,12 @@ class PlanToTrajectory:
             start_time + down_time + GRASP_TIME,
             start_time + down_time + GRASP_TIME + up_time
         ])
-        panda_traj = PiecewisePolynomial.FirstOrderHold(times, panda_traj.T)
+        if self.traj_mode == TrajType.LINEAR:
+            panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
+        elif self.traj_mode == TrajType.CUBIC:
+            panda_traj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times[:2], qs[:2].T, np.zeros((DOF, 1)), np.zeros((DOF, 1)))
+            panda_traj.ConcatenateInTime(PiecewisePolynomial.FirstOrderHold(times[1:3], qs[1:3].T))
+            panda_traj.ConcatenateInTime(PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times[2:], qs[2:].T, np.zeros((DOF, 1)), np.zeros((DOF, 1))))
         hand_traj = PiecewisePolynomial.FirstOrderHold(times, hand_traj.T)
         self.add_trajs(panda_name, panda_traj, hand_traj)
 
