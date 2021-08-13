@@ -51,8 +51,8 @@ from panda_station import (
     Q_NOMINAL,
 )
 from tamp_statistics import make_plot
-from experiment.two_arm_blocks_world import blocks_world_streams
-from experiment.two_arm_blocks_world.two_arm_data_generation import make_problem
+from experiments.two_arm_blocks_world import blocks_world_streams
+from experiments.two_arm_blocks_world.two_arm_data_generation import make_problem
 
 VERBOSE = False
 

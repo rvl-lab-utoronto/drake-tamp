@@ -52,7 +52,7 @@ from panda_station import (
 )
 from tamp_statistics import make_plot
 from experiments.blocks_world import blocks_world_streams
-from experiment.blocks_world.data_generation import make_problem
+from experiments.blocks_world.data_generation import make_problem
 
 VERBOSE = False
 

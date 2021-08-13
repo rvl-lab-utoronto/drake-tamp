@@ -6,7 +6,7 @@ import json
 domains = {
     'kitchen': run_kitchen,
     'blocks_world':run_blocks_world,
-    'two_arms_blocks_world': run_two_arm_blocks_world
+    'two_arm_blocks_world': run_two_arm_blocks_world
 }
 def make_argument_parser():
     parser = argparse.ArgumentParser()
@@ -67,13 +67,25 @@ if __name__ == '__main__':
     args = make_argument_parser().parse_args()
     run_exp = domains[args.domain]
     domain_options = json.loads(args.domain_options)
+    PROFILE = True
+    if PROFILE:
+        import cProfile, pstats, io
+        pr = cProfile.Profile()
+        pr.enable() 
     run_exp(
         mode=args.mode,
         algorithm=args.algorithm,
         use_unique=args.use_unique,
         max_time=args.max_time,
         eager_mode=args.eager_mode,
+        should_save=args.should_save,
         url=None,
         simulate=False,
         **domain_options
     )
+    if PROFILE:
+        pr.disable()
+        s = io.StringIO()
+        ps = pstats.Stats(pr, stream=s)
+        ps.print_stats()
+        ps.dump_stats('exp.profile')   

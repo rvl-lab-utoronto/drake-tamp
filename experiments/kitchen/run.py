@@ -489,6 +489,7 @@ def run_kitchen(
     use_unique = False,
     eager_mode = False,
     oracle_kwargs = {},
+    should_save = False
 ):
 
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
