@@ -268,7 +268,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 ignore_endpoint_collisions=False,
                 panda=panda,
                 verbose=VERBOSE,
-                interpolate = False
+                #interpolate = False
                 #use_min_clearance = cl,
             )
             if traj is None:
@@ -616,7 +616,7 @@ def run_blocks_world(
         },
     }
 
-    traj_maker = PlanToTrajectory(station_dict["main"], traj_mode = TrajType.CUBIC)
+    traj_maker = PlanToTrajectory(station_dict["main"], traj_mode = TrajType.GENERATOR)
     traj_maker.write_conf_file(plan, action_map, os.path.join(path, "confs.txt"))
 
     if simulate:
@@ -716,7 +716,7 @@ if __name__ == "__main__":
 
     #num_blocks = 3
     #num_blockers = 1
-    url = "tcp://127.0.0.1:6003"
+    url = "tcp://127.0.0.1:6004"
 
 
     res, _ = run_blocks_world(

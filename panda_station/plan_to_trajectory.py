@@ -6,7 +6,7 @@ from enum import Enum
 JOINTSPACE_SPEED = np.pi*0.1 # rad/s
 MAX_OPEN = 0.08
 MAX_CLOSE = 0.0
-GRASP_TIME = 2.0
+GRASP_TIME = (0.08 - 0.05)/0.1
 #TODO(agro): pass in as argument
 Q_INITIAL =np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0])
 SPEED_FACTOR = 0.2
@@ -66,6 +66,27 @@ class PlanToTrajectory:
             return Q_INITIAL, [[MAX_OPEN]]
         return panda_traj.value(time).flatten(), hand_traj.value(time)
 
+    @staticmethod
+    def make_generator_panda_traj(qs, start_time):
+        panda_traj = []
+        times = []
+        res_qs = []
+        for q1, q2 in zip(qs[:-1], qs[1:]):
+            gen = MotionGenerator(SPEED_FACTOR, q1, q2)
+            t = 0
+            while True:
+                times.append(t + start_time)
+                q, finished = gen(t)
+                res_qs.append(q.reshape((DOF, 1)))
+                if finished:
+                    break
+                t += 1e-3
+
+        qs = np.concatenate(res_qs, axis = 1)
+        times = np.array(times)
+        panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs)
+        return panda_traj, times
+
     def make_panda_traj(self, qs, start_time):
         """
         Given a list of joint configs `qs`, 
@@ -75,26 +96,8 @@ class PlanToTrajectory:
         #TODO(agro): make the speed slowest at start and end 
 
         if self.traj_mode == TrajType.GENERATOR:
-            panda_traj = []
-            times = []
-            res_qs = []
-            for q1, q2 in zip(qs[:-1], qs[1:]):
-                gen = MotionGenerator(SPEED_FACTOR, q1, q2)
-                t = 0
-                while True:
-                    times.append(t + start_time)
-                    q, finished = gen(t)
-                    res_qs.append(q.reshape((DOF, 1)))
-                    if finished:
-                        break
-                    t += 1e-3
+            return self.make_generator_panda_traj(qs, start_time)
 
-            qs = np.concatenate(res_qs, axis = 1)
-            times = np.array(times)
-            panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs)
-            return panda_traj, times
-
-        print(qs.shape)
         times = [start_time]
         for i in range(len(qs) - 1):
             q_now = qs[i]
@@ -160,23 +163,33 @@ class PlanToTrajectory:
         `hand_start` and `hand_end`
         """
         qs = np.array([q_pre, q, q, q_post])
-        hand_traj = np.array([[hand_start], [hand_start], [hand_end], [hand_end]])
-        down_time = max(self.jointspace_distance(q_pre, q)/JOINTSPACE_SPEED, 1e-2)
-        up_time = max(self.jointspace_distance(q_post, q)/JOINTSPACE_SPEED, 1e-2)
         start_time = self.get_curr_time(panda_name)
-        times = np.array([
-            start_time,
-            start_time + down_time,
-            start_time + down_time + GRASP_TIME,
-            start_time + down_time + GRASP_TIME + up_time
-        ])
-        if self.traj_mode == TrajType.LINEAR:
-            panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
-        elif self.traj_mode == TrajType.CUBIC:
-            panda_traj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times[:2], qs[:2].T, np.zeros((DOF, 1)), np.zeros((DOF, 1)))
-            panda_traj.ConcatenateInTime(PiecewisePolynomial.FirstOrderHold(times[1:3], qs[1:3].T))
-            panda_traj.ConcatenateInTime(PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times[2:], qs[2:].T, np.zeros((DOF, 1)), np.zeros((DOF, 1))))
-        hand_traj = PiecewisePolynomial.FirstOrderHold(times, hand_traj.T)
+        hand_traj = np.array([[hand_start], [hand_start], [hand_end], [hand_end]])
+
+        if self.traj_mode == TrajType.GENERATOR:
+            panda_traj_pre, times_pre = self.make_generator_panda_traj(qs[:2], start_time)
+            panda_traj_post, times_post = self.make_generator_panda_traj(qs[2:], times_pre[-1] + GRASP_TIME)
+            panda_traj = panda_traj_pre
+            panda_traj.ConcatenateInTime(PiecewisePolynomial.FirstOrderHold(np.array([times_pre[-1], times_post[0]]), qs[1:3].T))
+            panda_traj.ConcatenateInTime(panda_traj_post)
+            hand_traj = PiecewisePolynomial.FirstOrderHold(np.array([times_pre[0], times_pre[-1] , times_post[0], times_post[-1]]), hand_traj.T)
+        else:
+            down_time = max(self.jointspace_distance(q_pre, q)/JOINTSPACE_SPEED, 1e-2)
+            up_time = max(self.jointspace_distance(q_post, q)/JOINTSPACE_SPEED, 1e-2)
+            times = np.array([
+                start_time,
+                start_time + down_time,
+                start_time + down_time + GRASP_TIME,
+                start_time + down_time + GRASP_TIME + up_time
+            ])
+            if self.traj_mode == TrajType.LINEAR:
+                panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
+            elif self.traj_mode == TrajType.CUBIC:
+                panda_traj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times[:2], qs[:2].T, np.zeros((DOF, 1)), np.zeros((DOF, 1)))
+                panda_traj.ConcatenateInTime(PiecewisePolynomial.FirstOrderHold(times[1:3], qs[1:3].T))
+                panda_traj.ConcatenateInTime(PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times[2:], qs[2:].T, np.zeros((DOF, 1)), np.zeros((DOF, 1))))
+            hand_traj = PiecewisePolynomial.FirstOrderHold(times, hand_traj.T)
+
         self.add_trajs(panda_name, panda_traj, hand_traj)
 
     def pick(self,panda_name, q_pre, q, q_post):
