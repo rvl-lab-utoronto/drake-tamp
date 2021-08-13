@@ -39,6 +39,7 @@ from panda_station import (
     update_station,
     update_arm,
     PlanToTrajectory,
+    TrajType,
     TrajectoryDirector,
     find_traj,
     Colors,
@@ -54,10 +55,11 @@ import basement_blocks_world_streams
 from data_generation import make_problem
 
 VERBOSE = False
+WOODEN_TABLE_CENTER = np.array([0.755, 0, 0.74])
 
 np.set_printoptions(precision=4, suppress=True)
 ARRAY = tuple
-SIM_INIT_TIME = 0.05
+SIM_INIT_TIME = 0
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
 rams = []
@@ -125,6 +127,9 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             supports.append(problem_info.objects[name]["on-block"])
 
     for name, pose in start_poses.items():
+        translation = pose.get_rt().translation()[:3]
+        print(f"Item {name}")
+        print(f"Offset from table center: {translation - WOODEN_TABLE_CENTER}")
         init += [
             ("block", name),
             ("worldpose", name, pose),
@@ -253,6 +258,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         if other_name is not None:
             update_arm(station, station_context, other_name, q_other)
         panda = station.panda_infos[arm_name].panda
+        #cl = None if holding_block is not None else 0.005 
         while True:
             traj = find_traj(
                 station,
@@ -262,6 +268,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 ignore_endpoint_collisions=False,
                 panda=panda,
                 verbose=VERBOSE,
+                interpolate = False
+                #use_min_clearance = cl,
             )
             if traj is None:
                 return
@@ -608,7 +616,7 @@ def run_blocks_world(
         },
     }
 
-    traj_maker = PlanToTrajectory(station_dict["main"])
+    traj_maker = PlanToTrajectory(station_dict["main"], traj_mode = TrajType.CUBIC)
     traj_maker.write_conf_file(plan, action_map, os.path.join(path, "confs.txt"))
 
     if simulate:
@@ -708,7 +716,7 @@ if __name__ == "__main__":
 
     #num_blocks = 3
     #num_blockers = 1
-    url = "tcp://127.0.0.1:6001"
+    url = "tcp://127.0.0.1:6003"
 
 
     res, _ = run_blocks_world(

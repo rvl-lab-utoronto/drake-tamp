@@ -1,5 +1,6 @@
 import numpy as np
 from pydrake.all import PiecewisePolynomial
+from enum import Enum
 
 JOINTSPACE_SPEED = np.pi*0.1 # rad/s
 MAX_OPEN = 0.08
@@ -7,10 +8,21 @@ MAX_CLOSE = 0.0
 GRASP_TIME = 2.0
 #TODO(agro): pass in as argument
 Q_INITIAL =np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0])
+DOF = 7
+
+K_V = np.array([2.0, 2.0, 2.0, 2.0, 2.5, 2.5, 2.5])
+K_A = np.array([5, 5, 5, 5, 5, 5, 5])
+
+
+class TrajType(Enum):
+
+    LINEAR = 1
+    CUBIC = 2
+
 
 class PlanToTrajectory:
 
-    def __init__(self, station):
+    def __init__(self, station, traj_mode = TrajType.LINEAR):
         self.station = station
         self.trajectories = {}
         for panda_name in self.station.panda_infos:
@@ -19,6 +31,7 @@ class PlanToTrajectory:
                 "hand_traj": None,
             }
         self.curr_time = 0
+        self.traj_mode = traj_mode
 
     @staticmethod
     def jointspace_distance(q1, q2):
@@ -55,9 +68,7 @@ class PlanToTrajectory:
             return Q_INITIAL, [[MAX_OPEN]]
         return panda_traj.value(time).flatten(), hand_traj.value(time)
 
-
-    @staticmethod
-    def make_panda_traj(qs, start_time):
+    def make_panda_traj(self, qs, start_time):
         """
         Given a list of joint configs `qs`, 
         return a trajectory for the panda arm starting at start_time,
@@ -72,8 +83,13 @@ class PlanToTrajectory:
             times.append(times[-1] + dist/JOINTSPACE_SPEED)
 
         times = np.array(times)
-        panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
+        if self.traj_mode == TrajType.LINEAR:
+            panda_traj = PiecewisePolynomial.FirstOrderHold(times, qs.T)
+        elif self.traj_mode == TrajType.CUBIC:
+            print("CUBIC")
+            panda_traj = PiecewisePolynomial.CubicWithContinuousSecondDerivatives(times, qs.T, np.zeros((DOF, 1)), np.zeros((DOF, 1)))
         return panda_traj, times
+
 
     @staticmethod
     def make_hand_traj(q_start, q_end, start_time, end_time):
@@ -183,7 +199,7 @@ class PlanToTrajectory:
         """ 
 
         f = open(save_path, "w")
-        for action in plan:
+        for i, action in enumerate(plan):
             if action.name not in action_map:
                 continue
             func = action_map[action.name]["function"]
@@ -192,9 +208,13 @@ class PlanToTrajectory:
             if func == PlanToTrajectory.pick:
                 f.write(self.numpy_conf_to_str(args[-2]))
                 f.write("grasp\n")
+                if i == len(plan) - 1:
+                    f.write(self.numpy_conf_to_str(args[-1]))
             elif func == PlanToTrajectory.place:
                 f.write(self.numpy_conf_to_str(args[-2]))
                 f.write("release\n")
+                if i == len(plan) - 1:
+                    f.write(self.numpy_conf_to_str(args[-1]))
             else:
                 traj = args[-1]
                 for q in traj:
