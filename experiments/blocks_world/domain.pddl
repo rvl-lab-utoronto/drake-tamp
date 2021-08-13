@@ -45,6 +45,8 @@
 
     (:derived (on-table ?block ?table) 
         (exists (?X_WB) (and
+                (table ?table)
+                (block ?block)
                 (table-support ?block ?X_WB ?table) 
                 (atworldpose ?block ?X_WB)
             )
@@ -54,12 +56,16 @@
     ; if block was at X_WB, would it be on any table
     (:derived (on-any-table ?block ?X_WB) 
         (exists (?table) (and
+                (table ?table)
+                (block ?block)
                 (table-support ?block ?X_WB ?table)
             )
         )
     )
 
-    (:derived (block-safe ?arm ?q ?block) 
+    (:derived (block-safe ?arm ?q ?block)
+        (and
+            (block ?block) (arm ?arm) (graspconf ?arm ?q)
         (or
             (exists (?X_HB)
                 (and
@@ -74,11 +80,14 @@
                 ) 
             ) 
         )
+        )
     )
 
     (:derived (on-block ?upperblock ?lowerblock)
         (exists (?X_WL ?X_WU)
             (and
+                (block ?lowerblock)
+                (block ?upperblock)
                 (block-support ?upperblock ?X_WU ?lowerblock ?X_WL)
                 (atworldpose ?lowerblock ?X_WL)
                 (atworldpose ?upperblock ?X_WU)
@@ -97,7 +106,7 @@
             (on-any-table ?block ?X_WB)
             (forall (?otherblock)
                 (imply 
-                    (block ?otherblock) 
+                    (and (block ?otherblock) (arm ?arm) (graspconf ?arm ?q))
                     (block-safe ?arm ?q ?otherblock)
                 ) 
             )
@@ -130,7 +139,7 @@
             (on-any-table ?block ?X_WB)
             (forall (?otherblock)
                 (imply 
-                    (block ?otherblock) 
+                    (and (block ?otherblock) (arm ?arm) (graspconf ?arm ?q))
                     (block-safe ?arm ?q ?otherblock)
                 ) 
             )
@@ -153,7 +162,7 @@
             (block-support ?block ?X_WB ?lowerblock ?X_WL)
             (forall (?otherblock)
                 (imply 
-                    (block ?otherblock) 
+                    (and (block ?otherblock) (arm ?arm) (graspconf ?arm ?q))
                     (block-safe ?arm ?q ?otherblock)
                 ) 
             )
@@ -183,7 +192,7 @@
             (on-block ?block ?lowerblock)
             (forall (?otherblock)
                 (imply 
-                    (block ?otherblock) 
+                    (and (block ?otherblock) (arm ?arm) (graspconf ?arm ?q))
                     (block-safe ?arm ?q ?otherblock)
                 ) 
             )
