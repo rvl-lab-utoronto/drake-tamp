@@ -1,0 +1,98 @@
+<?xml version='1.0'?>
+<sdf version='1.7'>
+    <model name="simplified_replica">
+        <link name = "thor_table">
+            <mass>80</mass>
+            <inertia>
+                <ixx>9.15</ixx>
+                <ixy>0</ixy>
+                <ixz>0</ixz>
+                <iyy>9.53</iyy>
+                <iyz>0</iyz>
+                <izz>7.88</izz>
+            </inertia>
+            <pose>0 0 0 0 -0 0</pose>
+            <visual name="visual">
+                <pose>0 0 0.3935 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.75 0.9 0.787</size>
+                    </box>
+                </geometry>
+                <material>
+                    <diffuse>0.3 0.3 0.3 1</diffuse>
+                </material>
+            </visual>
+            <collision name="collision">
+                <pose>0 0 0.3935 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.75 0.9 0.787</size>
+                    </box>
+                </geometry>
+            </collision>
+        </link>
+        <link name = "wooden_table">
+            <mass>80</mass>
+            <inertia>
+                <ixx>9.15</ixx>
+                <ixy>0</ixy>
+                <ixz>0</ixz>
+                <iyy>9.53</iyy>
+                <iyz>0</iyz>
+                <izz>7.88</izz>
+            </inertia>
+            <pose>0 0 0 0 -0 0</pose>
+            <visual name="visual">
+                <pose>0.775 0 0.37 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.76 1.215 0.74</size>
+                    </box>
+                </geometry>
+                <material>
+                    <diffuse>0.5 0.5 0.5 1</diffuse>
+                </material>
+            </visual>
+            <collision name="collision">
+                <pose>0.775 0 0.3 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.76 1.215 0.74</size>
+                    </box>
+                </geometry>
+            </collision>
+        </link>
+        <link name = "bracket">
+            <mass>1</mass>
+            <inertia>
+                <ixx>0.003</ixx>
+                <ixy>0</ixy>
+                <ixz>0.008</ixz>
+                <iyy>9.53</iyy>
+                <iyz>0</iyz>
+                <izz>0.005</izz>
+            </inertia>
+            <pose>0 0 0 0 -0 0</pose>
+            <visual name="visual">
+                <pose>0 0 0.7935 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.245 0.203 0.013</size>
+                    </box>
+                </geometry>
+                <material>
+                    <diffuse>1 1 1 1</diffuse>
+                </material>
+            </visual>
+            <collision name="collision">
+                <pose>0 0 0.7935 0 0 0</pose>
+                <geometry>
+                    <box>
+                        <size>0.245 0.203 0.013</size>
+                    </box>
+                </geometry>
+            </collision>
+        </link>
+    </model>
+</sdf>

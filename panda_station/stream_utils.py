@@ -55,7 +55,9 @@ def find_traj(
     q_goal,
     ignore_endpoint_collisions=False,
     panda = None,
-    verbose = False
+    verbose = False,
+    use_min_clearance = None,
+    interpolate = False,  # return (approx) all q's on the trajectory used for collision checking
 ):
     """
     Find a collision free trajectory from the configurations
@@ -87,6 +89,9 @@ def find_traj(
             q = state_to_q(state)
             if ignore_endpoint_collisions and ((np.all(q == q_start)) or (np.all(q == q_goal))):
                 return True
+            if use_min_clearance is not None:
+                cl = self.clearance(state)
+                return cl < use_min_clearance
             plant.SetPositions(plant_context, panda, q)
             query_object = query_output_port.Eval(scene_graph_context)
             return not query_object.HasCollisions()
@@ -147,6 +152,9 @@ def find_traj(
     simplifier = og.PathSimplifier(si)
     path = pdef.getSolutionPath()
     simplifier.simplify(path, 10)
+
+    if interpolate:
+        path.interpolate()
 
     res = np.array([state_to_q(state) for state in path.getStates()])
     return res

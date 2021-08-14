@@ -25,6 +25,18 @@ fi
 gitemail=$(git config user.email)
 gitname=$(git config user.name)
 
+if [[ ! $gitemail  ]]; then
+    echo "You git config.email is not set"
+    echo "exiting build script"
+    exit 1
+fi
+
+if [[ ! $gitname  ]]; then
+    echo "You git config.name is not set"
+    echo "exiting build script"
+    exit 1
+fi
+
 echo "root password: $1"
 echo "user: $USER"
 echo "id: $UID"
