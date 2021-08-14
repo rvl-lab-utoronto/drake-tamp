@@ -21,6 +21,10 @@ def make_argument_parser():
         type=str
     )
     parser.add_argument(
+        "--oracle-options",
+        type=str
+    )
+    parser.add_argument(
         "--algorithm",
         type=str,
         default="adaptive",
@@ -54,11 +58,21 @@ def make_argument_parser():
     parser.add_argument(
         "--max-time",
         type=int,
-        default=60
+        default=90
     )
     parser.add_argument(
         '--eager-mode',
         action="store_true"
+    )
+    parser.add_argument(
+        '--profile',
+        type=str,
+        default=None,
+        required=False
+    )
+    parser.add_argument(
+        '--url',
+        type=str, required=False
     )
     
     return parser
@@ -66,9 +80,9 @@ def make_argument_parser():
 if __name__ == '__main__':
     args = make_argument_parser().parse_args()
     run_exp = domains[args.domain]
-    domain_options = json.loads(args.domain_options)
-    PROFILE = True
-    if PROFILE:
+    domain_options = json.loads(args.domain_options) if args.domain_options else {}
+    oracle_options = json.loads(args.oracle_options) if args.oracle_options else {}
+    if args.profile:
         import cProfile, pstats, io
         pr = cProfile.Profile()
         pr.enable() 
@@ -79,11 +93,12 @@ if __name__ == '__main__':
         max_time=args.max_time,
         eager_mode=args.eager_mode,
         should_save=args.should_save,
-        url=None,
+        url=args.url if args.url else None,
         simulate=False,
+        oracle_kwargs=oracle_options,
         **domain_options
     )
-    if PROFILE:
+    if args.profile:
         pr.disable()
         s = io.StringIO()
         ps = pstats.Stats(pr, stream=s)
