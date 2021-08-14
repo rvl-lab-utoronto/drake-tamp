@@ -130,7 +130,7 @@ def fact_level(fact, label):
         return 1 + max([fact_level(d, label) for d in label.atom_map[fact]])
 
 def num_edges_from_fact(fact):
-    num_obj = len(fact) - 1
+    num_obj = len(set(fact[1:]))
     if num_obj <= 1:
         return num_obj
     else:
