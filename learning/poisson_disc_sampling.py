@@ -67,7 +67,7 @@ class PoissonSampler:
         assert center_inds is not None, "This point is out of bounds"
 
         adj_inds = []
-        for offset in itertools.product((-1, 0, 1), repeat = self.n):
+        for offset in itertools.product((-2, -1, 0, 1, 2), repeat = self.n):
             inds = center_inds - np.array(offset)
             if np.any(inds >= self.grid.shape) or np.any(inds < 0):
                 continue
@@ -98,13 +98,16 @@ class PoissonSampler:
             self.grid[inds] = update_if_safe
         return res
 
-    def make_samples(self, num = 1):
+    def make_samples(self, num = 1, filter= lambda x: True, verbose = False):
         samples = []
         for i in range(num):
             point = self.sample()
             if point is None:
                 return samples
-            samples.append(point)
+            if not filter(point):
+                samples.append(point)
+            elif verbose:
+                print(f"REJECTING {point}")
         return samples
 
     def sample(self):

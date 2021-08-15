@@ -1,6 +1,7 @@
 import os
 import time
 import itertools
+from panda_controller.pid import PANDA_LIMITS
 from panda_station.models.blocks_world.sdf.make_blocks import TEMPLATE_NAME
 from learning.poisson_disc_sampling import PoissonSampler
 import numpy as np
@@ -15,10 +16,13 @@ DIRECTIVE = os.path.expanduser(
 
 TABLE_HEIGHT = 0.325
 BLOCK_DIMS = np.array([0.045, 0.045, 0.045])
-R = max(BLOCK_DIMS[:2]) * np.sqrt(2) + 0.01
+R = max(BLOCK_DIMS[:2]) * np.sqrt(2)
 X_TABLE_DIMS = np.array([0.4, 0.75]) - np.ones(2) * R
 Y_TABLE_DIMS = np.array([0.75, 0.4]) - np.ones(2) * R
 BLOCKER_DIMS = np.array([0.045, 0.045, 0.1])
+ARM_POS = np.array([0,0])
+MAX_ARM_REACH = 0.7 # Note: the actual limit is 0.855, https://www.generationrobots.com/media/panda-franka-emika-datasheet.pdf
+
 
 # table_name: (center point, extent)
 TABLES = {
@@ -94,22 +98,78 @@ def make_block(block_name, color, size, buffer, ball_radius=1e-7):
     return tree
 
 
-def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_stack_num = None):
+
+
+def make_random_stacking(blocks, num_stacks=None, max_stack_num=None):
+    num_blocks = len(blocks)
+    block_perm = blocks.copy()
+    np.random.shuffle(block_perm)
+    lower_num = 0
+    if max_stack_num is not None:
+        assert (
+            0 < max_stack_num <= num_blocks
+        ), "Max stack height must be a integer greater than 0 and less than the number of blocks"
+        lower_num = len(blocks) - max_stack_num
+
+    if num_blocks == 1:
+        return set([tuple(blocks)])
+
+    if num_stacks is None:
+        num_splits = np.random.randint(lower_num, num_blocks)
+    else:
+        assert num_stacks >= 0 and num_stacks < num_blocks, "Invalid stack number"
+        num_splits = num_stacks - 1
+    split_locs = np.random.choice(
+        list(range(1, num_blocks)), size=num_splits, replace=False
+    )
+    split_locs.sort()
+    split_locs = np.append(split_locs, num_blocks)
+    stacking = set()
+    i = 0
+    for split_loc in split_locs:
+        stacking.add(tuple(block_perm[i:split_loc]))
+        i = split_loc
+    return stacking
+
+def make_stackings(blocks):
+    num_blocks = len(blocks)
+    stackings = set()
+    for block_perm in itertools.permutations(blocks):
+        for num_splits in range(num_blocks):
+            # num_groups = num_splits + 1
+            for split_locs in itertools.combinations(
+                range(1, num_blocks), r=num_splits
+            ):
+                grouping = ()
+                i = 0
+                split_locs += (num_blocks,)
+                for split_loc in split_locs:
+                    grouping += (block_perm[i:split_loc],)
+                    i = split_loc
+                stackings.add(frozenset(grouping))
+    return stackings
+
+def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_stack_num = None, prioritize_grouping = False):
     """
     buffer_radius is an addition to the minimum distance (in the same units as the extent
     - for our purposes it is meters)
     between two objects (which is currently ~1cm).
     """
+    
+    filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
 
     positions = {}
+    samplers= {}
     for name, item in TABLES.items():
         sampler = PoissonSampler(
             np.clip(item[1].extent - buffer_radius, 0, np.inf),
             item[1].r + buffer_radius,
             centered=True,
         )
-        points = sampler.make_samples(num=(num_blocks + num_blockers) * 10)
-        np.random.shuffle(points)
+        samplers[name] = sampler
+        points = sampler.make_samples(num=(num_blocks + num_blockers) * 10, filter = filter)
+        if not prioritize_grouping:
+            np.random.shuffle(points)
         positions[name] = points
 
     yaml_data = {
@@ -147,13 +207,15 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
     for stack in stacking:
         table = pick_random_table()
         if len(positions[table]) == 0:
-            res = TABLES[table][1].sample()
-            if res is None:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
                 continue
+            positions[table] += res
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
-        yaw = point[-1] = np.random.uniform(0, 2 * np.pi)
+        yaw = np.random.uniform(0, 2 * np.pi)
+        point[-1] = yaw
         block = stack[0]
         path = TEMPLATE_PATH
         if colorize:
@@ -202,10 +264,10 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
     for blocker in blockers:
         table = pick_random_table()
         if len(positions[table]) == 0:
-            res = TABLES[table][1].sample()
-            if res is None:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
                 continue
-            positions[table].append(res)
+            positions[table] += res
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
@@ -228,56 +290,16 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
     return yaml_data
 
 
-def make_random_stacking(blocks, num_stacks=None, max_stack_num=None):
-    num_blocks = len(blocks)
-    block_perm = blocks.copy()
-    np.random.shuffle(block_perm)
-    lower_num = 0
-    if max_stack_num is not None:
-        assert (
-            0 < max_stack_num <= num_blocks
-        ), "Max stack height must be a integer greater than 0 and less than the number of blocks"
-        lower_num = len(blocks) - max_stack_num
+def make_clutter_problem(num_blocks, num_blockers = None, max_stack_num = None, buffer_radius = 0, colorize = False):
+    if num_blockers is None:
+        num_blockers = num_blocks*3
+    return make_random_problem(num_blocks, num_blockers, colorize=colorize, buffer_radius=0, max_stack_num = max_stack_num, prioritize_grouping = True)
 
-    if num_blocks == 1:
-        return set([tuple(blocks)])
+def make_non_monotonic_problem():
+    pass
 
-    if num_stacks is None:
-        num_splits = np.random.randint(lower_num, num_blocks)
-    else:
-        assert num_stacks >= 0 and num_stacks < num_blocks, "Invalid stack number"
-        num_splits = num_stacks - 1
-    split_locs = np.random.choice(
-        list(range(1, num_blocks)), size=num_splits, replace=False
-    )
-    split_locs.sort()
-    split_locs = np.append(split_locs, num_blocks)
-    stacking = set()
-    i = 0
-    for split_loc in split_locs:
-        stacking.add(tuple(block_perm[i:split_loc]))
-        i = split_loc
-    return stacking
-
-
-def make_stackings(blocks):
-    num_blocks = len(blocks)
-    stackings = set()
-    for block_perm in itertools.permutations(blocks):
-        for num_splits in range(num_blocks):
-            # num_groups = num_splits + 1
-            for split_locs in itertools.combinations(
-                range(1, num_blocks), r=num_splits
-            ):
-                grouping = ()
-                i = 0
-                split_locs += (num_blocks,)
-                for split_loc in split_locs:
-                    grouping += (block_perm[i:split_loc],)
-                    i = split_loc
-                stackings.add(frozenset(grouping))
-    return stackings
-
+def make_sorting_problem():
+    pass
 
 if __name__ == "__main__":
     # specify:
@@ -287,8 +309,6 @@ if __name__ == "__main__":
     # randomly place the initial stacks/blocks using poisson disc
     # randomly assign each stack of a goal table
 
-    yaml_data = make_random_problem(num_blocks=5, num_blockers=5, colorize=True)
+    yaml_data = make_clutter_problem(num_blocks=6, colorize=True, max_stack_num=5)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)
-
-    pass

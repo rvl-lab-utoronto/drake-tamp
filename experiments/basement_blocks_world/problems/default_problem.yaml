@@ -22,11 +22,11 @@ objects:
           main_link: "base_link"
           on-table: ["wooden_table", "base_link"]
 
-     red_block:
-          path: "models/basement/sdf/red_block.sdf"
-          X_WO: [0.705, 0.15, 0.74, 0, 0, 0]
-          main_link: "base_link"
-          on-table: ["wooden_table", "base_link"]
+     #red_block:
+          #path: "models/basement/sdf/red_block.sdf"
+          #X_WO: [0.705, 0.15, 0.74, 0, 0, 0]
+          #main_link: "base_link"
+          #on-table: ["wooden_table", "base_link"]
 
      #yellow_block:
           #path: "models/basement/sdf/yellow_block.sdf"
@@ -42,8 +42,8 @@ objects:
 
 goal: 
      - and
-     - [on-block, indigo_block, red_block]
-     - [on-block, pink_block, indigo_block]
+     - [on-block, indigo_block, pink_block]
+     #- [on-block, pink_block, indigo_block]
      #- [on-block, wood_block, pink_block]
      #- [on-block, yellow_block, pink_block]
 
