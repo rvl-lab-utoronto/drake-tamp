@@ -1,15 +1,20 @@
+from collections import defaultdict
 import json
 import os
 import pickle
 from datetime import datetime
+import numpy as np
 
 import torch
 
-from learning.data_models import InvocationInfo, ModelInfo, ProblemInfo
-from learning.gnn.data import construct_input, construct_problem_graph
-from learning.gnn.models import StreamInstanceClassifier
+from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo
+from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_with_problem_graph, fact_level
+from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
 from learning.pddlstream_utils import *
-from pddlstream.language.conversion import fact_from_evaluation
+from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
+from torch_geometric.data.batch import Batch
+
+from pddlstream.language.object import SharedOptValue, UniqueOptValue
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
@@ -34,8 +39,8 @@ def is_matching(l, ans_l, preimage, atom_map, init):
         if not (g in atom_map):
             raise NotImplementedError(f"Something wrong here. {g} is not in atom_map.")
         ans_g = ancestors_tuple(g, atom_map)
-        if not ans_g:
-            continue  # never need to match initial conditions
+        # if not ans_g:
+        #     continue  # never need to match initial conditions
         if len(ans_g) != len(ans_l):
             continue  # avoid cost of unnecessary computation
         all = True
@@ -96,8 +101,8 @@ class Oracle:
         self.run_attr = None
 
     def set_infos(self, domain, externals, goal_exp, evaluations):
-        self.set_model_info(domain, externals)
         self.set_problem_info(goal_exp, evaluations)
+        self.set_model_info(domain, externals)
 
     def set_problem_info(self, goal_exp, evaluations):
         if not goal_exp[0] == "and":
@@ -107,7 +112,8 @@ class Oracle:
         self.problem_info = ProblemInfo(
             goal_facts=tuple([fact_to_pddl(f) for f in goal_exp[1:]]),
             initial_facts=tuple([fact_to_pddl(fact_from_evaluation(f)) for f in evaluations]),
-            model_poses=self.model_poses
+            model_poses=self.model_poses,
+            object_mapping = {k:v.value for k,v in Object._obj_from_name.items()}
         )
 
     def set_run_attr(self, run_attr):
@@ -278,7 +284,7 @@ class Oracle:
             can_ans += ancestors_tuple(fact_to_pddl(domain_fact), can_atom_map)
 
         for can_fact in result.get_certified():
-            is_match, _ = is_matching(
+            is_match, match = is_matching(
                 fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init
             )
 
@@ -286,7 +292,7 @@ class Oracle:
                 break
         self.labels.append(InvocationInfo(result, node_from_atom, label=is_match))
 
-        return is_match
+        return is_match, match
 
 
     def make_is_relevant_checker(self, remove_matched=False):
@@ -297,7 +303,7 @@ class Oracle:
             raise NotImplementedError("Removed matched does not work ... yet")
 
         def unique_is_relevant(result, node_from_atom):
-            is_match = self.is_relevant(result, node_from_atom, preimage)
+            is_match, _ = self.is_relevant(result, node_from_atom, preimage)
             # if remove_matched and is_match:
             #    lifted, grounded = match
             #    preimage.remove(grounded)
@@ -305,21 +311,66 @@ class Oracle:
 
         return unique_is_relevant
 
+    def after_run(self, **kwargs):
+        pass
+
+class OracleModel(Oracle):
+    def make_is_relevant_checker(self):
+        if self.last_preimage is None or self.atom_map is None:
+            self.load_stats()
+        preimage = self.last_preimage.copy()
+        def unique_is_relevant(result, node_from_atom):
+            is_match, match = self.is_relevant(result, node_from_atom, preimage)
+            return is_match, match
+
+        return unique_is_relevant
+    def predict(self, result, node_from_atom, **kwargs):
+        if not hasattr(self, 'relevant_checker'):
+            self.relevant_checker = self.make_is_relevant_checker()
+            self.previously_matched = defaultdict(int)
+        if not all([d in node_from_atom for d in result.domain]):
+            return 1
+        is_match, match = self.relevant_checker(result, node_from_atom)
+        if is_match:
+            self.previously_matched[match] += 1
+            score = 2 / self.previously_matched[match]
+            return score
+        return 0
 
 class Model(Oracle):
     def __init__(
-        self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path
+        self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path, model_poses
     ):
-        super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions)
+        super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_poses = model_poses)
         self.model_path = model_path
+        self.model = None
+
+    def set_model_info(self, domain, externals):
+        new_externals = []
+        for external in externals:
+            new_externals.append(
+                {
+                    "certified": external.certified,
+                    "domain": external.domain,
+                    "fluents": external.fluents,
+                    "inputs": external.inputs,
+                    "outputs": external.outputs,
+                    "name": external.name,
+                }
+            )
+        self.model_info = HyperModelInfo(
+            predicates=[p.name for p in domain.predicates],
+            streams=[None] + [e["name"] for e in new_externals],
+            stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
+            stream_num_inputs = [None] + [len(e["inputs"]) for e in new_externals],
+            stream_domains = [None] + [e["domain"] for e in new_externals],
+            domain = domain
+        )
 
     def load_model(self):
-        self.model = StreamInstanceClassifier(
-            self.model_info.node_feature_size,
-            self.model_info.edge_feature_size,
-            self.model_info.stream_num_domain_facts[1:],
-            feature_size=4,
-            use_gcn=False,
+        self.model = HyperClassifier(
+            self.model_info,
+            with_problem_graph= True,
         )
         self.model.load_state_dict(torch.load(self.model_path))
         self.model.eval()
@@ -340,12 +391,241 @@ class Model(Oracle):
 
         return checker
 
-    def predict(self, result, node_from_atom):
+    def predict(self, result, node_from_atom, **kwargs):
+        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
+            return 1
+        if self.model is None:
+            self.load_model()
+            assert self.model is not None
         invocation_info = InvocationInfo(result, node_from_atom)
-        data = construct_input(
+        data = construct_with_problem_graph(construct_hypermodel_input_faster)(
             invocation_info,
             self.problem_info,
             self.model_info,
         )
-        logit = self.model(data, score=True).detach().numpy()[0]
+        #TODO: fix this 
+        data = Batch().from_data_list([data])
+        logit = self.model(data, score=True).detach().numpy()[0][0]
         return logit
+
+class CachingModel(Model):
+    def set_model_info(self, domain, externals):
+        super().set_model_info(domain, externals)
+        self.load_model()
+        self.counts = {}
+        self.logits = {}
+        self.init_objects = objects_from_facts(self.problem_info.initial_facts)
+
+    def calculate_result_key(self, result, node_from_atom):
+        atom_map = make_atom_map(node_from_atom)
+        facts = [fact_to_pddl(f) for f in result.get_certified()]
+        domain = [fact_to_pddl(f) for f in result.domain]
+        result_key = tuple()
+        for fact in facts:
+            atom_map[fact] = domain
+            result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
+        return result_key
+
+    def predict(self, result, node_from_atom, levels, **kwargs):
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        if not all([d in node_from_atom for d in result.domain]):
+            return 0.5/l
+        result_key = self.calculate_result_key(result, node_from_atom)
+        if result_key not in self.logits:
+            invocation_info = InvocationInfo(result, node_from_atom)
+            data = construct_with_problem_graph(construct_hypermodel_input_faster)(
+                invocation_info,
+                self.problem_info,
+                self.model_info,
+            )
+            #TODO: fix this
+            data = Batch().from_data_list([data])
+            self.logits[result_key] = self.model(data, score=True).detach().numpy()[0][0]
+        
+        self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        return self.logits[result_key]/(l  + self.counts[result_key] - 1)
+
+class StupidModel(Oracle):
+    def predict(self, instance, atom_map, instantiator):
+        return np.random.uniform()
+
+class ComplexityModel(Oracle):
+    def predict(self, instance, atom_map, instantiator):
+        complexity = instantiator.compute_complexity(instance)
+        return complexity
+
+
+class ComplexityModelV2(Oracle):
+    def predict(self, result, node_from_atom, **kwargs):
+        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
+            return 1
+        invocation_info = InvocationInfo(result, node_from_atom)
+        level = -1
+        for f in result.domain:
+            level = max(level, 1 + fact_level(fact_to_pddl(f), invocation_info))
+
+        return level/10
+
+class ComplexityModelV3(Oracle):
+    def predict(self, result, node_from_atom, levels, **kwargs):
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        return 1  / l
+
+class OracleModelExpansion(OracleModel):
+    def load_stats(self):
+        super().load_stats()
+        preimage_no_leaves = set()
+        for atom in self.last_preimage:
+            if not any(atom in parents and child in self.last_preimage for child, parents in self.atom_map.items()):
+                print('Filtered leaf', atom)
+            else:
+                preimage_no_leaves.add(atom) 
+                print('Added internal node', atom)
+
+        self.last_preimage = preimage_no_leaves
+
+    def predict(self, result, node_from_atom, **kwargs):
+        if not hasattr(self, 'relevant_checker'):
+            self.relevant_checker = self.make_is_relevant_checker()
+            self.previously_matched = defaultdict(int)
+        if not all([d in node_from_atom for d in result.domain]):
+            return 1
+        is_match, match = self.relevant_checker(result, node_from_atom)
+        if is_match:
+            self.previously_matched[match] += 1
+            score = 2 / self.previously_matched[match]
+            return score
+        return 0
+
+class OracleAndComplexityModelExpansion(OracleModelExpansion):
+    """Uses an oracle + complexity for refined facts and just complexity for unrefined""" 
+    def predict(self, result, node_from_atom, levels,**kwargs):
+        if not hasattr(self, 'relevant_checker'):
+            self.relevant_checker = self.make_is_relevant_checker()
+            self.previously_matched = defaultdict(int)
+        if not all([d in node_from_atom for d in result.domain]):
+            score = 0.5
+        else:
+            is_match, match = self.relevant_checker(result, node_from_atom)
+            if is_match:
+                self.previously_matched[match] += 1
+                score = 1 / self.previously_matched[match] 
+            else:
+                score = 0
+        
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        return score / l
+
+
+class OracleDAggerModel(OracleModel):
+    def is_relevant_fact(self, can_fact, can_atom_map, preimage):
+        """
+        returns True iff either one of the
+        certified facts in result.get_certified()
+        is_matching() (see above function)
+        """
+        assert objects_from_facts(self.init) == objects_from_facts(
+            {f for f in can_atom_map if not can_atom_map[f]}
+        )
+        can_ans = ancestors_tuple(can_fact, can_atom_map)
+        is_match, match = is_matching(
+            can_fact, can_ans, preimage, self.atom_map, self.init
+        )
+
+        return is_match, match
+
+    def predict(self, result, node_from_atom, levels, **kwargs):
+        if not hasattr(self, 'relevant_checker'):
+            self.relevant_checker = self.make_is_relevant_checker()
+            self.previously_matched = defaultdict(int)
+            self.scores = {}
+        if all([d in node_from_atom for d in result.domain]):
+            is_match, match = self.relevant_checker(result, node_from_atom)
+            if is_match:
+                self.previously_matched[match] += 1
+                score = (True,  self.previously_matched[match], node_from_atom.copy())
+                self.scores[result] = score
+            else:
+                self.scores[result] = (False, 0, node_from_atom.copy())
+        else:
+            assert False
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        return 1 / l
+    
+    def after_run(self, store, expanded, **kwargs):
+        ################
+        print('# Expanded', len(expanded))
+        print({e for e in expanded if e.call_index == 0} - set(self.scores))
+        print('# Scored and Expanded / # Expaneded', len(expanded & set(self.scores))/len(expanded))
+        print('# Irrelevant and Expanded / # Expanded', len(expanded & set(x for x in self.scores if not self.scores[x][0]))/len(expanded))
+        print('# Irrelevant and Expanded (w/o motions) / # Expanded', len(expanded & set(x for x in self.scores if not self.scores[x][0] and x.name != 'find-traj'))/len(expanded))
+        ############
+        from learning.pddlstream_utils import fact_to_pddl, ancestors_tuple
+        atom_map = store.node_from_atom_to_atom_map({})
+        atom_map = {fact_to_pddl(key): list(map(fact_to_pddl, value)) for key, value in atom_map.items()}
+
+        plan_preimage = set(map(fact_to_pddl, store.last_preimage))
+        preimage_no_leaves = set()
+        for atom in plan_preimage:
+            if not any(atom in parents and child in plan_preimage for child, parents in atom_map.items()):
+                pass
+            else:
+                preimage_no_leaves.add(atom) 
+        if store.is_solved():
+            print('######## ORACLE PREIMAGE ########')
+            for atom in self.last_preimage:
+                print(atom, ancestors_tuple(atom, self.atom_map))
+
+            print('######## FOUND PREIMAGE ########')
+            not_matched = 0
+            for fact in preimage_no_leaves:
+                is_match, match = self.is_relevant_fact(fact, atom_map, self.last_preimage)
+                if not is_match:
+                    print('No match', fact, ancestors_tuple(fact, atom_map))
+                    not_matched += 1
+            print(f'No match for {not_matched / len(preimage_no_leaves)}')
+
+            self.last_preimage = preimage_no_leaves
+            self.atom_map = atom_map
+            scores = {}
+            for result, (_, _, node_from_atom) in self.scores.items():
+                if result in expanded:
+                    scores[result] = self.is_relevant(result, node_from_atom, preimage_no_leaves)[0]
+
+            print('# Irrelevant and Expanded / # Expanded', len(set(x for x in scores if not scores[x]))/len(expanded))
+            print('# Irrelevant and Expanded (w/o motions) / # Expanded', len(set(x for x in scores if not scores[x] and x.name != 'find-traj'))/len(expanded))
+
+class ComplexityDataCollector(ComplexityModelV3):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.saved_node_from_atoms = {}
+
+    def label(self, results, preimage, atom_map, EAGER_MODE=True):
+        assert not self.labels
+        self.atom_map = {fact_to_pddl(key): list(map(fact_to_pddl, value)) for key, value in atom_map.items()}
+        self.init = {x for x in self.atom_map if not self.atom_map[x]}
+        self.last_preimage = set(map(fact_to_pddl, preimage))
+        if EAGER_MODE:
+            preimage_no_leaves = set()
+            for atom in self.last_preimage:
+                if not any(atom in parents and child in self.last_preimage for child, parents in self.atom_map.items()):
+                    pass
+                else:
+                    preimage_no_leaves.add(atom) 
+            self.last_preimage = preimage_no_leaves
+        #TODO: only label expanded?
+        for result, node_from_atom in self.saved_node_from_atoms.items():
+            self.is_relevant(result, node_from_atom, self.last_preimage)
+
+    def after_run(self, store, expanded, logpath):
+        if store.is_solved():
+            atom_map = store.node_from_atom_to_atom_map({})
+            preimage = store.last_preimage
+            self.label(expanded, preimage, atom_map)
+            self.save_stats(logpath + "stats.json")
+            self.save_labeled(logpath + "stats.json")
+
+    def predict(self, result, node_from_atom, levels, **kwargs):
+        if all([d in node_from_atom for d in result.domain]):
+            self.saved_node_from_atoms[result] = node_from_atom.copy()
+        return super().predict(result, node_from_atom, levels)

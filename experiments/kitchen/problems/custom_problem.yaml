@@ -1,0 +1,83 @@
+goal:
+- and
+- [in, cabbage0, [leftplate, base_link]]
+- [cooked, cabbage0]
+#- [in, cabbage1, [leftplacemat, rightside]]
+#- [cooked, cabbage1]
+#- [in, glass0, [leftplacemat, leftside]]
+
+objects:
+  cabbage0:
+    X_WO: [0.5, 0.05, 0.35, 0, 0, 0]
+    contained: ["tray", "base_link"]
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  #cabbage1:
+    #X_WO: [0.5, 0.15, 0.35, 0, 0, 0]
+    #contained: ["tray", "base_link"]
+    #main_link: base_link
+    #path: models/kitchen/sdf/cabbage.sdf
+  #glass0:
+    #X_WO: [-0.6, 0.1, 0.35, 0, 0, 0]
+    #contained: ["leftplacemat", "leftside"]
+    #main_link: base_link
+    #path: models/kitchen/sdf/glass.sdf
+  raddish0:
+    X_WO:  [0.55, 0.05 , 0.35, 0, 0, 0]
+    contained: ["tray", "base_link"]
+    main_link: base_link
+    path: models/kitchen/sdf/raddish.sdf
+  raddish1:
+    X_WO: [0.5, 0, 0.35, 0, 0, 0]
+    contained: ["tray", "base_link"]
+    main_link: base_link
+    path: models/kitchen/sdf/raddish.sdf
+
+run_attr:
+  buffer_radius: 0
+  num_cabbages: 2
+  num_glasses: 1
+  num_goal: 5
+  num_raddishes: 2
+  prob_sink: 0.1
+  prob_tray: 0.4
+surfaces:
+  leftplacemat:
+  - leftside
+  - rightside
+  leftplate:
+  - base_link
+  rightplacemat:
+  - leftside
+  - rightside
+  rightplate:
+  - base_link
+  sink:
+  - base_link
+  stove:
+  - infopad
+  - burner1
+  - burner2
+  - burner3
+  - burner4
+  - burner5
+  tray:
+  - base_link
+main_links:
+  leftplacemat: base_link
+  leftplate: base_link
+  rightplacemat: base_link
+  rightplate: base_link
+  sink: base_link
+  stove: base_link
+  table_long: base_link
+  table_serving: base_link
+  table_square: base_link
+  tray: base_link
+planning_directive: directives/kitchen_planning.yaml
+directive: directives/kitchen.yaml
+arms:
+  panda:
+    X_WB: [0,0,0,0,0,0]
+    hand_name: hand
+    panda_name: panda

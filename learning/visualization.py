@@ -140,6 +140,34 @@ def tuplize_preimage(preimage):
         res.append(tuple(f))
     return res
 
+def visualize_atom_map(atom_map, save_path):
+    net = Network(
+        directed=True, width="100%", height="100%", layout="hierarchy", font_color="white"
+    )
+    net.repulsion(
+        node_distance=300, spring_strength=0, spring_length=400, central_gravity=0
+    )
+    graph = DirectedGraph(atom_map, verbose = False)
+    for fact in atom_map:
+        graph.add_node(fact)
+    graph.make_pyvis_net(net)
+    net.set_options(
+        """
+        var options = {
+            "layout": {
+                "hierarchical": {
+                "enabled": true,
+                "nodeSpacing": 250,
+                "treeSpacing": 225
+                }
+            }
+        }
+        """ 
+    )
+    # net.show(name = "graph.html")
+    #net.show_buttons(filter_ = ["layout"])
+    net.save_graph(save_path)
+
 
 def stats_to_graph(path_to_stats, save_path, verbose = False):
     """

@@ -63,6 +63,9 @@ class RigidTransformWrapper:
         """
         return self.rigid_transform
     
+    def translation(self):
+        return self.rigid_transform.translation()
+    
     #override RigidTransform method
     def GetAsMatrix34(self):
         return self.get_rt().GetAsMatrix34()
