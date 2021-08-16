@@ -54,7 +54,7 @@ from tamp_statistics import make_plot
 from experiments.blocks_world import blocks_world_streams
 from experiments.blocks_world.data_generation import make_problem
 
-VERBOSE = False
+VERBOSE = True
 
 np.set_printoptions(precision=4, suppress=True)
 ARRAY = tuple
@@ -139,11 +139,13 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                     pose,
                     tuple(problem_info.objects[name]["on-table"]),
                 ),
+                ("on-table", name, tuple(problem_info.objects[name]["on-table"]))
             ]
         elif "on-block" in problem_info.objects[name]:
             block = problem_info.objects[name]["on-block"]
             init += [
                 ("block-support", name, pose, block, start_poses[block]),
+                ("on-block", name, block)
             ]
         else:
             raise SyntaxError(f"Object {name} needs to specify on-table or on-block")
