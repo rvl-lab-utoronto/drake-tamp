@@ -58,7 +58,7 @@ def make_argument_parser():
     parser.add_argument(
         "--max-time",
         type=int,
-        default=90
+        default=60
     )
     parser.add_argument(
         '--eager-mode',

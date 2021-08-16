@@ -372,7 +372,7 @@ class Model(Oracle):
             self.model_info,
             with_problem_graph= True,
         )
-        self.model.load_state_dict(torch.load(self.model_path))
+        self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
         self.model.eval()
 
     def make_is_relevant_checker(self, remove_matched=False):
@@ -600,7 +600,7 @@ class ComplexityDataCollector(ComplexityModelV3):
         super().__init__(*args, **kwargs)
         self.saved_node_from_atoms = {}
 
-    def label(self, results, preimage, atom_map, EAGER_MODE=True):
+    def label(self, results, preimage, atom_map, EAGER_MODE=False):
         assert not self.labels
         self.atom_map = {fact_to_pddl(key): list(map(fact_to_pddl, value)) for key, value in atom_map.items()}
         self.init = {x for x in self.atom_map if not self.atom_map[x]}
