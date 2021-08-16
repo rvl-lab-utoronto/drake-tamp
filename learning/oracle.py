@@ -168,6 +168,7 @@ class Oracle:
             self.run_attr["iterations"] = stats["summary"]["iterations"]
             self.run_attr["complexity"] = stats["summary"]["complexity"]
             self.run_attr["evaluations"] = stats["summary"]["evaluations"]
+            self.run_attr["stats_path"] = stats_path
             pddl = self.domain_pddl + self.stream_pddl 
             if pddl not in data_info:
                 # only save name of pkl file
@@ -271,6 +272,8 @@ class Oracle:
         certified facts in result.get_certified()
         is_matching() (see above function)
         """
+        if not result.is_input_refined_recursive():
+            return True, None
         can_atom_map = make_atom_map(node_from_atom)
         #can_stream_map = make_stream_map(node_from_atom)
         assert objects_from_facts(self.init) == objects_from_facts(
@@ -307,7 +310,7 @@ class Oracle:
             # if remove_matched and is_match:
             #    lifted, grounded = match
             #    preimage.remove(grounded)
-            return is_match
+            return True
 
         return unique_is_relevant
 
