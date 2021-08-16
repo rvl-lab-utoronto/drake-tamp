@@ -3,7 +3,7 @@ import time
 import itertools
 from panda_controller.pid import PANDA_LIMITS
 from panda_station.models.blocks_world.sdf.make_blocks import TEMPLATE_NAME
-from learning.poisson_disc_sampling import PoissonSampler
+from learning.poisson_disc_sampling import PoissonSampler, GridSampler
 import numpy as np
 import yaml
 import xml.etree.ElementTree as ET
@@ -149,7 +149,7 @@ def make_stackings(blocks):
                 stackings.add(frozenset(grouping))
     return stackings
 
-def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_stack_num = None, prioritize_grouping = False):
+def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_stack_num = None, prioritize_grouping = False, clump = False, grid = False, rand_rotation = True, type = "random"):
     """
     buffer_radius is an addition to the minimum distance (in the same units as the extent
     - for our purposes it is meters)
@@ -158,14 +158,25 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
     
     filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
 
+    if grid:
+        rand_rotation = False
+
     positions = {}
     samplers= {}
     for name, item in TABLES.items():
-        sampler = PoissonSampler(
-            np.clip(item[1].extent - buffer_radius, 0, np.inf),
-            item[1].r + buffer_radius,
-            centered=True,
-        )
+        if grid:
+            sampler = GridSampler(
+                np.clip(item[1].extent - buffer_radius, 0, np.inf),
+                np.max(BLOCK_DIMS) + buffer_radius,
+                centered=True,
+            )
+        else:
+            sampler = PoissonSampler(
+                np.clip(item[1].extent - buffer_radius, 0, np.inf),
+                item[1].r + buffer_radius,
+                centered=True,
+                clump = clump
+            )
         samplers[name] = sampler
         points = sampler.make_samples(num=(num_blocks + num_blockers) * 10, filter = filter)
         if not prioritize_grouping:
@@ -214,7 +225,10 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
-        yaw = np.random.uniform(0, 2 * np.pi)
+        if rand_rotation:
+            yaw = np.random.uniform(0, 2 * np.pi)
+        else:
+            yaw = 0
         point[-1] = yaw
         block = stack[0]
         path = TEMPLATE_PATH
@@ -271,7 +285,8 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
         point = positions[table].pop(-1) + TABLES[table][0]
         point = np.append(point, TABLE_HEIGHT)
         point = np.concatenate((point, np.zeros(3)))
-        point[-1] = np.random.uniform(0, 2 * np.pi)
+        if rand_rotation:
+            point[-1] = np.random.uniform(0, 2 * np.pi)
         yaml_data["objects"][blocker] = {
             "path": "models/blocks_world/sdf/blocker_block.sdf",
             "X_WO": point.tolist(),
@@ -285,18 +300,148 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
         "max_start_stack": max_start_stack,
         "max_goal_stack": max_goal_stack,
         "buffer_radius": buffer_radius,
+        "type": type
     }
 
     return yaml_data
 
 
-def make_clutter_problem(num_blocks, num_blockers = None, max_stack_num = None, buffer_radius = 0, colorize = False):
+def make_clutter_problem(num_blocks, num_blockers = None, tighten_clumping = False, max_stack_num = None, buffer_radius = 0, colorize = False, grid = False):
     if num_blockers is None:
         num_blockers = num_blocks*3
-    return make_random_problem(num_blocks, num_blockers, colorize=colorize, buffer_radius=0, max_stack_num = max_stack_num, prioritize_grouping = True)
+    return make_random_problem(num_blocks, num_blockers, colorize=colorize, buffer_radius=buffer_radius, max_stack_num = max_stack_num, prioritize_grouping = True, clump = tighten_clumping, grid = grid, type = "clutter")
 
-def make_non_monotonic_problem():
-    pass
+def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, prioritize_grouping = False, colorize = False, goal_stack = False, max_stack_num = 5):
+
+    num_blockers = num_blocks
+    filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
+
+    positions = {}
+    samplers= {}
+    for name, item in TABLES.items():
+        sampler = PoissonSampler(
+            np.clip(item[1].extent - buffer_radius, 0, np.inf),
+            2*item[1].r + buffer_radius,
+            centered=True,
+            clump = clump
+        )
+        samplers[name] = sampler
+        points = sampler.make_samples(num=num_blocks * 10, filter = filter)
+        if not prioritize_grouping:
+            np.random.shuffle(points)
+        positions[name] = points
+
+    yaml_data = {
+        "directive": "directives/one_arm_blocks_world.yaml",
+        "planning_directive": "directives/one_arm_blocks_world.yaml",
+        "arms": {
+            "panda": {
+                "panda_name": "panda",
+                "hand_name": "hand",
+                "X_WB": [0, 0, 0, 0, 0, 0],
+            }
+        },
+        "objects": {},
+        "main_links": {
+            "red_table": "base_link",
+            "blue_table": "base_link",
+            "green_table": "base_link",
+            "purple_table": "base_link",
+        },
+        "surfaces": {
+            "red_table": ["base_link"],
+            "green_table": ["base_link"],
+            "blue_table": ["base_link"],
+            "purple_table": ["base_link"],
+        },
+    }
+
+
+    blocks = [f"block{i}" for i in range(num_blocks)]
+    blockers = [f"blocker{i}" for i in range(num_blockers)]
+    blocker_points = []
+
+    start_tables = ["red_table", "green_table"]
+
+    for block, blocker in zip(blocks, blockers):
+        table = np.random.choice(start_tables) 
+        if len(positions[table]) == 0:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
+                continue
+            positions[table] += res
+        point = positions[table].pop(-1) + TABLES[table][0]
+        point = np.append(point, TABLE_HEIGHT)
+        point = np.concatenate((point, np.zeros(3)))
+        path = TEMPLATE_PATH
+        if colorize:
+            color = np.random.uniform(np.zeros(3), np.ones(3))
+            color = f"{color[0]} {color[1]} {color[2]} 1"
+            path = MODELS_PATH + block + ".sdf"
+            make_block(block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001)
+
+        block_point = point.copy()
+        blocker_point = point.copy()
+
+        if table == start_tables[0]:
+            block_point[0] += np.max(BLOCK_DIMS)/2 + 0.005
+            blocker_point[0] -= np.max(BLOCK_DIMS)/2 
+        elif table == start_tables[1]:
+            block_point[1] += np.max(BLOCK_DIMS)/2 + 0.005
+            blocker_point[1] -= np.max(BLOCK_DIMS)/2 
+
+        block_point = block_point.tolist()
+        blocker_point = blocker_point.tolist()
+        blocker_points.append(blocker_point)
+
+        yaml_data["objects"][block] = {
+            "path": path,
+            "X_WO": block_point,
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+        yaml_data["objects"][blocker] = {
+            "path": "models/blocks_world/sdf/blocker_block.sdf",
+            "X_WO": blocker_point,
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+
+    end_tables = ["blue_table", "purple_table"]
+
+    goal = ["and"]
+
+    if goal_stack:
+        stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+        for stack in stacking:
+            table = np.random.choice(end_tables)
+            base_block = stack[0]
+            goal.append(["on-table", base_block, [str(table), "base_link"]])
+            prev_block = base_block
+            for block in stack[1:]:
+                goal.append(["on-block", block, prev_block])
+                prev_block = block
+    else:
+        for block in blocks:
+            table = np.random.choice(end_tables)
+            goal.append(["on-table", block, [str(table), "base_link"]])
+
+    for i, blocker in enumerate(blockers):
+        goal.append(["atworldpose", blocker, blocker_points[i]])
+
+    yaml_data["goal"] = goal
+
+    yaml_data["run_attr"] = {
+        "num_blocks": num_blocks,
+        "num_blockers": num_blockers,
+        "max_start_stack": 0,
+        "max_goal_stack": 0,
+        "buffer_radius": buffer_radius,
+        "type": "non_monotonic"
+    }
+
+    return yaml_data
+
 
 def make_sorting_problem():
     pass
@@ -309,6 +454,6 @@ if __name__ == "__main__":
     # randomly place the initial stacks/blocks using poisson disc
     # randomly assign each stack of a goal table
 
-    yaml_data = make_clutter_problem(num_blocks=6, colorize=True, max_stack_num=5)
+    yaml_data = make_clutter_problem(3)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)

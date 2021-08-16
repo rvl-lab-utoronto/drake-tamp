@@ -70,16 +70,19 @@ class ProblemInfo:
         self.main_links = info["main_links"]
         self.surfaces = info["surfaces"]
         for name in self.objects:
-            self.objects[name]["X_WO"] = ProblemInfo.list_to_transform(
+            transform = ProblemInfo.list_to_transform(
                 self.objects[name]["X_WO"]
             )
+            self.objects[name]["X_WO"] = transform 
+
         if "goal" in info:
             self.goal = info["goal"]
             for i, item in enumerate(info["goal"]):
                 if isinstance(item, list):
                     for j, val in enumerate(item):
                         if isinstance(val, list):
-                            self.goal[i][j] = tuple(val)
+                            if len(val) == 2:
+                                self.goal[i][j] = tuple(val)
                     self.goal[i] = tuple(item)
         self.names_and_links = [
             (name, main_link) for name, main_link in self.main_links.items()

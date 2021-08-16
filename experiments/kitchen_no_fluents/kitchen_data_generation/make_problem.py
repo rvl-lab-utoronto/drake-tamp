@@ -411,14 +411,6 @@ def make_random_problem(
     )
 
 
-def pick_random_region():
-    regions = list(REGIONS.keys())
-    np.random.shuffle(regions)
-    for region in regions:
-        region_info = REGIONS[region]
-        if "sampler" in region.keys():
-            return region
-
 
 if __name__ == "__main__":
 

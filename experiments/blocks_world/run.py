@@ -4,7 +4,6 @@ The module for running the blocks world TAMP problem.
 See `problem 2` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
-from experiments.shared import construct_oracle
 import time
 import psutil
 import numpy as np
@@ -19,6 +18,7 @@ import matplotlib
 import yaml
 
 matplotlib.use("Agg")
+from experiments.shared import construct_oracle
 import os
 from re import I
 import argparse
@@ -34,6 +34,7 @@ from pddlstream.algorithms.algorithm import reset_globals
 from learning import visualization
 from learning import oracle as ora
 from panda_station import (
+    rt_to_xyzrpy,
     ProblemInfo,
     parse_start_poses,
     parse_config,
@@ -120,10 +121,22 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     # this needs to be done first so all of the RTs are updated
     supports = []
+    transforms = {}
     for name, pose in start_poses.items():
-        start_poses[name] = RigidTransformWrapper(pose, name=f"X_W{name}")
+        transform = RigidTransformWrapper(pose, name=f"X_W{name}")
+        transforms[name] = transform
+        start_poses[name] = transform
         if "on-block" in problem_info.objects[name]:
             supports.append(problem_info.objects[name]["on-block"])
+
+    for i, fact in enumerate(goal):
+        if not isinstance(fact, tuple):
+            continue
+        goal[i] = list(goal[i])
+        for j, obj in enumerate(fact):
+            if isinstance(obj, list):
+                goal[i][j] = transforms[fact[j-1]]
+        goal[i] = tuple(goal[i])
 
     for name, pose in start_poses.items():
         init += [
@@ -724,16 +737,11 @@ def main_generation_loop():
 
 if __name__ == '__main__':
     # main_generation_loop()
-    url = None
-    res, problem_file = run_blocks_world(
-        num_blocks=2,
-        num_blockers=0,
-        mode="oracleexpansion",
-        should_save=False,
-        algorithm="informedV2",
-        max_time=60,
-        url=url,
-        simulate=False,
-        use_unique=True,
-        # problem_file=
+    url = "tcp://127.0.0.1:6007"
+
+    res, _ = run_blocks_world(
+        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
+        mode="normal",
+        url = url,
+        simulate = True,
     )
