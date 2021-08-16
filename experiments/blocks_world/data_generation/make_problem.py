@@ -311,7 +311,7 @@ def make_clutter_problem(num_blocks, num_blockers = None, tighten_clumping = Fal
         num_blockers = num_blocks*3
     return make_random_problem(num_blocks, num_blockers, colorize=colorize, buffer_radius=buffer_radius, max_stack_num = max_stack_num, prioritize_grouping = True, clump = tighten_clumping, grid = grid, type = "clutter")
 
-def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, prioritize_grouping = False, colorize = False, goal_stack = False, max_stack_num = 5):
+def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, prioritize_grouping = False, colorize = False, max_stack_num = 1):
 
     num_blockers = num_blocks
     filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
@@ -411,20 +411,15 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
 
     goal = ["and"]
 
-    if goal_stack:
-        stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
-        for stack in stacking:
-            table = np.random.choice(end_tables)
-            base_block = stack[0]
-            goal.append(["on-table", base_block, [str(table), "base_link"]])
-            prev_block = base_block
-            for block in stack[1:]:
-                goal.append(["on-block", block, prev_block])
-                prev_block = block
-    else:
-        for block in blocks:
-            table = np.random.choice(end_tables)
-            goal.append(["on-table", block, [str(table), "base_link"]])
+    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    for stack in stacking:
+        table = np.random.choice(end_tables)
+        base_block = stack[0]
+        goal.append(["on-table", base_block, [str(table), "base_link"]])
+        prev_block = base_block
+        for block in stack[1:]:
+            goal.append(["on-block", block, prev_block])
+            prev_block = block
 
     for i, blocker in enumerate(blockers):
         goal.append(["atworldpose", blocker, blocker_points[i]])
@@ -442,9 +437,159 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
 
     return yaml_data
 
+def make_sorting_problem(num_blocks, num_blockers = None, colorize=False, buffer_radius=0, max_stack_num = 1, prioritize_grouping = False, clump = False, grid = False, rand_rotation = True, type = "random"):
 
-def make_sorting_problem():
-    pass
+    if num_blockers == None:
+        num_blockers = num_blocks
+
+    num_red = num_blocks//2
+    num_green = num_blocks-num_red
+
+
+    filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
+
+    if grid:
+        rand_rotation = False
+
+    positions = {}
+    samplers= {}
+    for name, item in TABLES.items():
+        if grid:
+            sampler = GridSampler(
+                np.clip(item[1].extent - buffer_radius, 0, np.inf),
+                np.max(BLOCK_DIMS) + buffer_radius,
+                centered=True,
+            )
+        else:
+            sampler = PoissonSampler(
+                np.clip(item[1].extent - buffer_radius, 0, np.inf),
+                item[1].r + buffer_radius,
+                centered=True,
+                clump = clump
+            )
+        samplers[name] = sampler
+        points = sampler.make_samples(num=(num_blocks + num_blockers) * 10, filter = filter)
+        if not prioritize_grouping:
+            np.random.shuffle(points)
+        positions[name] = points
+
+    yaml_data = {
+        "directive": "directives/one_arm_blocks_world.yaml",
+        "planning_directive": "directives/one_arm_blocks_world.yaml",
+        "arms": {
+            "panda": {
+                "panda_name": "panda",
+                "hand_name": "hand",
+                "X_WB": [0, 0, 0, 0, 0, 0],
+            }
+        },
+        "objects": {},
+        "main_links": {
+            "red_table": "base_link",
+            "blue_table": "base_link",
+            "green_table": "base_link",
+            "purple_table": "base_link",
+        },
+        "surfaces": {
+            "red_table": ["base_link"],
+            "green_table": ["base_link"],
+            "blue_table": ["base_link"],
+            "purple_table": ["base_link"],
+        },
+    }
+
+    red_blocks =[f"red_block{i}" for i in range(num_red)]
+    green_blocks = [f"green_block{i}" for i in range(num_green)]
+    blocks = red_blocks + green_blocks
+    np.random.shuffle(blocks) 
+    blockers = [f"blocker{i}" for i in range(num_blockers)]
+
+    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    max_start_stack = max([len(s) for s in stacking])
+    start_tables = ["purple_table", "blue_table"]
+
+    for stack in stacking:
+        table = np.random.choice(start_tables)
+        if len(positions[table]) == 0:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
+                continue
+            positions[table] += res
+        point = positions[table].pop(-1) + TABLES[table][0]
+        point = np.append(point, TABLE_HEIGHT)
+        point = np.concatenate((point, np.zeros(3)))
+        if rand_rotation:
+            yaw = np.random.uniform(0, 2 * np.pi)
+        else:
+            yaw = 0
+        point[-1] = yaw
+        block = stack[0]
+        name = block.split("_")[0]+ "_block.sdf"
+        path = os.path.join(MODELS_PATH, name)
+        yaml_data["objects"][block] = {
+            "path": path,
+            "X_WO": point.tolist(),
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+        prev_block = block
+        for block in stack[1:]:
+            point[2] += BLOCK_DIMS[2] + 1e-3
+            point[-1] = yaw
+            name = block.split("_")[0]+ "_block.sdf"
+            path = os.path.join(MODELS_PATH, name)
+            yaml_data["objects"][block] = {
+                "path": path,
+                "X_WO": point.tolist(),
+                "main_link": "base_link",
+                "on-block": prev_block,
+            }
+            prev_block = block
+
+    goal = ["and"]
+    max_goal_stack = 0
+    for blocks,table in [(red_blocks, "red_table"), (green_blocks, "green_table")]:
+        stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+        max_goal_stack = max([len(s) for s in stacking] + [max_goal_stack])
+        for stack in stacking:
+            base_block = stack[0]
+            goal.append(["on-table", base_block, [str(table), "base_link"]])
+            prev_block = base_block
+            for block in stack[1:]:
+                goal.append(["on-block", block, prev_block])
+                prev_block = block
+
+    yaml_data["goal"] = goal
+
+    for blocker in blockers:
+        table = np.random.choice(start_tables)
+        if len(positions[table]) == 0:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
+                continue
+            positions[table] += res
+        point = positions[table].pop(-1) + TABLES[table][0]
+        point = np.append(point, TABLE_HEIGHT)
+        point = np.concatenate((point, np.zeros(3)))
+        if rand_rotation:
+            point[-1] = np.random.uniform(0, 2 * np.pi)
+        yaml_data["objects"][blocker] = {
+            "path": "models/blocks_world/sdf/blocker_block.sdf",
+            "X_WO": point.tolist(),
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+
+    yaml_data["run_attr"] = {
+        "num_blocks": num_blocks,
+        "num_blockers": num_blockers,
+        "max_start_stack": max_start_stack,
+        "max_goal_stack": max_goal_stack,
+        "buffer_radius": buffer_radius,
+        "type": "sorting"
+    }
+
+    return yaml_data
 
 if __name__ == "__main__":
     # specify:
@@ -454,6 +599,6 @@ if __name__ == "__main__":
     # randomly place the initial stacks/blocks using poisson disc
     # randomly assign each stack of a goal table
 
-    yaml_data = make_clutter_problem(3)
+    yaml_data = make_sorting_problem(6, colorize = True)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)
