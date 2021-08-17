@@ -40,9 +40,9 @@
 
         ;derived
         (block-safe ?arm ?q ?block)
-        ; (grasped ?arm ?block)
+        (grasped ?arm ?block)
     )
-    ; (:derived (grasped ?arm ?block) (exists (?X_HB) (and (block ?block) (arm ?arm) (athandpose  ?arm ?block ?X_HB))))
+    (:derived (grasped ?arm ?block) (exists (?X_HB) (and (block ?block) (arm ?arm) (athandpose  ?arm ?block ?X_HB))))
 
     (:derived (block-safe ?arm ?q ?block)
         (and
