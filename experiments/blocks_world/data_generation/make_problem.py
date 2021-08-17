@@ -103,14 +103,23 @@ def make_random_stacking(blocks, num_stacks=None, max_stack_num=None):
     block_perm = blocks.copy()
     np.random.shuffle(block_perm)
     lower_num = 0
+    stacking = set()
     if max_stack_num is not None:
         assert (
             0 < max_stack_num <= num_blocks
         ), "Max stack height must be a integer greater than 0 and less than the number of blocks"
-        lower_num = len(blocks) - max_stack_num
+        big_stack = block_perm[:max_stack_num]
+        block_perm = block_perm[max_stack_num:]
+        lower_num = 0
+        num_blocks = len(block_perm)
+        stacking.add(tuple(big_stack))
+
+
+    if num_blocks == 0:
+        return stacking
 
     if num_blocks == 1:
-        return set([tuple(blocks)])
+        return set([tuple(block_perm)]) | stacking
 
     if num_stacks is None:
         num_splits = np.random.randint(lower_num, num_blocks)
@@ -122,7 +131,6 @@ def make_random_stacking(blocks, num_stacks=None, max_stack_num=None):
     )
     split_locs.sort()
     split_locs = np.append(split_locs, num_blocks)
-    stacking = set()
     i = 0
     for split_loc in split_locs:
         stacking.add(tuple(block_perm[i:split_loc]))
@@ -357,11 +365,11 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
 
     blocks = [f"block{i}" for i in range(num_blocks)]
     blockers = [f"blocker{i}" for i in range(num_blockers)]
-    blocker_points = []
+    blocker_points = {}
 
     start_tables = ["red_table", "green_table"]
 
-    for block, blocker in zip(blocks, blockers):
+    for i, (block, blocker) in enumerate(zip(blocks, blockers)):
         table = np.random.choice(start_tables) 
         if len(positions[table]) == 0:
             res = samplers[table].make_samples(filter = filter)
@@ -390,7 +398,7 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
 
         block_point = block_point.tolist()
         blocker_point = blocker_point.tolist()
-        blocker_points.append(blocker_point)
+        blocker_points[i] = blocker_point
 
         yaml_data["objects"][block] = {
             "path": path,
@@ -419,8 +427,8 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
             goal.append(["on-block", block, prev_block])
             prev_block = block
 
-    for i, blocker in enumerate(blockers):
-        goal.append(["atworldpose", blocker, blocker_points[i]])
+    for i, pt in blocker_points.items():
+        goal.append(["atworldpose", blockers[i], pt])
 
     yaml_data["goal"] = goal
 
@@ -599,6 +607,6 @@ if __name__ == "__main__":
     # randomly place the initial stacks/blocks using poisson disc
     # randomly assign each stack of a goal table
 
-    yaml_data = make_sorting_problem(6, colorize = True)
+    yaml_data = make_non_monotonic_problem(2, colorize = True, max_stack_num = 1)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)
