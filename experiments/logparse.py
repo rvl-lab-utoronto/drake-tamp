@@ -1,4 +1,5 @@
 from glob import glob
+import json
 import os
 import re
 
@@ -40,6 +41,26 @@ def parse_logs(exp_dir, exp_name):
                     d['planning_iters'] += 1
                 if line.startswith('Summary:'):
                     d.update(dict_from_string(line[8:].replace('inf', '"inf"')))
+    return data
+
+def load_results_from_stats(exp_dir, exp_name):
+    data = []
+    for i, stats_path in enumerate(glob(os.path.join(exp_dir, '*_logs/stats.json'))):
+        with open(stats_path, 'r') as f:
+            run_stats = json.load(f)
+        d = run_stats['summary']
+        d['results'] = max(run_stats['results'][1])
+        d['evaluations'] = max(run_stats['evaluations'][1])
+        # fd stats
+        d['planning_iters'] = len(run_stats['fd_stats'])
+        d['total_expanded'] = sum([p.get('expanded', 0) for p in run_stats['fd_stats']])
+        d['max_expanded'] = max([p.get('expanded', 0) for p in run_stats['fd_stats']])
+        d['total_evaluated'] = sum([p.get('evaluated', 0) for p in run_stats['fd_stats']])
+        d['max_evaluated'] = max([p.get('evaluated', 0) for p in run_stats['fd_stats']])
+        d['total_fd_search_time'] = sum([p.get('total_time', 0) for p in run_stats['fd_stats']])
+        d['total_translation_time'] = sum([p.get('translation_time', 0) for p in run_stats['fd_stats']])
+        d['total_fd_timeouts'] = sum([p.get('timeout', 0) for p in run_stats['fd_stats']])
+        data.append(d)
     return data
 
 def compare_same_set(data):

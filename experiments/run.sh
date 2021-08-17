@@ -10,5 +10,7 @@ export CUDA_VISIBLE_DEVICES=""
 mkdir -p $EXPDIR && cd $EXPDIR
 for FILE in $PROBLEMS; do
   echo "Running $(realpath $FILE)"
-  timeout --signal 9 --foreground 90s python -O $DIR/experiments/main.py $RUN_ARGS --problem-file $FILE | tee ./$(basename $FILE).log
+  RUN=$(basename $FILE)
+  LOGDIR=$(realpath ./$RUN)_logs
+  timeout --signal 9 --foreground 90s python -O $DIR/experiments/main.py $RUN_ARGS --logpath $LOGDIR/ --problem-file $FILE | tee ./$RUN.log
 done

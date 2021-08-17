@@ -3,6 +3,7 @@ from experiments.two_arm_blocks_world.run import run_blocks_world as run_two_arm
 from experiments.kitchen.run import run_kitchen
 import argparse
 import json
+import os
 domains = {
     'kitchen': run_kitchen,
     'blocks_world':run_blocks_world,
@@ -79,6 +80,12 @@ def make_argument_parser():
         '--url',
         type=str, required=False
     )
+    parser.add_argument(
+        '--logpath',
+        type=str,
+        default=None,
+        required=False
+    )
     
     return parser
 
@@ -89,6 +96,9 @@ if __name__ == '__main__':
     oracle_options = json.loads(args.oracle_options) if args.oracle_options else {}
     if args.problem_file:
         domain_options['problem_file'] = args.problem_file
+    if args.logpath:
+        if not os.path.isdir(args.logpath):
+            os.mkdir(args.logpath)
     if args.profile:
         import cProfile, pstats, io
         pr = cProfile.Profile()
@@ -103,6 +113,7 @@ if __name__ == '__main__':
         url=args.url if args.url else None,
         simulate=False,
         oracle_kwargs=oracle_options,
+        path=args.logpath,
         **domain_options
     )
     if args.profile:

@@ -4,6 +4,7 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+from sre_constants import NOT_LITERAL_IGNORE
 from experiments.shared import construct_oracle
 import json
 from json.decoder import JSONDecodeError
@@ -489,7 +490,8 @@ def run_kitchen(
     use_unique = False,
     eager_mode = False,
     oracle_kwargs = {},
-    should_save = False
+    should_save = False,
+    path = None
 ):
 
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
@@ -498,7 +500,8 @@ def run_kitchen(
     if not os.path.isdir(f"{file_path}/logs/{time}"):
         os.mkdir(f"{file_path}/logs/{time}")
 
-    path = f"{file_path}/logs/{time}/"
+    if path is None:
+        path = f"{file_path}/logs/{time}/"
 
     if problem_file is None:
         yaml_data = make_problem.make_random_problem(

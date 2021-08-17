@@ -501,7 +501,8 @@ def run_blocks_world(
     use_unique=False,
     oracle_kwargs={},
     should_save=False,
-    eager_mode=False
+    eager_mode=False,
+    path=None
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -518,7 +519,8 @@ def run_blocks_world(
     if not os.path.isdir(f"{file_path}/logs/{time}"):
         os.mkdir(f"{file_path}/logs/{time}")
 
-    path = f"{file_path}/logs/{time}/"
+    if path is None:
+        path = f"{file_path}/logs/{time}/"
 
     if problem_file is None:
         yaml_data = make_problem.make_random_problem(
