@@ -21,6 +21,11 @@ def make_argument_parser():
         type=str
     )
     parser.add_argument(
+        "--problem-file",
+        type=str,
+        required=False
+    )
+    parser.add_argument(
         "--oracle-options",
         type=str
     )
@@ -82,6 +87,8 @@ if __name__ == '__main__':
     run_exp = domains[args.domain]
     domain_options = json.loads(args.domain_options) if args.domain_options else {}
     oracle_options = json.loads(args.oracle_options) if args.oracle_options else {}
+    if args.problem_file:
+        domain_options['problem_file'] = args.problem_file
     if args.profile:
         import cProfile, pstats, io
         pr = cProfile.Profile()
