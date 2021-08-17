@@ -602,12 +602,12 @@ def run_blocks_world(
             },
             "pick": {
                 "function": PlanToTrajectory.pick,
-                "argument_indices": [4, 5, 4],
+                "argument_indices": [5, 6, 5],
                 "arm_name": 0,
             },
             "place": {
                 "function": PlanToTrajectory.place,
-                "argument_indices": [4, 5, 4],
+                "argument_indices": [5, 6, 5],
                 "arm_name": 0,
             },
             "stack": {
@@ -739,7 +739,7 @@ def main_generation_loop():
 
 if __name__ == '__main__':
     # main_generation_loop()
-    url = "tcp://127.0.0.1:6007"
+    url = "tcp://127.0.0.1:6008"
 
     res, _ = run_blocks_world(
         problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
