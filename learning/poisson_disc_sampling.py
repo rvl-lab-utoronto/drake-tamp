@@ -1,7 +1,87 @@
 import time
 import numpy as np
 import itertools
+import random
 np.random.seed(seed = int(time.time()))
+
+class GridSampler:
+
+    def __init__(self, extent, r, centered = False, k =20):
+        self.n = len(extent)
+        assert self.n == 2, "Currently only support 2 dimensions"
+        self.extent = np.array(extent)
+        self.r = r
+
+        self.centered = centered
+        self.points = []
+
+        self.grid = np.mgrid[self.r/2:self.extent[0]:self.r, self.r/2:self.extent[1]:self.r].reshape(self.n, -1).T
+        bins = extent/r
+        bins = bins.astype(int)
+        self.tot = 0
+        self.grid = []
+        for y_ind in range(bins[1]):
+            self.grid.append([])
+            for x_ind in range(bins[0]):
+                self.grid[-1].append(np.array([x_ind*self.r, y_ind*self.r]))
+                self.tot += 1
+        self.k = k
+
+        self.sampled = set()
+        self.first_sample = False
+        self.adjacent = []
+        for i in itertools.product((-2, -1, 0, 1, 2), repeat = self.n):
+            if i[0] == 0 and i[1] == 0:
+                continue
+            self.adjacent.append(i)
+
+
+    def make_samples(self, num = 1, filter = lambda x: True):
+        points = []
+        for i in range(num):
+            point = self.sample()
+            if point is None:
+                continue
+            if not filter(point):
+                points.append(point)
+        return points
+
+    def sample(self):
+        if len(self.sampled) == self.tot:
+            return None
+
+        if not self.first_sample:
+            rand_inds = np.random.randint(0, len(self.grid)), np.random.randint(0, len(self.grid[0]))
+            self.sampled.add(rand_inds)
+            self.first_sample = True
+            pt =  self.grid[rand_inds[0]][rand_inds[1]]
+            if self.centered:
+                return pt - self.extent/2
+            return pt
+        
+        for _ in range(self.k):
+            samp = random.choice(list(self.sampled)) 
+            adj = random.choice(self.adjacent)
+            shape = (len(self.grid), len(self.grid[0]))
+            rand_inds = [0,0]
+            for i in range(2):
+                rand_inds[i] = samp[i] + adj[i]
+                if rand_inds[i] >= shape[i]:
+                    rand_inds[i] -= shape[i]
+                elif rand_inds[i] < 0:
+                    rand_inds[i] += shape[i]
+            rand_inds = tuple(rand_inds)
+            if rand_inds in self.sampled:
+                continue
+            self.sampled.add(rand_inds)
+            pt =  self.grid[rand_inds[0]][rand_inds[1]]
+            if self.centered:
+                return pt - self.extent/2
+            return pt
+
+        return None
+
+
 
 class PoissonSampler:
     """
@@ -9,7 +89,7 @@ class PoissonSampler:
     https://www.cs.ubc.ca/~rbridson/docs/bridson-siggraph07-poissondisk.pdf
     """
 
-    def __init__(self, extent, r, k = 30, centered = False):
+    def __init__(self, extent, r, k = 30, centered = False, clump = False):
         """
         extent: an n dimensional array of the extent of the domain
         r: min distance between samples 
@@ -32,6 +112,7 @@ class PoissonSampler:
         self.first_sample = False
         self.active_list = []
         self.points = []
+        self.clump = clump
 
     def reset(self):
         self.grid = (-1*np.ones(self.grid.shape)).astype(np.int)
@@ -55,7 +136,11 @@ class PoissonSampler:
         annulus centered about `center_point` between r and 2r
         """
         dir = np.random.uniform(-1*np.ones(self.n), np.ones(self.n))
-        dir = (dir/np.linalg.norm(dir)) * np.random.uniform(self.r, 2*self.r)
+        if self.clump:
+            mul = self.r
+        else:
+            mul = np.random.uniform(self.r, 2*self.r)
+        dir = (dir/np.linalg.norm(dir)) * mul
         return dir + center_point
 
     def get_adjacent(self, point):
@@ -67,7 +152,7 @@ class PoissonSampler:
         assert center_inds is not None, "This point is out of bounds"
 
         adj_inds = []
-        for offset in itertools.product((-1, 0, 1), repeat = self.n):
+        for offset in itertools.product((-2, -1, 0, 1, 2), repeat = self.n):
             inds = center_inds - np.array(offset)
             if np.any(inds >= self.grid.shape) or np.any(inds < 0):
                 continue
@@ -98,13 +183,16 @@ class PoissonSampler:
             self.grid[inds] = update_if_safe
         return res
 
-    def make_samples(self, num = 1):
+    def make_samples(self, num = 1, filter= lambda x: True, verbose = False):
         samples = []
         for i in range(num):
             point = self.sample()
             if point is None:
                 return samples
-            samples.append(point)
+            if not filter(point):
+                samples.append(point)
+            elif verbose:
+                print(f"REJECTING {point}")
         return samples
 
     def sample(self):

@@ -14,7 +14,7 @@ import torch
 import matplotlib
 from torch.utils.data.sampler import Sampler
 
-matplotlib.use("Agg")
+#matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from learning.data_models import (
     HyperModelInfo,
