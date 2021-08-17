@@ -1,8 +1,6 @@
 import os
 import time
 import itertools
-from panda_controller.pid import PANDA_LIMITS
-from panda_station.models.blocks_world.sdf.make_blocks import TEMPLATE_NAME
 from learning.poisson_disc_sampling import PoissonSampler, GridSampler
 import numpy as np
 import yaml
@@ -559,7 +557,6 @@ def make_sorting_problem(num_blocks, num_blockers = None, colorize=False, buffer
                 goal.append(["on-block", block, prev_block])
                 prev_block = block
 
-    yaml_data["goal"] = goal
 
     for blocker in blockers:
         table = np.random.choice(start_tables)
@@ -579,6 +576,9 @@ def make_sorting_problem(num_blocks, num_blockers = None, colorize=False, buffer
             "main_link": "base_link",
             "on-table": [str(table), "base_link"],
         }
+        goal.append(["on-table", blocker, [str(table), "base_link"]])
+
+    yaml_data["goal"] = goal
 
     yaml_data["run_attr"] = {
         "num_blocks": num_blocks,
