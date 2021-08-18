@@ -121,10 +121,22 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     # this needs to be done first so all of the RTs are updated
     supports = []
+    transforms = {}
     for name, pose in start_poses.items():
-        start_poses[name] = RigidTransformWrapper(pose, name=f"X_W{name}")
+        transform = RigidTransformWrapper(pose, name=f"X_W{name}")
+        transforms[name] = transform
+        start_poses[name] = transform
         if "on-block" in problem_info.objects[name]:
             supports.append(problem_info.objects[name]["on-block"])
+
+    for i, fact in enumerate(goal):
+        if not isinstance(fact, tuple):
+            continue
+        goal[i] = list(goal[i])
+        for j, obj in enumerate(fact):
+            if isinstance(obj, list):
+                goal[i][j] = transforms[fact[j-1]]
+        goal[i] = tuple(goal[i])
 
     for name, pose in start_poses.items():
         translation = pose.get_rt().translation()[:3]
@@ -143,11 +155,13 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                     pose,
                     tuple(problem_info.objects[name]["on-table"]),
                 ),
+                ("on-table", name, tuple(problem_info.objects[name]["on-table"]))
             ]
         elif "on-block" in problem_info.objects[name]:
             block = problem_info.objects[name]["on-block"]
             init += [
                 ("block-support", name, pose, block, start_poses[block]),
+                ("on-block", name, block)
             ]
         else:
             raise SyntaxError(f"Object {name} needs to specify on-table or on-block")
@@ -596,12 +610,12 @@ def run_blocks_world(
         },
         "pick": {
             "function": PlanToTrajectory.pick,
-            "argument_indices": [4, 5, 4],
+            "argument_indices": [5, 6, 5],
             "arm_name": 0,
         },
         "place": {
             "function": PlanToTrajectory.place,
-            "argument_indices": [4, 5, 4],
+            "argument_indices": [5, 6, 5],
             "arm_name": 0,
         },
         "stack": {
@@ -716,8 +730,7 @@ if __name__ == "__main__":
 
     #num_blocks = 3
     #num_blockers = 1
-    url = "tcp://127.0.0.1:6004"
-
+    url = "tcp://127.0.0.1:6009"
 
     res, _ = run_blocks_world(
         problem_file=os.path.join(file_path, "problems", "default_problem.yaml"),
