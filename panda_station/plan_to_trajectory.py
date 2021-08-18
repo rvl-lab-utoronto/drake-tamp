@@ -6,7 +6,7 @@ from enum import Enum
 JOINTSPACE_SPEED = np.pi*0.1 # rad/s
 MAX_OPEN = 0.08
 MAX_CLOSE = 0.0
-GRASP_TIME = (0.08 - 0.05)/0.1
+GRASP_TIME = 1.35
 #TODO(agro): pass in as argument
 Q_INITIAL =np.array([0.0, 0.1, 0, -1.2, 0, 1.6, 0])
 SPEED_FACTOR = 0.2
