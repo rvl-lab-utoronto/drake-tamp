@@ -73,7 +73,8 @@ class Oracle:
         stream_pddl,
         initial_conditions,
         goal_conditions,
-        model_poses = None 
+        model_poses = None,
+        data_collection_mode=False
     ):
         # model_poses is for scene graph, optional list of ["model_name", X_WM]
         # where X_WM is a RigidTransform
@@ -99,6 +100,9 @@ class Oracle:
         self.problem_info = None
         self.model_poses = model_poses
         self.run_attr = None
+        self.data_collection_mode = data_collection_mode
+        
+        print("\n"*10 + "LOL"  + str(data_collection_mode) + "\n"*10)
 
     def set_infos(self, domain, externals, goal_exp, evaluations):
         self.set_problem_info(goal_exp, evaluations)
@@ -310,7 +314,9 @@ class Oracle:
             # if remove_matched and is_match:
             #    lifted, grounded = match
             #    preimage.remove(grounded)
-            return True
+            if self.data_collection_mode:
+                return True
+            return is_match
 
         return unique_is_relevant
 
