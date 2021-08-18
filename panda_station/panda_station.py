@@ -67,9 +67,9 @@ class PandaStation(pydrake.systems.framework.Diagram):
             hand = self.plant.GetBodyByName(HAND_FRAME_NAME, hand)
 
             l57_set = self.plant.CollectRegisteredGeometries([link5, link7])
-            self.scene_graph.ExcludeCollisionsWithin(l57_set)
+            self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(l57_set))
             lh7_set = self.plant.CollectRegisteredGeometries([hand, link7])
-            self.scene_graph.ExcludeCollisionsWithin(lh7_set)
+            self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(lh7_set))
 
         for frame in self.frame_groups:
             if frame.name() == HAND_FRAME_NAME:
@@ -82,7 +82,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 for body_info in body_infos:
                     bodies.append(body_info.get_body())
             geom_set = self.plant.CollectRegisteredGeometries(bodies)
-            self.scene_graph.ExcludeCollisionsWithin(geom_set)
+            self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(geom_set))
 
     def remove_collisions_with_hands(self, object_info):
         """
