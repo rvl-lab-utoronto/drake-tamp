@@ -11,6 +11,6 @@ mkdir -p $EXPDIR && cd $EXPDIR
 for FILE in $PROBLEMS; do
   echo "Running $(realpath $FILE)"
   RUN=$(basename $FILE)
-  LOGDIR=$(realpath ./$RUN)_logs
-  timeout --signal 9 --foreground 90s python -O $DIR/experiments/main.py $RUN_ARGS --logpath $LOGDIR/ --problem-file $FILE | tee ./$RUN.log
+  LOGDIR=$(realpath ./$RUN)_logs/
+  timeout --signal 9 --foreground 90s python -O $DIR/experiments/main.py $RUN_ARGS --logpath $LOGDIR --problem-file $FILE | tee ./$RUN.log
 done
