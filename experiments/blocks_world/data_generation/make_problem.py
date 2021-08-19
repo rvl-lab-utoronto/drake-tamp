@@ -111,7 +111,7 @@ def make_random_stacking(blocks, max_stack_num = None, num_stacks = None):
         while len(block_perm) > 0:
             stacking.add(tuple(block_perm[:num_stack]))
             block_perm = block_perm[num_stack:]
-            num_stack = np.random.randint(1, max_stack_num + 1)
+            num_stack = min(np.random.randint(1, max_stack_num + 1), len(block_perm))
     else:
         lower_num = 0
         if num_blocks == 0:
@@ -154,7 +154,7 @@ def make_stackings(blocks):
                 stackings.add(frozenset(grouping))
     return stackings
 
-def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_stack_num = None, prioritize_grouping = False, clump = False, grid = False, rand_rotation = True, type = "random"):
+def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_start_stack = None, max_goal_stack = None, prioritize_grouping = False, clump = False, grid = False, rand_rotation = True, type = "random"):
     """
     buffer_radius is an addition to the minimum distance (in the same units as the extent
     - for our purposes it is meters)
@@ -216,7 +216,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
 
     blocks = [f"block{i}" for i in range(num_blocks)]
     blockers = [f"blocker{i}" for i in range(num_blockers)]
-    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    stacking = make_random_stacking(blocks, max_stack_num=max_start_stack)
     max_start_stack = max([len(s) for s in stacking])
 
 
@@ -266,7 +266,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
             }
             prev_block = block
 
-    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    stacking = make_random_stacking(blocks, max_stack_num=max_goal_stack)
     max_goal_stack = max([len(s) for s in stacking])
     goal = ["and"]
     for stack in stacking:
@@ -311,12 +311,12 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
     return yaml_data
 
 
-def make_clutter_problem(num_blocks, num_blockers = None, tighten_clumping = False, max_stack_num = None, buffer_radius = 0, colorize = False, grid = False):
+def make_clutter_problem(num_blocks, num_blockers = None, tighten_clumping = False, max_start_stack = None, max_goal_stack = None, buffer_radius = 0, colorize = False, grid = False):
     if num_blockers is None:
         num_blockers = num_blocks*3
-    return make_random_problem(num_blocks, num_blockers, colorize=colorize, buffer_radius=buffer_radius, max_stack_num = max_stack_num, prioritize_grouping = True, clump = tighten_clumping, grid = grid, type = "clutter")
+    return make_random_problem(num_blocks, num_blockers, colorize=colorize, buffer_radius=buffer_radius, max_goal_stack = max_goal_stack, max_start_stack = max_start_stack, prioritize_grouping = True, clump = tighten_clumping, grid = grid, type = "clutter")
 
-def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, prioritize_grouping = False, colorize = False, max_stack_num = 1):
+def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, prioritize_grouping = False, colorize = False, max_goal_stack = 1):
 
     num_blockers = num_blocks
     filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
@@ -416,7 +416,7 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
 
     goal = ["and"]
 
-    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    stacking = make_random_stacking(blocks, max_stack_num=max_goal_stack)
     for stack in stacking:
         table = np.random.choice(end_tables)
         base_block = stack[0]
@@ -442,7 +442,7 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
 
     return yaml_data
 
-def make_sorting_problem(num_blocks, num_blockers = None, colorize=False, buffer_radius=0, max_stack_num = 1, prioritize_grouping = False, clump = False, grid = False, rand_rotation = True, type = "random"):
+def make_sorting_problem(num_blocks, num_blockers = None, buffer_radius=0, max_start_stack = 1, max_goal_stack = 1, prioritize_grouping = False, clump = False, grid = False, rand_rotation = True):
 
     if num_blockers == None:
         num_blockers = num_blocks
@@ -509,7 +509,7 @@ def make_sorting_problem(num_blocks, num_blockers = None, colorize=False, buffer
     np.random.shuffle(blocks) 
     blockers = [f"blocker{i}" for i in range(num_blockers)]
 
-    stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+    stacking = make_random_stacking(blocks, max_stack_num=max_start_stack)
     max_start_stack = max([len(s) for s in stacking])
     start_tables = ["purple_table", "blue_table"]
 
@@ -554,7 +554,7 @@ def make_sorting_problem(num_blocks, num_blockers = None, colorize=False, buffer
     goal = ["and"]
     max_goal_stack = 0
     for blocks,table in [(red_blocks, "red_table"), (green_blocks, "green_table")]:
-        stacking = make_random_stacking(blocks, max_stack_num=max_stack_num)
+        stacking = make_random_stacking(blocks, max_stack_num=max_goal_stack)
         max_goal_stack = max([len(s) for s in stacking] + [max_goal_stack])
         for stack in stacking:
             base_block = stack[0]
@@ -606,6 +606,6 @@ if __name__ == "__main__":
     # randomly place the initial stacks/blocks using poisson disc
     # randomly assign each stack of a goal table
 
-    yaml_data = make_random_problem(20, 0, colorize = True, max_stack_num = 4)
+    yaml_data = make_random_problem(10, 3, colorize = True, max_start_stack = 3, max_goal_stack = 3)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)

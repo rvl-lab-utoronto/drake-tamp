@@ -548,7 +548,8 @@ def run_blocks_world(
             num_blockers=num_blockers,
             colorize=True,
             buffer_radius=buffer_radius,
-            max_stack_num=max_stack_num
+            max_start_stack = 1,
+            max_goal_stack=max_stack_num
         )
         with open(f"{path}problem.yaml", "w") as stream:
             yaml.dump(yaml_data, stream, default_flow_style=False)

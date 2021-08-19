@@ -539,7 +539,8 @@ def run_blocks_world(
             num_blockers=num_blockers,
             colorize=True,
             buffer_radius=buffer_radius,
-            max_stack_num=max_stack_num
+            max_start_stack = 1,
+            max_goal_stack=max_stack_num
         )
         with open(f"{path}problem.yaml", "w") as stream:
             yaml.dump(yaml_data, stream, default_flow_style=False)
@@ -741,11 +742,12 @@ def main_generation_loop():
 
 if __name__ == '__main__':
     # main_generation_loop()
-    url = "tcp://127.0.0.1:6008"
+    url = "tcp://127.0.0.1:6010"
 
     res, _ = run_blocks_world(
         problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
         mode="normal",
         url = url,
-        simulate = True,
+        simulate = False,
+        max_time = 180
     )
