@@ -742,7 +742,7 @@ def main_generation_loop():
 
 if __name__ == '__main__':
     # main_generation_loop()
-    url = "tcp://127.0.0.1:6010"
+    url = "tcp://127.0.0.1:6000"
 
     res, _ = run_blocks_world(
         problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),

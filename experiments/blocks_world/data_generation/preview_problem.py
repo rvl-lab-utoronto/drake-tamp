@@ -71,7 +71,7 @@ def preview_problem(file_path, url = "tcp://127.0.0.1:6000"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", "--file_path", default = "./test_problem.yaml")
-    parser.add_argument("-u", "--url", default = "tcp://127.0.0.1:6010")
+    parser.add_argument("-u", "--url", default = "tcp://127.0.0.1:6000")
 
     args = parser.parse_args()
 

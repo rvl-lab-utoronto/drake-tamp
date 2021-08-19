@@ -605,6 +605,6 @@ if __name__ == "__main__":
     # randomly place the initial stacks/blocks using poisson disc
     # randomly assign each stack of a goal table
 
-    yaml_data = make_random_problem(10, 3, colorize = True, max_start_stack = 3, max_goal_stack = 3)
+    yaml_data = make_random_problem(3, 3, colorize = True, max_start_stack = 1, max_goal_stack = 2)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)
