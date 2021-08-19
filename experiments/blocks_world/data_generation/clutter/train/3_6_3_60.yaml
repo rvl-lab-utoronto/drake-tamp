@@ -1,0 +1,164 @@
+arms:
+  panda:
+    X_WB:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/one_arm_blocks_world.yaml
+goal:
+- and
+- - on-table
+  - block1
+  - - green_table
+    - base_link
+- - on-block
+  - block0
+  - block1
+- - on-block
+  - block2
+  - block0
+main_links:
+  blue_table: base_link
+  green_table: base_link
+  purple_table: base_link
+  red_table: base_link
+objects:
+  block0:
+    X_WO:
+    - 0.4320114055124573
+    - -0.33039530226499403
+    - 0.325
+    - 0.0
+    - 0.0
+    - 3.48633495009582
+    main_link: base_link
+    on-table:
+    - red_table
+    - base_link
+    path: models/blocks_world/sdf/block0.sdf
+  block1:
+    X_WO:
+    - -0.213980756924505
+    - 0.4499882481081766
+    - 0.325
+    - 0.0
+    - 0.0
+    - 5.086015743758149
+    main_link: base_link
+    on-table:
+    - green_table
+    - base_link
+    path: models/blocks_world/sdf/block1.sdf
+  block2:
+    X_WO:
+    - 0.4343855177697328
+    - -0.20756576612432415
+    - 0.325
+    - 0.0
+    - 0.0
+    - 6.174156085661067
+    main_link: base_link
+    on-table:
+    - red_table
+    - base_link
+    path: models/blocks_world/sdf/block2.sdf
+  blocker0:
+    X_WO:
+    - -0.5365935760660909
+    - -0.31890540661616823
+    - 0.325
+    - 0.0
+    - 0.0
+    - 5.290929858724363
+    main_link: base_link
+    on-table:
+    - blue_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker1:
+    X_WO:
+    - -0.11868168952694771
+    - 0.49671718029661543
+    - 0.325
+    - 0.0
+    - 0.0
+    - 4.583874692483613
+    main_link: base_link
+    on-table:
+    - green_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker2:
+    X_WO:
+    - 0.5066024448319575
+    - -0.2307092949897243
+    - 0.325
+    - 0.0
+    - 0.0
+    - 1.393912031765801
+    main_link: base_link
+    on-table:
+    - red_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker3:
+    X_WO:
+    - -0.450454121996539
+    - -0.314494042302748
+    - 0.325
+    - 0.0
+    - 0.0
+    - 1.7326213118952778
+    main_link: base_link
+    on-table:
+    - blue_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker4:
+    X_WO:
+    - -0.2819387894701606
+    - 0.4342020802508306
+    - 0.325
+    - 0.0
+    - 0.0
+    - 4.0208063042096684
+    main_link: base_link
+    on-table:
+    - green_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker5:
+    X_WO:
+    - -0.5857696711165985
+    - -0.2498235020232984
+    - 0.325
+    - 0.0
+    - 0.0
+    - 6.131573221592905
+    main_link: base_link
+    on-table:
+    - blue_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+planning_directive: directives/one_arm_blocks_world.yaml
+run_attr:
+  buffer_radius: 0
+  max_goal_stack: 3
+  max_start_stack: 1
+  num_blockers: 6
+  num_blocks: 3
+  type: clutter
+surfaces:
+  blue_table:
+  - base_link
+  green_table:
+  - base_link
+  purple_table:
+  - base_link
+  red_table:
+  - base_link

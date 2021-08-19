@@ -16,109 +16,147 @@ if __name__ == '__main__':
 
     glob_index = 0
 
-    min_num_blocks = 3
-    min_num_blockers = 0
-    max_num_blocks = 12
-    max_num_blockers = 12
-    buffer_radius = 0
-    max_max_stack = 6
-    num_same = 1
+    # 100 x:
+    # num_blocks: [1,6]
+    # num_blocks: [0,6]
+    # max_start_stack: 1
+    # max_goal_stack: [1,6]
 
     for _ in tqdm(range(100)):
-        num_blocks = np.random.randint(min_num_blocks, max_num_blocks + 1)
-        num_blockers = np.random.randint(min_num_blockers, max_num_blockers + 1)
-        max_stack = np.random.randint(1, min(max_max_stack, num_blocks) + 1)
+        num_blocks = np.random.randint(1, 6 + 1)
+        num_blockers = np.random.randint(0, 6 + 1)
+        max_stack = np.random.randint(1, min(6, num_blocks) + 1)
 
-        for i in range(num_same):
-            yaml_data = make_problem.make_random_problem(
-                num_blocks=num_blocks,
-                num_blockers=num_blockers,
-                colorize=True,
-                buffer_radius=buffer_radius,
-                max_stack_num=max_stack
-            )
+        yaml_data = make_problem.make_random_problem(
+            num_blocks=num_blocks,
+            num_blockers=num_blockers,
+            buffer_radius=0,
+            max_start_stack = 1,
+            max_goal_stack =max_stack,
+            colorize = True,
+        )
 
-            outpath = f"{FILEPATH}/random/train/{num_blocks}_{num_blockers}_{max_stack}_{i}_{glob_index}.yaml"
-            glob_index += 1
-            with open(outpath, "w") as stream:
-                yaml.dump(yaml_data, stream, default_flow_style=False)
-            print('Written', outpath)
+        outpath = f"{FILEPATH}/random/train/{num_blocks}_{num_blockers}_{max_stack}_{glob_index}.yaml"
+        glob_index += 1
+        with open(outpath, "w") as stream:
+            yaml.dump(yaml_data, stream, default_flow_style=False)
+        print('Written', outpath)
 
+    glob_index = 0
+
+    # 100 x:
+    # num_blocks: [1,6]
+    # num_blocks: 2*num_blocks
+    # max_start_stack: 1
+    # max_goal_stack: [1,6]
 
     for _ in tqdm(range(100)):
-        num_blocks = np.random.randint(min_num_blocks, max_num_blocks + 1)
+        num_blocks = np.random.randint(1, 6 + 1)
         num_blockers = 2*num_blocks
-        max_stack = np.random.randint(1, min(max_max_stack, num_blocks) + 1)
+        max_stack = np.random.randint(1, min(6, num_blocks) + 1)
 
-        for i in range(num_same):
-            yaml_data = make_problem.make_clutter_problem(
-                num_blocks=num_blocks,
-                num_blockers=num_blockers,
-                colorize=True,
-                buffer_radius=buffer_radius,
-                max_stack_num=max_stack
-            )
+        yaml_data = make_problem.make_clutter_problem(
+            num_blocks=num_blocks,
+            num_blockers=num_blockers,
+            buffer_radius=0,
+            max_start_stack =1,
+            max_goal_stack=max_stack,
+            colorize = True,
+        )
 
-            outpath = f"{FILEPATH}/clutter/train/{num_blocks}_{num_blockers}_{max_stack}_{i}_{glob_index}.yaml"
-            glob_index += 1
-            with open(outpath, "w") as stream:
-                yaml.dump(yaml_data, stream, default_flow_style=False)
-            print('Written', outpath)
+        outpath = f"{FILEPATH}/clutter/train/{num_blocks}_{num_blockers}_{max_stack}_{glob_index}.yaml"
+        glob_index += 1
+        with open(outpath, "w") as stream:
+            yaml.dump(yaml_data, stream, default_flow_style=False)
+        print('Written', outpath)
 
-    min_num_blocks = 2
-    num_same = 10
+    # grid
+    # num_blocks: [1,6]
+    # repeat each 15 times
+    glob_index = 0
 
-    for num_blocks in tqdm(range(min_num_blocks, max_num_blocks + 1)):
-        for i in range(num_same):
+    for num_blocks in tqdm(range(2, 6 + 1)):
+
+        for i in range(15):
             yaml_data = make_problem.make_non_monotonic_problem(
                 num_blocks=num_blocks,
-                colorize=True,
-                buffer_radius=buffer_radius,
-                max_stack_num=1
+                buffer_radius=0,
+                colorize = True,
             )
-            outpath = f"{FILEPATH}/non_monotonic/train/{num_blocks}_{num_blocks}_1_{i}_{glob_index}.yaml"
+            outpath = f"{FILEPATH}/non_monotonic/train/{num_blocks}_{num_blocks}_1_{glob_index}.yaml"
             glob_index += 1
             with open(outpath, "w") as stream:
                 yaml.dump(yaml_data, stream, default_flow_style=False)
             print('Written', outpath)
 
-    min_num_blocks = 4
-    max_num_blocks = 14
+    # grid
+    # num_blocks: [5, 20] 
+    # repeat each 6 times
+    # max_goal_stack = 1
+    glob_index = 0
     
-    for num_blocks in tqdm(range(min_num_blocks, max_num_blocks + 1)):
-        for i in range(num_same):
-            yaml_data = make_problem.make_non_monotonic_problem(
+    for num_blocks in tqdm(range(5, 20 + 1)):
+        for i in range(6):
+            yaml_data = make_problem.make_sorting_problem(
                 num_blocks=num_blocks,
-                colorize=True,
-                buffer_radius=buffer_radius,
-                max_stack_num=1
+                buffer_radius=0,
             )
-            outpath = f"{FILEPATH}/sorting/train/{num_blocks}_{num_blocks}_1_{i}_{glob_index}.yaml"
+            outpath = f"{FILEPATH}/sorting/train/{num_blocks}_{0}_1_{glob_index}.yaml"
             glob_index += 1
             with open(outpath, "w") as stream:
                 yaml.dump(yaml_data, stream, default_flow_style=False)
             print('Written', outpath)
 
-    min_num_blocks = 4
-    max_num_blocks = 14
-    num_same = 1
-    buffer_radius = 0.05
+    # random x 50
+    # num_blocks: [1, 7] 
+    # max_start_stack: [1, 6] 
+    # max_goal_stack: [1, 6] 
+
+    # random x 50
+    # num_blocks: [1, 7] 
+    # max_start_stack: 1
+    # max_goal_stack: [1, 6] 
+    glob_index = 0
     
-    for _ in tqdm(range(100)):
-        num_blocks = np.random.randint(min_num_blocks, max_num_blocks + 1)
+    for _ in tqdm(range(50)):
+        num_blocks = np.random.randint(1, 7 + 1)
         num_blockers = 0
-        max_stack = min(max_max_stack, num_blocks)
+        max_start_stack = min(6, num_blocks)
+        max_goal_stack = min(6, num_blocks)
 
-        for i in range(num_same):
+        for i in range(1):
             yaml_data = make_problem.make_random_problem(
                 num_blocks=num_blocks,
                 num_blockers=num_blockers,
-                colorize=True,
-                buffer_radius=buffer_radius,
-                max_stack_num=max_stack
+                buffer_radius=0,
+                max_start_stack = max_start_stack,
+                max_goal_stack=max_goal_stack,
+                colorize = True,
             )
 
-            outpath = f"{FILEPATH}/stacking/train/{num_blocks}_{num_blockers}_{max_stack}_{i}_{glob_index}.yaml"
+            outpath = f"{FILEPATH}/stacking/train/{num_blocks}_{num_blockers}_{max_start_stack}_{glob_index}.yaml"
+            glob_index += 1
+            with open(outpath, "w") as stream:
+                yaml.dump(yaml_data, stream, default_flow_style=False)
+            print('Written', outpath)
+
+    for _ in tqdm(range(50)):
+        num_blocks = np.random.randint(1, 7 + 1)
+        num_blockers = 0
+        max_start_stack = 1
+        max_goal_stack = min(6, num_blocks)
+
+        for i in range(1):
+            yaml_data = make_problem.make_random_problem(
+                num_blocks=num_blocks,
+                num_blockers=num_blockers,
+                buffer_radius=0,
+                max_start_stack = max_start_stack,
+                max_goal_stack=max_goal_stack,
+                colorize = True,
+            )
+
+            outpath = f"{FILEPATH}/stacking/train/{num_blocks}_{num_blockers}_{max_start_stack}_{glob_index}.yaml"
             glob_index += 1
             with open(outpath, "w") as stream:
                 yaml.dump(yaml_data, stream, default_flow_style=False)

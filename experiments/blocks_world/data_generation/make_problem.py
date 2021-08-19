@@ -552,7 +552,6 @@ def make_sorting_problem(num_blocks, num_blockers = None, buffer_radius=0, max_s
             prev_block = block
 
     goal = ["and"]
-    max_goal_stack = 0
     for blocks,table in [(red_blocks, "red_table"), (green_blocks, "green_table")]:
         stacking = make_random_stacking(blocks, max_stack_num=max_goal_stack)
         max_goal_stack = max([len(s) for s in stacking] + [max_goal_stack])
