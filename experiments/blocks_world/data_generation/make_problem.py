@@ -96,45 +96,44 @@ def make_block(block_name, color, size, buffer, ball_radius=1e-7):
     return tree
 
 
-
-
-def make_random_stacking(blocks, num_stacks=None, max_stack_num=None):
+def make_random_stacking(blocks, max_stack_num = None, num_stacks = None):
     num_blocks = len(blocks)
     block_perm = blocks.copy()
     np.random.shuffle(block_perm)
-    lower_num = 0
     stacking = set()
+    
     if max_stack_num is not None:
         assert (
             0 < max_stack_num <= num_blocks
         ), "Max stack height must be a integer greater than 0 and less than the number of blocks"
-        big_stack = block_perm[:max_stack_num]
-        block_perm = block_perm[max_stack_num:]
-        lower_num = 0
-        num_blocks = len(block_perm)
-        stacking.add(tuple(big_stack))
-
-
-    if num_blocks == 0:
-        return stacking
-
-    if num_blocks == 1:
-        return set([tuple(block_perm)]) | stacking
-
-    if num_stacks is None:
-        num_splits = np.random.randint(lower_num, num_blocks)
+        num_max_stacks = num_blocks//max_stack_num
+        num_stack = max_stack_num
+        while len(block_perm) > 0:
+            stacking.add(tuple(block_perm[:num_stack]))
+            block_perm = block_perm[num_stack:]
+            num_stack = np.random.randint(1, max_stack_num + 1)
     else:
-        assert num_stacks >= 0 and num_stacks < num_blocks, "Invalid stack number"
-        num_splits = num_stacks - 1
-    split_locs = np.random.choice(
-        list(range(1, num_blocks)), size=num_splits, replace=False
-    )
-    split_locs.sort()
-    split_locs = np.append(split_locs, num_blocks)
-    i = 0
-    for split_loc in split_locs:
-        stacking.add(tuple(block_perm[i:split_loc]))
-        i = split_loc
+        lower_num = 0
+        if num_blocks == 0:
+            return stacking
+
+        if num_blocks == 1:
+            return set([tuple(block_perm)]) | stacking
+
+        if num_stacks is None:
+            num_splits = np.random.randint(lower_num, num_blocks)
+        else:
+            assert num_stacks >= 0 and num_stacks < num_blocks, "Invalid stack number"
+            num_splits = num_stacks - 1
+        split_locs = np.random.choice(
+            list(range(1, num_blocks)), size=num_splits, replace=False
+        )
+        split_locs.sort()
+        split_locs = np.append(split_locs, num_blocks)
+        i = 0
+        for split_loc in split_locs:
+            stacking.add(tuple(block_perm[i:split_loc]))
+            i = split_loc
     return stacking
 
 def make_stackings(blocks):
@@ -607,6 +606,6 @@ if __name__ == "__main__":
     # randomly place the initial stacks/blocks using poisson disc
     # randomly assign each stack of a goal table
 
-    yaml_data = make_non_monotonic_problem(2, colorize = True, max_stack_num = 1)
+    yaml_data = make_random_problem(20, 0, colorize = True, max_stack_num = 4)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)
