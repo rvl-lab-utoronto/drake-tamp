@@ -99,7 +99,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
             hand_body_ids = self.plant.GetBodyIndices(hand)
             bodies = [self.plant.get_body(id) for id in hand_body_ids] + obj_bodies
             geom_set = self.plant.CollectRegisteredGeometries(bodies)
-            self.scene_graph.ExcludeCollisionsWithin(geom_set)
+            self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(geom_set))
 
         """
         hand_col_ids = []
