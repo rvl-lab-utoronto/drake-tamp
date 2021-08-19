@@ -21,7 +21,7 @@ RUN apt-get -y install ipython
 
 # drake
 RUN apt-get update
-RUN curl -o drake.tar.gz https://drake-packages.csail.mit.edu/drake/nightly/drake-latest-bionic.tar.gz
+RUN curl -o drake.tar.gz https://drake-packages.csail.mit.edu/drake/nightly/drake-20210811-bionic.tar.gz
 
 # python venv setup with drake
 RUN mkdir -p /python_venvs/tamp
