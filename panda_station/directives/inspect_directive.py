@@ -11,7 +11,7 @@ from pydrake.all import (
 )
 from panda_station import *
 
-DIRECTIVE = "directives/basement.yaml"
+DIRECTIVE = "directives/hanoi.yaml"
 NAMES_AND_LINKS = [
     (name, "base_link") for name in parse_tables(find_resource(DIRECTIVE))
 ] 

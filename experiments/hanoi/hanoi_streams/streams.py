@@ -47,38 +47,24 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    h = HAND_HEIGHT + length - 0.01
+    h = HAND_HEIGHT + length
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
 
-def find_table_place(station, station_context, shape_info, surface):
-    """
-    Returns a worldpose X_WI that is a stable placement pose for
-    `shape_info` on `surface`
-    """
-    border = None
-    length = None
-    if isinstance(shape_info.shape, Box):
-        border = max(shape_info.shape.width(), shape_info.shape.depth())/2
-    if isinstance(shape_info.shape, Cylinder):
-        border = shape_info.shape.radius()
-    border = np.ones(3)*border 
-    lower = surface.bb_min + border
-    upper = surface.bb_max - border
+def find_peg_place(station, station_context, shape_info, surface):
+
     plant, plant_context = get_plant_and_context(station, station_context)
     S = surface.shape_info.offset_frame
-    #TODO(agro): make this random choice smarter
-    p_SI_S = np.random.uniform(lower,upper)
+    middle = (surface.bb_min + surface.bb_max)*0.5
+    p_SI_S = middle
     p_SI_S[2] = surface.bb_min[2] + 1e-3
     X_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S)
     p_WS_W = X_WS.translation()
     R_WS = X_WS.rotation()
-    # R_WS*p_SI_S = p_WI_W
     p_WI_W = p_WS_W + R_WS.multiply(p_SI_S)
-    R_WI = RotationMatrix.MakeZRotation(np.random.uniform(0, 2*np.pi))
-    return RigidTransform(R_WI, p_WI_W)
+    return RigidTransform(R_WS, p_WI_W)
 
-def find_block_place(station, station_context, shape_info, surface):
+def find_disc_place(station, station_context, shape_info, surface):
     plant, plant_context = get_plant_and_context(station, station_context)
     S = surface.shape_info.offset_frame
     middle = (surface.bb_min + surface.bb_max)*0.5
@@ -158,7 +144,7 @@ def find_ik_with_handpose(
     if not relax:
         ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
     lower = X_HI.translation() - np.array([0.001, 0.001, 0.01])
-    upper = X_HI.translation() + np.array([0.001, 0.001, 0.00])
+    upper = X_HI.translation() + np.array([0.001, 0.001, 0.01])
     ik.AddPositionConstraint(
         H,
         np.zeros(3),
