@@ -1,4 +1,4 @@
-(define (domain blocks_world)
+(define (domain hanoi)
     (:requirements :strips :derived-predicates :disjunctive-preconditions :equality)
 
     (:predicates 

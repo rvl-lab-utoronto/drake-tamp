@@ -1,4 +1,4 @@
-(define (stream blocks_world)
+(define (stream hanoi)
 
     (:stream find-traj
         :inputs (?arm ?q1 ?q2) 
