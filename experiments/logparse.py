@@ -141,8 +141,8 @@ def print_header(st):
 if __name__ == '__main__':
     import pandas as pd
 
-    print_header('Adaptive OLD')
-    data_adaptive_blocks = parse_logs('/home/mohammed/drake-tamp/adaptive_blocks', 'adaptive_old')
+    print_header('Adaptive')
+    data_adaptive_blocks = parse_logs('/home/agrobenj/drake-tamp/experiments/hanoi_logs/train/save/', 'adaptive_old')
     num_blocks_vs_max_stack(remove_probably_infeasible(data_adaptive_blocks))
 
     print_header('Adaptive NEW')

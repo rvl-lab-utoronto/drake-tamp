@@ -122,6 +122,13 @@ def make_hanoi_problem(num_discs, start_peg, end_peg):
         goal.append(["on-disc", top, bottom])
 
     yaml_data["goal"] = goal
+
+    yaml_data["run_attr"] = {
+        "num_discs": num_discs,
+        "start_peg": start_peg,
+        "end_peg": end_peg
+    }
+
     return yaml_data
 
 
