@@ -1,13 +1,15 @@
 from experiments.blocks_world.run import run_blocks_world
 from experiments.two_arm_blocks_world.run import run_blocks_world as run_two_arm_blocks_world
 from experiments.kitchen.run import run_kitchen
+from experiments.hanoi.run import run_hanoi
 import argparse
 import json
 import os
 domains = {
     'kitchen': run_kitchen,
     'blocks_world':run_blocks_world,
-    'two_arm_blocks_world': run_two_arm_blocks_world
+    'two_arm_blocks_world': run_two_arm_blocks_world,
+    'hanoi': run_hanoi
 }
 def make_argument_parser():
     parser = argparse.ArgumentParser()
