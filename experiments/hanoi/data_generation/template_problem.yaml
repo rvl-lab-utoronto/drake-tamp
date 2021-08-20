@@ -10,7 +10,7 @@ arms:
 # table center at [0.755, 0, 0.74]
 # red peg: [0.755, 0, 0.74]
 # blue peg: [0.605, -0.15, 0.74]
-# green peg: [0.605, 0.15, 0.74]
+# green peg: [0.905, -0.15, 0.74]
 # disc height: 0.02
 
 # recall hanoi has 2**N+1 movements, where N is number of discs
@@ -38,12 +38,12 @@ objects:
           #on-disc: "disc_26"
           #radius: 24
 
-     #disc_26:
-          #path: "models/hanoi/sdf/disc_26.sdf"
-          #X_WO: [0.755, 0, 0.80, 0, 0, 0]
-          #main_link: "base_link"
-          #on-disc: "disc_28"
-          #radius: 26
+     disc_26:
+          path: "models/hanoi/sdf/disc_26.sdf"
+          X_WO: [0.755, 0, 0.80, 0, 0, 0]
+          main_link: "base_link"
+          on-disc: "disc_28"
+          radius: 26
 
      disc_28:
           path: "models/hanoi/sdf/disc_28.sdf"
@@ -54,7 +54,7 @@ objects:
 
      disc_30:
           path: "models/hanoi/sdf/disc_30.sdf"
-          X_WO: [0.755, 0, 0.76, 0, 0, 0]
+          X_WO: [0.755, 0, 0.76, 0, 0, 0.78539]
           main_link: "base_link"
           on-disc: "disc_32"
           radius: 30
@@ -70,7 +70,7 @@ goal:
      - and
      #- [on-disc, disc_22, disc_24]
      #- [on-disc, disc_24, disc_26]
-     #- [on-disc, disc_26, disc_28]
+     - [on-disc, disc_26, disc_28]
      - [on-disc, disc_28, disc_30]
      - [on-disc, disc_30, disc_32]
      - [on-peg, disc_32, ["wooden_table", "blue_peg"]]

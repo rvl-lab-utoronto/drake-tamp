@@ -598,12 +598,6 @@ def make_sorting_problem(num_blocks, num_blockers = None, buffer_radius=0, max_s
     return yaml_data
 
 if __name__ == "__main__":
-    # specify:
-    # number of blocks
-    # number of blockers
-    # iterate through all possible initial/goal stackings of blocks
-    # randomly place the initial stacks/blocks using poisson disc
-    # randomly assign each stack of a goal table
 
     yaml_data = make_random_problem(3, 3, colorize = True, max_start_stack = 1, max_goal_stack = 2)
     with open("test_problem.yaml", "w") as stream:

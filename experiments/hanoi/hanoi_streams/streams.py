@@ -2,7 +2,6 @@
 This module contains functions that assist with grasping and placing
 in the kitchen environment
 """
-from panda_station.grasping_and_placing import DROP_HEIGHT
 import random
 import numpy as np
 from numpy import random
@@ -123,6 +122,7 @@ def find_ik_with_handpose(
     q_initial = Q_NOMINAL,
     q_nominal = Q_NOMINAL,
     relax = False,
+    force_rotation = True,
 ):
     """
     Find a solution to the IK problem that the hand must be at 
@@ -143,8 +143,8 @@ def find_ik_with_handpose(
     ik = InverseKinematics(plant, plant_context)
     if not relax:
         ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-    lower = X_HI.translation() - np.array([0.001, 0.001, 0.01])
-    upper = X_HI.translation() + np.array([0.001, 0.001, 0.01])
+    lower = X_HI.translation() - np.array([0.001, 0.001, 0.001])
+    upper = X_HI.translation() + np.array([0.001, 0.001, 0.001])
     ik.AddPositionConstraint(
         H,
         np.zeros(3),
@@ -153,13 +153,19 @@ def find_ik_with_handpose(
         upper,
     )
     R_I = X_HI.rotation()
-    ik.AddOrientationConstraint(
-        H,
-        RotationMatrix(),
-        G,
-        R_I,
-        THETA_TOL
-    )
+    if force_rotation:
+        ik.AddOrientationConstraint(
+            H,
+            RotationMatrix(),
+            G,
+            R_I,
+            THETA_TOL
+        )
+    else:
+        assert False, "not sure why this doesn't work yet"
+        n = np.array([0, 1, 0])
+        ik.AddAngleBetweenVectorsConstraint(H, n, W, np.array([0,0,1]), np.pi/2, np.pi/2 +  THETA_TOL)
+        pass
     prog = ik.prog()
     q = ik.q()
     prog.AddQuadraticErrorCost(np.identity(len(q)), q_nominal, q)
