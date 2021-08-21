@@ -60,6 +60,8 @@ def load_results_from_stats(exp_dir, exp_name):
         d['total_fd_search_time'] = sum([p.get('total_time', 0) for p in run_stats['fd_stats']])
         d['total_translation_time'] = sum([p.get('translation_time', 0) for p in run_stats['fd_stats']])
         d['total_fd_timeouts'] = sum([p.get('timeout', 0) for p in run_stats['fd_stats']])
+        d['exp_name'] = exp_name
+        d['run'] = stats_path.split(os.path.sep)[-2].strip(".yaml_logs")
         data.append(d)
     return data
 
@@ -120,6 +122,8 @@ def num_discs_vs_exp(data):
     print_header('Num Discs vs Solved')
     d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('solved', 'sum')], index='num_discs')
     print(d.to_string(float_format="%.2f"))
+    #d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('run_time', 'mean')], index='num_discs')
+    #print(d.to_string(float_format="%.2f"))
 
 def num_blocks_vs_exp(data):
     for d in data:
@@ -148,11 +152,12 @@ def remove_probably_infeasible(data):
 def print_header(st):
     print(('\n' * 2) + ('#' * 10), st, ('#' * 10) + ('\n' * 1))
 
+
 if __name__ == '__main__':
     import pandas as pd
 
+    data_adaptive = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/hanoi_logs/test/adaptive/', 'adaptive')
     print_header('Adaptive')
-    data_adaptive = parse_logs('/home/agrobenj/drake-tamp/experiments/hanoi_logs/train/save/', 'adaptive')
     table_compare(data_adaptive)
     num_discs_vs_exp(data_adaptive)
     #print_header('Oracle')

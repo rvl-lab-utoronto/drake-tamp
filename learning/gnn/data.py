@@ -11,11 +11,11 @@ from copy import copy
 import numpy as np
 from sklearn.linear_model import LinearRegression
 import torch
-import matplotlib
+#import matplotlib
 from torch.utils.data.sampler import Sampler
 
 #matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from learning.data_models import (
     HyperModelInfo,
     InvocationInfo,
@@ -1225,6 +1225,7 @@ def dep_fact_to_relevant_actions(fact, domain, indices = True):
 
 if __name__ == "__main__":
 
+    """
     datafile = open(
         os.path.join(get_base_datapath(), "data_info.json"), "r"
     )
@@ -1398,7 +1399,7 @@ if __name__ == "__main__":
         fig.tight_layout()
         fig.set_size_inches(15, 15)
         plt.savefig(f"{FILEPATH}/plots/difficulty_plot2.png", dpi=300)
-
+    """
     """
     if len(sys.argv) < 2:
         print('Usage error: Pass in a pkl path.')
