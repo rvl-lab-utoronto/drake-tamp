@@ -79,6 +79,19 @@ if __name__ == "__main__":
     if not os.path.exists(args.model_home):
         os.makedirs(args.model_home, exist_ok=True)
 
+    if not args.test_only:
+        with open(os.path.join(args.model_home, "hyperparameters.txt"), "w") as f:
+            f.write(f"Model {args.model}\n")
+            f.write(f"Epochs {args.epochs}\n")
+            f.write(f"Pos weight {args.pos_weight}\n")
+            f.write(f"Stratify train prop {args.stratify_train_prop}\n")
+            f.write(f"learning rate {args.stratify_train_prop}\n")
+            f.write(f"Gadient batch size {args.gradient_batch_size}\n")
+            f.write(f"Batch size {args.batch_size}\n")
+            f.write(f"Use problem graph {args.use_problem_graph}\n")
+            f.write(f"Epoch size {args.epoch_size}\n")
+            f.write(f"Ablation {args.ablation}\n")
+
     if args.model == "hyper":
         input_fn = construct_hypermodel_input_faster
         if args.use_problem_graph:
