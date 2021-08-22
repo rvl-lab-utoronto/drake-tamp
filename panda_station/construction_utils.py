@@ -78,12 +78,12 @@ def add_panda(
 
     return model_index
 
-
 def add_panda_hand(
     plant,
     panda_model_instance_index=None,
     roll=-np.pi/4,
     weld_fingers=False,
+    blocked = False,
     name = "hand"
 ):
     """
@@ -107,6 +107,12 @@ def add_panda_hand(
     if weld_fingers:
         model_index = parser.AddModelFromFile(
             find_resource("models/modified_panda_hand/sdf/welded_panda_hand.sdf"),
+            name
+        )
+        assert not blocked, "The hand can't be both welded and blocked"
+    elif blocked:
+        model_index = parser.AddModelFromFile(
+            find_resource("models/modified_panda_hand/sdf/blocked_panda_hand.sdf"),
             name
         )
     else:
