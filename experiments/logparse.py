@@ -2,6 +2,7 @@ from glob import glob
 import json
 import os
 import re
+import numpy as np
 
 def dict_from_string(s:str):
     obj = eval(s, type('js', (dict,), dict(__getitem__=lambda s, n: n))())
@@ -54,21 +55,25 @@ def load_results_from_stats(exp_dir, exp_name):
         # fd stats
         d['planning_iters'] = len(run_stats['fd_stats'])
         d['total_expanded'] = sum([p.get('expanded', 0) for p in run_stats['fd_stats']])
+        d['median_expanded'] = np.median([p.get('expanded', 0) for p in run_stats['fd_stats']])
+        d['mean_expanded'] = np.mean([p.get('expanded', 0) for p in run_stats['fd_stats']])
         d['max_expanded'] = max([p.get('expanded', 0) for p in run_stats['fd_stats']])
         d['total_evaluated'] = sum([p.get('evaluated', 0) for p in run_stats['fd_stats']])
         d['max_evaluated'] = max([p.get('evaluated', 0) for p in run_stats['fd_stats']])
         d['total_fd_search_time'] = sum([p.get('total_time', 0) for p in run_stats['fd_stats']])
         d['total_translation_time'] = sum([p.get('translation_time', 0) for p in run_stats['fd_stats']])
         d['total_fd_timeouts'] = sum([p.get('timeout', 0) for p in run_stats['fd_stats']])
+        d['scoring_time'] = run_stats.get('scoring_time', float('nan'))
         d['exp_name'] = exp_name
         d['run'] = stats_path.split(os.path.sep)[-2].strip(".yaml_logs")
         data.append(d)
     return data
 
-def compare_same_set(data):
+def compare_same_set(data, only_solved=False):
     runs = {}
     for d in data:
-        runs.setdefault(d['exp_name'], set()).add(d['run'])
+        if not only_solved or d.get('solved'):
+            runs.setdefault(d['exp_name'], set()).add(d['run'])
 
     include = set()
     for exp in runs:
