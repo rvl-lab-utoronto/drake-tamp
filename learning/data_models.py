@@ -18,6 +18,7 @@ class ModelInfo:
     stream_num_inputs: list
     stream_domains: list
     domain: Domain
+    stream_num_outputs: list = None
 
     #TODO(agro)
     #@property
@@ -160,7 +161,8 @@ class InvocationInfo:
             for r in result.output_objects:
                 obj_to_stream_map[obj_to_pddl(r)] = {
                     "name": result.name, 
-                    "input_objects": [obj_to_pddl(f) for f in result.input_objects]
+                    "input_objects": [obj_to_pddl(f) for f in result.input_objects],
+                    "output_objects": [obj_to_pddl(f) for f in result.output_objects]
                 }
         return obj_to_stream_map
 

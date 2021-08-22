@@ -2,6 +2,7 @@ from glob import glob
 import json
 import os
 import re
+import numpy as np
 
 def dict_from_string(s:str):
     obj = eval(s, type('js', (dict,), dict(__getitem__=lambda s, n: n))())
@@ -54,21 +55,25 @@ def load_results_from_stats(exp_dir, exp_name):
         # fd stats
         d['planning_iters'] = len(run_stats['fd_stats'])
         d['total_expanded'] = sum([p.get('expanded', 0) for p in run_stats['fd_stats']])
+        d['median_expanded'] = np.median([p.get('expanded', 0) for p in run_stats['fd_stats']])
+        d['mean_expanded'] = np.mean([p.get('expanded', 0) for p in run_stats['fd_stats']])
         d['max_expanded'] = max([p.get('expanded', 0) for p in run_stats['fd_stats']])
         d['total_evaluated'] = sum([p.get('evaluated', 0) for p in run_stats['fd_stats']])
         d['max_evaluated'] = max([p.get('evaluated', 0) for p in run_stats['fd_stats']])
         d['total_fd_search_time'] = sum([p.get('total_time', 0) for p in run_stats['fd_stats']])
         d['total_translation_time'] = sum([p.get('translation_time', 0) for p in run_stats['fd_stats']])
         d['total_fd_timeouts'] = sum([p.get('timeout', 0) for p in run_stats['fd_stats']])
+        d['scoring_time'] = run_stats.get('scoring_time', float('nan'))
         d['exp_name'] = exp_name
         d['run'] = stats_path.split(os.path.sep)[-2].strip(".yaml_logs")
         data.append(d)
     return data
 
-def compare_same_set(data):
+def compare_same_set(data, only_solved=False):
     runs = {}
     for d in data:
-        runs.setdefault(d['exp_name'], set()).add(d['run'])
+        if not only_solved or d.get('solved'):
+            runs.setdefault(d['exp_name'], set()).add(d['run'])
 
     include = set()
     for exp in runs:
@@ -122,6 +127,11 @@ def num_discs_vs_exp(data):
     print_header('Num Discs vs Solved')
     d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('solved', 'sum')], index='num_discs')
     print(d.to_string(float_format="%.2f"))
+
+    print_header('Num Discs vs FD time')
+    df.loc[~df.solved, 'run_time'] = 60
+    d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'median']).pivot_table(columns='exp_name', values=[('total_fd_search_time', 'mean')], index='num_discs')
+    print(d.to_string(float_format="%.2f"))
     #d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('run_time', 'mean')], index='num_discs')
     #print(d.to_string(float_format="%.2f"))
 
@@ -160,6 +170,10 @@ if __name__ == '__main__':
     print_header('Adaptive')
     table_compare(data_adaptive)
     num_discs_vs_exp(data_adaptive)
+    data_informed = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/hanoi_logs/test/informed/', 'informed')
+    print_header('Informed')
+    table_compare(data_informed)
+    num_discs_vs_exp(data_informed)
     #print_header('Oracle')
     #data_oracle = parse_logs('/home/agrobenj/drake-tamp/experiments/hanoi_logs/train/oracle/', 'oracle')
     #table_compare(data_oracle)

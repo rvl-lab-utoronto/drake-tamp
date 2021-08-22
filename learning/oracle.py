@@ -101,8 +101,6 @@ class Oracle:
         self.model_poses = model_poses
         self.run_attr = None
         self.data_collection_mode = data_collection_mode
-        
-        print("\n"*10 + "LOL"  + str(data_collection_mode) + "\n"*10)
 
     def set_infos(self, domain, externals, goal_exp, evaluations):
         self.set_problem_info(goal_exp, evaluations)
@@ -141,6 +139,7 @@ class Oracle:
             streams=[None] + [e["name"] for e in new_externals],
             stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
             stream_num_inputs = [None] + [len(e["inputs"]) for e in new_externals],
+            stream_num_outputs = [None] + [len(e["outputs"]) for e in new_externals],
             stream_domains = [None] + [e["domain"] for e in new_externals],
             domain = domain
         )
