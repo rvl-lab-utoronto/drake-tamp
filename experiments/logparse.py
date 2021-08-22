@@ -127,6 +127,11 @@ def num_discs_vs_exp(data):
     print_header('Num Discs vs Solved')
     d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('solved', 'sum')], index='num_discs')
     print(d.to_string(float_format="%.2f"))
+
+    print_header('Num Discs vs FD time')
+    df.loc[~df.solved, 'run_time'] = 60
+    d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'median']).pivot_table(columns='exp_name', values=[('total_fd_search_time', 'mean')], index='num_discs')
+    print(d.to_string(float_format="%.2f"))
     #d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('run_time', 'mean')], index='num_discs')
     #print(d.to_string(float_format="%.2f"))
 
@@ -165,6 +170,10 @@ if __name__ == '__main__':
     print_header('Adaptive')
     table_compare(data_adaptive)
     num_discs_vs_exp(data_adaptive)
+    data_informed = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/hanoi_logs/test/informed/', 'informed')
+    print_header('Informed')
+    table_compare(data_informed)
+    num_discs_vs_exp(data_informed)
     #print_header('Oracle')
     #data_oracle = parse_logs('/home/agrobenj/drake-tamp/experiments/hanoi_logs/train/oracle/', 'oracle')
     #table_compare(data_oracle)
