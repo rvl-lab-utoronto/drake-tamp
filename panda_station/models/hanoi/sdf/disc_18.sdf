@@ -23,7 +23,7 @@
             </cylinder>
         </geometry>
         <material>
-          <diffuse>0 0 0.7846153846153845 1</diffuse>
+          <diffuse>0.5346876174149742 0.1817965039666125 0.4119489157548485 1</diffuse>
         </material>
       </visual>
       <collision name="collision">
@@ -33,6 +33,38 @@
               <radius>0.018000000000000002</radius>
               <length>0.02</length>
             </cylinder>
+        </geometry>
+      </collision>
+      <collision name="ball1">
+        <pose>0.012727922061357855 0.012727922061357855 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball2">
+        <pose>-0.012727922061357855 0.012727922061357855 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball3">
+        <pose>0.012727922061357855 -0.012727922061357855 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball4">
+        <pose>-0.012727922061357855 -0.012727922061357855 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
         </geometry>
       </collision>
     </link>

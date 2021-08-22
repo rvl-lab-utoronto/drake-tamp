@@ -1,0 +1,86 @@
+directive: "directives/hanoi.yaml"
+planning_directive: "directives/hanoi.yaml"  
+
+arms:
+     panda:
+          panda_name: panda
+          hand_name: hand
+          X_WB: [0.05, 0, 0.8, 0, 0, 0]
+
+# table center at [0.755, 0, 0.74]
+# red peg: [0.755, 0, 0.74]
+# blue peg: [0.605, -0.15, 0.74]
+# green peg: [0.905, -0.15, 0.74]
+# disc height: 0.02
+
+# recall hanoi has 2**N+1 movements, where N is number of discs
+# The number of steps is then 4*(2**N+1)
+objects:
+
+     #disc_20:
+          #path: "models/hanoi/sdf/disc_20.sdf"
+          #X_WO: [0.755, 0, 0.86, 0, 0, 0]
+          #main_link: "base_link"
+          #on-disc: "disc_22"
+          #radius: 20
+
+     #disc_22:
+          #path: "models/hanoi/sdf/disc_22.sdf"
+          #X_WO: [0.755, 0, 0.84, 0, 0, 0]
+          #main_link: "base_link"
+          #on-disc: "disc_24"
+          #radius: 22
+
+     #disc_24:
+          #path: "models/hanoi/sdf/disc_24.sdf"
+          #X_WO: [0.755, 0, 0.82, 0, 0, 0]
+          #main_link: "base_link"
+          #on-disc: "disc_26"
+          #radius: 24
+
+     disc_26:
+          path: "models/hanoi/sdf/disc_26.sdf"
+          X_WO: [0.755, 0, 0.80, 0, 0, 0]
+          main_link: "base_link"
+          on-disc: "disc_28"
+          radius: 26
+
+     disc_28:
+          path: "models/hanoi/sdf/disc_28.sdf"
+          X_WO: [0.755, 0, 0.78, 0, 0, 0]
+          main_link: "base_link"
+          on-disc: "disc_30"
+          radius: 28
+
+     disc_30:
+          path: "models/hanoi/sdf/disc_30.sdf"
+          X_WO: [0.755, 0, 0.76, 0, 0, 0.78539]
+          main_link: "base_link"
+          on-disc: "disc_32"
+          radius: 30
+
+     disc_32:
+          path: "models/hanoi/sdf/disc_32.sdf"
+          X_WO: [0.755, 0, 0.74, 0, 0, 0]
+          main_link: "base_link"
+          on-peg: ["wooden_table", "red_peg"]
+          radius: 32 
+
+goal: 
+     - and
+     #- [on-disc, disc_22, disc_24]
+     #- [on-disc, disc_24, disc_26]
+     - [on-disc, disc_26, disc_28]
+     - [on-disc, disc_28, disc_30]
+     - [on-disc, disc_30, disc_32]
+     - [on-peg, disc_32, ["wooden_table", "blue_peg"]]
+
+main_links:
+     wooden_table: "base_link"
+     #thor_table: "base_link"
+
+surfaces:
+     wooden_table: 
+          - "red_peg"
+          - "green_peg"
+          - "blue_peg"

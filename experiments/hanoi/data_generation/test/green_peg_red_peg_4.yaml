@@ -1,0 +1,90 @@
+arms:
+  panda:
+    X_WB:
+    - 0.05
+    - 0
+    - 0.8
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/hanoi.yaml
+goal:
+- and
+- - on-peg
+  - disc_32
+  - - wooden_table
+    - red_peg
+- - on-disc
+  - disc_30
+  - disc_32
+- - on-disc
+  - disc_28
+  - disc_30
+- - on-disc
+  - disc_26
+  - disc_28
+main_links:
+  wooden_table: base_link
+objects:
+  disc_26:
+    X_WO:
+    - 0.605
+    - 0.15
+    - 0.8
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-disc: disc_28
+    path: models/hanoi/sdf/disc_26.sdf
+    radius: 26
+  disc_28:
+    X_WO:
+    - 0.605
+    - 0.15
+    - 0.78
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-disc: disc_30
+    path: models/hanoi/sdf/disc_28.sdf
+    radius: 28
+  disc_30:
+    X_WO:
+    - 0.605
+    - 0.15
+    - 0.76
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-disc: disc_32
+    path: models/hanoi/sdf/disc_30.sdf
+    radius: 30
+  disc_32:
+    X_WO:
+    - 0.605
+    - 0.15
+    - 0.74
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-peg:
+    - wooden_table
+    - green_peg
+    path: models/hanoi/sdf/disc_32.sdf
+    radius: 32
+planning_directive: directives/hanoi.yaml
+run_attr:
+  end_peg: red_peg
+  num_discs: 4
+  start_peg: green_peg
+surfaces:
+  wooden_table:
+  - red_peg
+  - green_peg
+  - blue_peg

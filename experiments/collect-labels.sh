@@ -12,7 +12,7 @@ for FILE in $PROBLEMS; do
   echo "Running $FILE"
   RUN=$(basename $FILE)
   LOGDIR=$(realpath ./save/$RUN)_logs/
-  timeout --signal 9 --foreground 90s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode save --logpath $LOGDIR --problem-file $FILE | tee ./save/$RUN.log
+  timeout --signal 9 --foreground 180s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode save --logpath $LOGDIR --problem-file $FILE | tee ./save/$RUN.log
   LOGDIR=$(realpath ./oracle/$RUN)_logs/
-  timeout --signal 9 --foreground 90s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode oracle --oracle-options='{"data_collection_mode": true}' --logpath $LOGDIR --problem-file $FILE | tee ./oracle/$RUN.log
+  timeout --signal 9 --foreground 180s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode oracle --oracle-options='{"data_collection_mode": true}' --logpath $LOGDIR --problem-file $FILE | tee ./oracle/$RUN.log
 done

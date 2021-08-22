@@ -34,6 +34,7 @@ from pddlstream.algorithms.algorithm import reset_globals
 from learning import visualization
 from learning import oracle as ora
 from panda_station import (
+    TrajType,
     rt_to_xyzrpy,
     ProblemInfo,
     parse_start_poses,
@@ -654,7 +655,7 @@ def run_hanoi(
             },
         }
 
-        traj_maker = PlanToTrajectory(station_dict["main"])
+        traj_maker = PlanToTrajectory(station_dict["main"], traj_mode= TrajType.GENERATOR)
         traj_maker.make_trajectory(plan, SIM_INIT_TIME, action_map)
 
         for panda_name in traj_directors:
@@ -679,10 +680,11 @@ def run_hanoi(
 
 if __name__ == '__main__':
     # main_generation_loop()
-    url = "tcp://127.0.0.1:6000"
+    url = "tcp://127.0.0.1:6001"
 
     res, _ = run_hanoi(
-        problem_file=os.path.join(file_path, "problems", "default_problem.yaml"),
+        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
+        #problem_file=os.path.join(file_path, "problems", "default_problem.yaml"),
         mode="normal",
         url = url,
         simulate = True,

@@ -1,4 +1,4 @@
-(define (stream blocks_world)
+(define (stream hanoi)
 
     (:stream find-traj
         :inputs (?arm ?q1 ?q2) 
@@ -67,16 +67,17 @@
     )
 
     (:stream find-disc-place
-        :inputs (?disc ?lowerblock ?X_WL) 
+        :inputs (?disc ?lowerdisc ?X_WL) 
         :domain (and
             (disc ?disc) 
-            (disc ?lowerblock) 
-            (worldpose ?lowerblock ?X_WL)
+            (disc ?lowerdisc) 
+            ;(smaller ?disc ?lowerdisc)
+            (worldpose ?lowerdisc ?X_WL)
         )
         :outputs (?X_WB)
         :certified (and
             (worldpose ?disc ?X_WB) 
-            (disc-support ?disc ?X_WB ?lowerblock ?X_WL)
+            (disc-support ?disc ?X_WB ?lowerdisc ?X_WL)
         )
     )
 

@@ -64,8 +64,8 @@ def load_results_from_stats(exp_dir, exp_name):
         d['total_translation_time'] = sum([p.get('translation_time', 0) for p in run_stats['fd_stats']])
         d['total_fd_timeouts'] = sum([p.get('timeout', 0) for p in run_stats['fd_stats']])
         d['scoring_time'] = run_stats.get('scoring_time', float('nan'))
-        d['run'] = os.path.basename(os.path.dirname(stats_path)).strip('_logs')
         d['exp_name'] = exp_name
+        d['run'] = stats_path.split(os.path.sep)[-2].strip(".yaml_logs")
         data.append(d)
     return data
 
@@ -119,6 +119,17 @@ def num_blocks_vs_max_stack(data):
     d = df.pivot_table(columns='max_stack', values='solved', index='num_blocks', aggfunc='mean')
     print(d.to_string(float_format="%.2f"))
 
+def num_discs_vs_exp(data):
+    for d in data:
+        d['num_discs'] = int(d['run'].strip('.yaml').split('_')[-1])
+    data = compare_same_set(data)
+    df = pd.DataFrame(data)
+    print_header('Num Discs vs Solved')
+    d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('solved', 'sum')], index='num_discs')
+    print(d.to_string(float_format="%.2f"))
+    #d = df.groupby(['num_discs', 'exp_name']).agg(['mean', 'sum']).pivot_table(columns='exp_name', values=[('solved', 'mean'), ('run_time', 'mean')], index='num_discs')
+    #print(d.to_string(float_format="%.2f"))
+
 def num_blocks_vs_exp(data):
     for d in data:
         d['num_blocks'], d['num_blockers'], d['max_stack'], _ = map(int, d['run'].strip('.yaml').split('_'))
@@ -140,25 +151,20 @@ def num_blocks_vs_exp(data):
     print(d.to_string(float_format="%.2f"))
 
 def remove_probably_infeasible(data):
+    assert False, "Depreciated"
     return [d for d in data if not (d.get('sample_time', 0) > 0 and not d['solved'])]
 
 def print_header(st):
     print(('\n' * 2) + ('#' * 10), st, ('#' * 10) + ('\n' * 1))
 
+
 if __name__ == '__main__':
     import pandas as pd
 
-    print_header('Adaptive OLD')
-    data_adaptive_blocks = parse_logs('/home/mohammed/drake-tamp/adaptive_blocks', 'adaptive_old')
-    num_blocks_vs_max_stack(remove_probably_infeasible(data_adaptive_blocks))
-
-    print_header('Adaptive NEW')
-    data_adaptive_blocks_new = parse_logs('/home/mohammed/drake-tamp/adaptive-blocks-new-datacollection', 'adaptive_new')
-    num_blocks_vs_max_stack(remove_probably_infeasible(data_adaptive_blocks_new))
-
-    print_header('Comparison')
-    data_lazy_new = parse_logs('/home/mohammed/drake-tamp/cacheingmodel_blocksworld_v2_lazy', 'lazy_new')
-    data_lazy_old = parse_logs('/home/mohammed/drake-tamp/cachingmodel_lazy_unrefined', 'lazy_old')
-    table_compare(remove_probably_infeasible(data_adaptive_blocks + data_adaptive_blocks_new + data_lazy_old + data_lazy_new ))
-
-    num_blocks_vs_exp(remove_probably_infeasible(data_adaptive_blocks + data_adaptive_blocks_new + data_lazy_old + data_lazy_new))
+    data_adaptive = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/hanoi_logs/test/adaptive/', 'adaptive')
+    print_header('Adaptive')
+    table_compare(data_adaptive)
+    num_discs_vs_exp(data_adaptive)
+    #print_header('Oracle')
+    #data_oracle = parse_logs('/home/agrobenj/drake-tamp/experiments/hanoi_logs/train/oracle/', 'oracle')
+    #table_compare(data_oracle)

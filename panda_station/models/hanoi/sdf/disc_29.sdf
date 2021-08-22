@@ -1,0 +1,72 @@
+<sdf version="1.7">
+  <model name="disc_29">
+    <link name="base_link">
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>7.91e-06</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>7.91e-06</iyy>
+          <iyz>0</iyz>
+          <izz>1.56e-05</izz>
+        </inertia>
+        <pose>0 0 0.0025 0 0 0</pose>
+      </inertial>
+      <pose>0 0 0 0 0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0.01 0 0 0</pose>
+        <geometry>
+            <cylinder>
+              <radius>0.029</radius>
+              <length>0.02</length>
+            </cylinder>
+        </geometry>
+        <material>
+          <diffuse>0.9473974642134325 0.9058027975331148 0.5279876653694878 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <pose>0 0 0.01 0 0 0</pose>
+        <geometry>
+            <cylinder>
+              <radius>0.029</radius>
+              <length>0.02</length>
+            </cylinder>
+        </geometry>
+      </collision>
+      <collision name="ball1">
+        <pose>0.02050609665440988 0.02050609665440988 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball2">
+        <pose>-0.02050609665440988 0.02050609665440988 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball3">
+        <pose>0.02050609665440988 -0.02050609665440988 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
+        </geometry>
+      </collision>
+      <collision name="ball4">
+        <pose>-0.02050609665440988 -0.02050609665440988 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>1e-07</radius>
+          </sphere>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
