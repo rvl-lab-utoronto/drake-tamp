@@ -123,4 +123,4 @@ if __name__ == '__main__':
         s = io.StringIO()
         ps = pstats.Stats(pr, stream=s)
         ps.print_stats()
-        ps.dump_stats('exp.profile')   
+        ps.dump_stats(args.profile)   
