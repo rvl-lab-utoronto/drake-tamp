@@ -9,28 +9,29 @@ arms:
 
 objects:
 
-     #blue_block:
-          #path: "models/blocks_world/sdf/blue_block.sdf"
-          #X_WO: [0.65, 0.1, 0.38, 0, 0, 0]
-          #main_link: "base_link"
-          #on-region: ["red_table", "base_link"]
-
-     orange_block:
-          path: "models/blocks_world/sdf/orange_block.sdf"
-          X_WO: [0.65, -0.1, 0.38, 0, 0, 0]
+     blue_block:
+          path: "models/blocks_world/sdf/blue_block.sdf"
+          X_WO: [0.65, 0.1, 0.325, 0, 0, 0]
           main_link: "base_link"
           on-region: ["red_table", "base_link"]
 
-     green_block:
-          path: "models/blocks_world/sdf/green_block.sdf"
-          X_WO: [-0.65, -0.1, 0.38, 0, 0, 0]
+     orange_block:
+          path: "models/blocks_world/sdf/orange_block.sdf"
+          X_WO: [0.65, -0.1, 0.325, 0, 0, 0]
           main_link: "base_link"
-          on-region: ["blue_table", "base_link"]
+          on-region: ["red_table", "base_link"]
+
+     #green_block:
+          #path: "models/blocks_world/sdf/green_block.sdf"
+          #X_WO: [-0.65, -0.1, 0.38, 0, 0, 0]
+          #main_link: "base_link"
+          #on-region: ["blue_table", "base_link"]
 
 goal: 
      - and
-     - [on-item, orange_block, green_block]
-     - [on-region, green_block, ["red_table", "base_link"]]
+     - [on-item, blue_block, orange_block]
+     #- [on-item, green_block, orange_block]
+     - [on-region, orange_block, ["red_table", "base_link"]]
 
 main_links:
      red_table: "base_link"

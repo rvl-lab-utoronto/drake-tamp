@@ -25,7 +25,7 @@ HAND_HEIGHT = 0.1
 COL_MARGIN = 0.0  # acceptable margin of error for collisions
 CONSIDER_MARGIN = 0.1
 GRASP_MARGIN = 0.006  # margin for grasp planning
-Q_NOMINAL = np.array([0.0, 0.55, 0.0, -1.45, 0.0, 1.58, np.pi/4])
+Q_NOMINAL = np.array([0.0, 0.55, 0.0, -1.45, 0.0, 1.58, 0.0])
 HAND_FRAME_NAME = "panda_hand"
 THETA_TOL = np.pi * 0.01
 DROP_HEIGHT = 0.02
@@ -69,7 +69,7 @@ def find_table_place(station, station_context, shape_info, surface):
     S = surface.shape_info.offset_frame
     #TODO(agro): make this random choice smarter
     p_SI_S = np.random.uniform(lower,upper)
-    p_SI_S[2] = surface.bb_min[2] + 0.005
+    p_SI_S[2] = surface.bb_min[2] + 1e-3
     X_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S)
     p_WS_W = X_WS.translation()
     R_WS = X_WS.rotation()
@@ -78,12 +78,24 @@ def find_table_place(station, station_context, shape_info, surface):
     R_WI = RotationMatrix.MakeZRotation(np.random.uniform(0, 2*np.pi))
     return RigidTransform(R_WI, p_WI_W)
 
+def eff_radius(shape_info):
+    shape = shape_info.shape
+    if isinstance(shape, Cylinder):
+        return shape.radius()
+    elif isinstance(shape, Sphere):
+        return shape.radius()
+    elif isinstance(shape, Box):
+        return max(shape.width(), shape.depth())
+    assert False, "This shape is not yet supported"
+
 def find_block_place(station, station_context, shape_info, surface):
+    if eff_radius(shape_info) > 1e-5 + eff_radius(surface.shape_info):
+        return None
     plant, plant_context = get_plant_and_context(station, station_context)
     S = surface.shape_info.offset_frame
     middle = (surface.bb_min + surface.bb_max)*0.5
     p_SI_S = middle
-    p_SI_S[2] = surface.bb_min[2] + 0.005
+    p_SI_S[2] = surface.bb_min[2] + 1e-3
     X_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S)
     p_WS_W = X_WS.translation()
     R_WS = X_WS.rotation()
@@ -157,8 +169,8 @@ def find_ik_with_handpose(
     ik = InverseKinematics(plant, plant_context)
     if not relax:
         ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-    lower = X_HI.translation() - np.array([0.001, 0.001, 0.001])
-    upper = X_HI.translation() + np.array([0.001, 0.001, 0.001])
+    lower = X_HI.translation() - np.array([0.001, 0.001, 0.01])
+    upper = X_HI.translation() + np.array([0.001, 0.001, 0.01])
     ik.AddPositionConstraint(
         H,
         np.zeros(3),
@@ -203,6 +215,15 @@ def check_colfree_block(station, station_context, panda_name, q):
             plant.SetPositions(plant_context, panda_info.panda, Q_NOMINAL)
         
     query_object = query_output_port.Eval(scene_graph_context)
+    #pairs = query_object.ComputePointPairPenetration()
+    #for p in pairs:
+        #print(p.id_A, p.id_B)
+        #print(plant.GetCollisionGeometriesForBody(plant.GetBodyByName("panda_hand")))
+        ##print(plant.GetCollisionGeometriesForBody(plant.GetBodyByName("panda_leftfinger")))
+        ##print(plant.GetCollisionGeometriesForBody(plant.GetBodyByName("panda_rightfinger")))
+    #for name, (info, _) in station.object_infos.items():
+        #print(name)
+        #print(plant.GetCollisionGeometriesForBody(info.main_body_info.body))
     return not query_object.HasCollisions()
 
 def check_colfree_arms(station, station_context, arm1_name, q1, arm2_name, q2):
