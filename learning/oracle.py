@@ -424,8 +424,8 @@ class CachingModel(Model):
         self.logits = {}
         self.init_objects = objects_from_facts(self.problem_info.initial_facts)
 
-    def calculate_result_key(self, result, node_from_atom):
-        atom_map = make_atom_map(node_from_atom)
+    def calculate_result_key(self, result, node_from_atom, atom_map = None):
+        atom_map = atom_map.copy()
         facts = [fact_to_pddl(f) for f in result.get_certified()]
         domain = [fact_to_pddl(f) for f in result.domain]
         result_key = tuple()
@@ -434,13 +434,34 @@ class CachingModel(Model):
             result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
         return result_key
 
-    def predict(self, result, node_from_atom, levels, **kwargs):
+    def predict(self, result, node_from_atom, levels, atom_map = None, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
             return 0.5/l
-        result_key = self.calculate_result_key(result, node_from_atom)
+        if atom_map is None:
+            assert False
+            atom_map = make_atom_map(node_from_atom)
+        else:
+            #check_atom_map = make_atom_map(node_from_atom)
+            #print(set(check_atom_map.keys()).symmetric_difference(set(atom_map.keys())))
+            #print()
+            #diff = set(atom_map.keys()) - (set(check_atom_map.keys()))
+            #print(diff)
+            #for d in diff:
+                #print(atom_map[d])
+            #print()
+            #vs = set(map(tuple, list(atom_map.values())))
+            #check_vs = set(map(tuple, list(check_atom_map.values())))
+            #print(check_vs.symmetric_difference(vs))
+            #print()
+            #print(check_vs- vs)
+            #print()
+            #print(vs- check_vs)
+            #assert check_atom_map == atom_map
+            pass
+        result_key = self.calculate_result_key(result, node_from_atom, atom_map = atom_map)
         if result_key not in self.logits:
-            invocation_info = InvocationInfo(result, node_from_atom)
+            invocation_info = InvocationInfo(result, node_from_atom, atom_map = atom_map)
             data = construct_with_problem_graph(construct_hypermodel_input_faster)(
                 invocation_info,
                 self.problem_info,
