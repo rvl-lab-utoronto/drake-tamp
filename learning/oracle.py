@@ -6,10 +6,11 @@ from datetime import datetime
 import numpy as np
 
 import torch
+from torch_geometric.data.data import Data
 
-from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo
-from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_with_problem_graph, fact_level
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
+from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierV2Info
+from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level
+from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
 from torch_geometric.data.batch import Batch
@@ -637,3 +638,65 @@ class ComplexityDataCollector(ComplexityModelV3):
         if all([d in node_from_atom for d in result.domain]):
             self.saved_node_from_atoms[result] = node_from_atom.copy()
         return super().predict(result, node_from_atom, levels)
+
+class MultiHeadModel(Oracle):
+    def __init__(self, *args, **kwargs):
+        model_path = kwargs.pop('model_path')
+        super().__init__(*args, **kwargs)
+        self.model_path = model_path
+        self.model = None
+    
+    def set_model_info(self, domain, externals):
+        new_externals = []
+        for external in externals:
+            new_externals.append(
+                {
+                    "certified": external.certified,
+                    "domain": external.domain,
+                    "fluents": external.fluents,
+                    "inputs": external.inputs,
+                    "outputs": external.outputs,
+                    "name": external.name,
+                }
+            )
+        self.model_info = StreamInstanceClassifierV2Info(
+            predicates=[p.name for p in domain.predicates],
+            streams=[None] + [e["name"] for e in new_externals],
+            stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
+            stream_num_inputs = [None] + [len(e["inputs"]) for e in new_externals],
+            stream_num_outputs = [None] + [len(e["outputs"]) for e in new_externals],
+            stream_domains = [None] + [e["domain"] for e in new_externals],
+            domain = domain
+        )
+        self.load_model()
+
+    def load_model(self):
+        self.model = StreamInstanceClassifierV2(
+            self.model_info,
+        )
+        self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
+        self.model.eval()
+
+        self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
+        problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
+        self.object_reps = self.model.get_init_reps(problem_graph_input)
+        self.history = {}
+    
+    def predict(self, result, node_from_atom, levels, **kwargs):
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        if not all([d in node_from_atom for d in result.domain]):
+            return 0.5/l
+        
+        if result.instance in self.history:
+            score, reps = self.history[result.instance]
+            outputs = tuple()
+            for o, r in zip(map(obj_to_pddl, result.output_objects), reps):
+                self.object_reps[o] = r 
+        else:
+            inputs = tuple(map(obj_to_pddl, result.input_objects))
+            outputs = tuple(map(obj_to_pddl, result.output_objects))
+            data = Data(stream_schedule=[[{"name": result.name, "input_objects": inputs, "output_objects": outputs}]])
+            score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
+            self.history[result.instance] = (score, [self.object_reps[o] for o in outputs])
+
+        return score / l

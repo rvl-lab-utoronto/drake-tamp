@@ -52,6 +52,7 @@ def make_argument_parser():
             "oraclemodel",
             "model",
             "cachingmodel",
+            "multiheadmodel",
             "complexityoracle"
         ]
     )

@@ -198,16 +198,26 @@ class StreamInstanceClassifierV2(nn.Module):
             setattr(self, f"mlp{i}", mlp)
 
 
+    def get_init_reps(self, problem_graph):
+        problem_graph = Batch().from_data_list([problem_graph])
+        prob_x = self.problem_graph_network(problem_graph, return_x=True)
+        object_reps = {name: prob_x[i] for i,name in enumerate(problem_graph.nodes[0])}
+        return object_reps
+
     def forward(self, data, object_reps=None, score=False, update_reps=False):
         stream_schedule = data.stream_schedule
-        problem_graph = data.problem_graph
-        assert (problem_graph is None or object_reps is None) and not (object_reps is None and problem_graph is None)
         if object_reps is None:
-            problem_graph = Batch().from_data_list(problem_graph)
-            prob_x = self.problem_graph_network(problem_graph, return_x=True)
-            object_reps = {name: prob_x[i] for i,name in enumerate(problem_graph.nodes[0])}
+            assert hasattr(data, 'problem_graph')
+            problem_graph = data.problem_graph
+            assert isinstance(problem_graph, list) and len(problem_graph) == 1, "Batching not supported"
+            object_reps = self.get_init_reps(problem_graph[0])
+        else:
+            assert not hasattr(data, 'problem_graph')
+        
+        assert isinstance(stream_schedule, list) and len(stream_schedule) == 1, "Batching not supported"
+        stream_schedule = stream_schedule[0]
 
-        for stream in stream_schedule[0]:
+        for stream in stream_schedule:
             stream_index = self.stream_to_index[stream["name"]] - 1
             stream_mlp = self.mlps[stream_index]
             stream_inputs = torch.cat([object_reps[n] for n in stream["input_objects"]], dim=0)
