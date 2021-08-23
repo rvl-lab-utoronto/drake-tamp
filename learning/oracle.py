@@ -440,7 +440,7 @@ class CachingModel(Model):
             return 0.5/l
         result_key = self.calculate_result_key(result, atom_map)
         if result_key not in self.logits:
-            invocation_info = InvocationInfo(result, node_from_atom)
+            invocation_info = InvocationInfo(result, node_from_atom, atom_map = atom_map)
             data = construct_with_problem_graph(construct_hypermodel_input_faster)(
                 invocation_info,
                 self.problem_info,
