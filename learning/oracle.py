@@ -443,20 +443,6 @@ class CachingModel(Model):
             atom_map = make_atom_map(node_from_atom)
         else:
             #check_atom_map = make_atom_map(node_from_atom)
-            #print(set(check_atom_map.keys()).symmetric_difference(set(atom_map.keys())))
-            #print()
-            #diff = set(atom_map.keys()) - (set(check_atom_map.keys()))
-            #print(diff)
-            #for d in diff:
-                #print(atom_map[d])
-            #print()
-            #vs = set(map(tuple, list(atom_map.values())))
-            #check_vs = set(map(tuple, list(check_atom_map.values())))
-            #print(check_vs.symmetric_difference(vs))
-            #print()
-            #print(check_vs- vs)
-            #print()
-            #print(vs- check_vs)
             #assert check_atom_map == atom_map
             pass
         result_key = self.calculate_result_key(result, node_from_atom, atom_map = atom_map)
