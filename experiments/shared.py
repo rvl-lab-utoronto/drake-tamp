@@ -13,6 +13,8 @@ def construct_oracle(mode, pddl_problem, problem_info, model_poses, **kwargs):
         oracle_class = ora.ComplexityModelV2
     elif mode == "complexityV3":
         oracle_class = ora.ComplexityModelV3
+    elif mode == "complexityandstructure":
+        oracle_class = ora.ComplexityModelV3StructureAware
     elif mode == "model":
         oracle_class = ora.Model
     elif mode == "cachingmodel":

@@ -425,8 +425,7 @@ class CachingModel(Model):
         self.logits = {}
         self.init_objects = objects_from_facts(self.problem_info.initial_facts)
 
-    def calculate_result_key(self, result, node_from_atom):
-        atom_map = make_atom_map(node_from_atom)
+    def calculate_result_key(self, result, atom_map):
         facts = [fact_to_pddl(f) for f in result.get_certified()]
         domain = [fact_to_pddl(f) for f in result.domain]
         result_key = tuple()
@@ -435,11 +434,11 @@ class CachingModel(Model):
             result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
         return result_key
 
-    def predict(self, result, node_from_atom, levels, **kwargs):
+    def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
             return 0.5/l
-        result_key = self.calculate_result_key(result, node_from_atom)
+        result_key = self.calculate_result_key(result, atom_map)
         if result_key not in self.logits:
             invocation_info = InvocationInfo(result, node_from_atom)
             data = construct_with_problem_graph(construct_hypermodel_input_faster)(
@@ -479,6 +478,31 @@ class ComplexityModelV3(Oracle):
     def predict(self, result, node_from_atom, levels, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         return 1  / l
+
+class ComplexityModelV3StructureAware(Oracle):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.counts = {}
+
+    def calculate_result_key(self, result, atom_map):
+        if not hasattr(self, 'init_objects'):
+            self.init_objects = objects_from_facts(self.problem_info.initial_facts)
+        facts = [fact_to_pddl(f) for f in result.get_certified()]
+        domain = [fact_to_pddl(f) for f in result.domain]
+        result_key = tuple()
+        for fact in facts:
+            atom_map[fact] = domain
+            result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
+        return result_key
+
+    def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        if not all([d in node_from_atom for d in result.domain]):
+            return 1 / l
+        result_key = self.calculate_result_key(result, atom_map)
+        count = self.counts.get(result_key, 0) 
+        self.counts[result_key] = count + 1
+        return 1  / (l + count)
 
 class OracleModelExpansion(OracleModel):
     def load_stats(self):

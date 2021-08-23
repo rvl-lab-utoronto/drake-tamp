@@ -47,6 +47,7 @@ def make_argument_parser():
             "save",
             "oracle",
             "complexityV3",
+            "complexityandstructure",
             "complexitycollector",
             "oracleexpansion",
             "oraclemodel",
