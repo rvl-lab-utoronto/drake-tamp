@@ -1,4 +1,6 @@
 import itertools
+from tqdm import tqdm
+from glob import glob
 import math
 import json
 from operator import mod
@@ -1184,11 +1186,12 @@ def query_data(pddl: str, query: list):
             - max_goal_stack
             - buffer_radius
     """
-    datapath = get_base_datapath()
-    data_info_path = datapath + "data_info.json"
-    assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
-    with open(data_info_path, "r") as f:
-        info = json.load(f)
+    info = make_data_info(write = False)
+    #datapath = get_base_datapath()
+    #data_info_path = datapath + "data_info.json"
+    #assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
+    #with open(data_info_path, "r") as f:
+        #info = json.load(f)
     assert (
         pddl in info
     ), "This domain.pddl and stream.pddl cannot be found in previous runs"
@@ -1216,7 +1219,7 @@ def query_data(pddl: str, query: list):
 
 def get_base_datapath():
     sep = os.path.sep
-    datapath = os.path.join(sep.join(FILEPATH.split(sep)[:-1]),"data/labeled/")
+    datapath = os.path.join(sep.join(FILEPATH.split(sep)[:-1]),"data", "labeled")
     return datapath
 
 
@@ -1230,50 +1233,26 @@ def get_pddl_key(domain):
     raise ValueError(f"{domain} not in data_info.json")
 
 
-#DEPRECIATED
-def dep_fact_to_relevant_actions(fact, domain, indices = True):
-    """
-    Given a fact, determine which actions it is part of the
-    preconditions and effects of.
-    params:
-        fact: A pddl stream fact represented as a tuple
-        domain: a pddlstream.algorithms.downward.Domain object
-        indices (optional): if true, return multi-hot encoding,
-        else return a tuple of list of action names 
-        ([appears in precondition of ], [appears in postcondition of])
-    """
-
-    assert len(fact) > 0, "must input a non-empty fact tuple"
-    fact_name = fact[0]
-    actions = domain.actions
-
-    in_prec = []
-    in_eff = []
-    multi_hot = np.zeros(len(actions*2))
-
-    action_index = 0
-    for action in actions:
-        for precondition in action.precondition.parts:
-            precondition = precondition.predicate
-            if fact_name == precondition:
-                multi_hot[action_index] = 1
-                in_prec.append(action.name)
-                break
-        for effect in action.effects:
-            effect = effect.literal.predicate
-            if fact_name == effect:
-                in_eff.append(action.name)
-                multi_hot[action_index + len(actions)] = 1
-                break 
-        action_index += 1
-
-    if indices:
-        return multi_hot
-
-    return in_prec, in_eff
+def make_data_info(base_path = None, write = True):
+    base_path = get_base_datapath()
+    data_info = {}
+    print("Making data_info.json")
+    for pkl_path in tqdm(glob(os.path.join(base_path, '*.pkl'))):
+        with open(pkl_path, "rb") as f:
+            pkl_data = pickle.load(f)
+            pddl = pkl_data["domain_pddl"] + pkl_data["stream_pddl"]
+            if pddl not in data_info:
+                data_info[pddl] = []
+            data_info[pddl].append((pkl_data["data_info"], os.path.split(pkl_path)[1], pkl_data["num_labels"]))
+    if write:
+        with open(os.path.join(base_path, "data_info.json"), "w") as f:
+            json.dump(data_info, f, indent =4 , sort_keys = True)
+    return data_info
 
 
 if __name__ == "__main__":
+
+    make_data_info()
 
     """
     datafile = open(

@@ -147,16 +147,17 @@ class Oracle:
             domain = domain
         )
 
-    def save_labeled(self, stats_path, path=None):
+    def save_labeled(self, stats_path, path=None, save_data_info = False):
         if not os.path.isdir(f"{FILEPATH}/data"):
             os.mkdir(f"{FILEPATH}/data")
         if not os.path.isdir(f"{FILEPATH}/data/labeled"):
             os.mkdir(f"{FILEPATH}/data/labeled")
-        info_path = f"{FILEPATH}/data/labeled/data_info.json"
-        data_info = {}
-        if os.path.isfile(info_path):
-            with open(info_path, "r") as f:
-                data_info = json.load(f)
+        if save_data_info:
+            info_path = f"{FILEPATH}/data/labeled/data_info.json"
+            data_info = {}
+            if os.path.isfile(info_path):
+                with open(info_path, "r") as f:
+                    data_info = json.load(f)
         if path is None:
             path = self.save_path
 
@@ -176,13 +177,13 @@ class Oracle:
             self.run_attr["evaluations"] = stats["summary"]["evaluations"]
             self.run_attr["stats_path"] = stats_path
             pddl = self.domain_pddl + self.stream_pddl 
-            if pddl not in data_info:
-                # only save name of pkl file
-                data_info[pddl] = []
-            data_info[pddl].append((self.run_attr, datafile, len(self.labels)))
-
-            with open(info_path, "w") as f:
-                json.dump(data_info, f, indent = 4, sort_keys = True)
+            if save_data_info:
+                if pddl not in data_info:
+                    # only save name of pkl file
+                    data_info[pddl] = []
+                data_info[pddl].append((self.run_attr, datafile, len(self.labels)))
+                with open(info_path, "w") as f:
+                    json.dump(data_info, f, indent = 4, sort_keys = True)
 
         data = {}
         data["stats_path"] = stats_path
@@ -195,6 +196,7 @@ class Oracle:
         self.problem_info.object_mapping = {k:v.value for k,v in Object._obj_from_name.items()}
         self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
         data["num_labels"] = len(self.labels)
+        data["data_info"] = self.run_attr
 
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
