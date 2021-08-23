@@ -170,8 +170,8 @@ class StreamInstanceClassifierV2(nn.Module):
     def __init__(
         self,
         model_info,
-        feature_size=8,
-        hidden_size=8,
+        feature_size=16,
+        hidden_size=16,
     ):
         super().__init__()
         self.problem_graph_network = ProblemGraphNetwork(
