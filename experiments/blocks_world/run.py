@@ -513,7 +513,8 @@ def run_blocks_world(
     oracle_kwargs={},
     should_save=False,
     eager_mode=False,
-    path=None
+    path=None,  
+    max_planner_time = 10,
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -570,7 +571,8 @@ def run_blocks_world(
         use_unique=use_unique,
         max_time=max_time,
         eager_mode=eager_mode,
-        search_sample_ratio=search_sample_ratio
+        search_sample_ratio=search_sample_ratio,
+        max_planner_time = max_planner_time
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
@@ -742,12 +744,20 @@ def main_generation_loop():
 
 if __name__ == '__main__':
     # main_generation_loop()
-    url = "tcp://127.0.0.1:6003"
+    #url = "tcp://127.0.0.1:6003"
 
     res, _ = run_blocks_world(
         problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
-        mode="normal",
-        url = url,
-        simulate = True,
+        mode="save",
+        #url = url,
+        #simulate = False,
+        max_time = 180
+    )
+
+    res, _ = run_blocks_world(
+        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
+        mode="oracle",
+        #url = url,
+        #simulate = False,
         max_time = 180
     )

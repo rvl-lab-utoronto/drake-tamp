@@ -491,7 +491,8 @@ def run_kitchen(
     eager_mode = False,
     oracle_kwargs = {},
     should_save = False,
-    path = None
+    path = None,
+    max_planner_time = 10
 ):
 
     time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
@@ -540,7 +541,8 @@ def run_kitchen(
         search_sample_ratio=search_sample_ratio,
         stream_info = {
             'find-ik': StreamInfo(use_unique=True)
-        }
+        },
+        max_planner_time = max_planner_time
     )
 
     print(f"\n\n{algorithm} solution:")

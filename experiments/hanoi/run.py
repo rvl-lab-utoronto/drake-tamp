@@ -541,7 +541,8 @@ def run_hanoi(
     oracle_kwargs={},
     should_save=False,
     eager_mode=False,
-    path=None
+    path=None,
+    max_planner_time = 10,
 ):
 
     assert problem_file is not None, "Random generation is not yet supported"
@@ -600,7 +601,8 @@ def run_hanoi(
         use_unique=use_unique,
         max_time=max_time,
         eager_mode=eager_mode,
-        search_sample_ratio=search_sample_ratio
+        search_sample_ratio=search_sample_ratio,
+        max_planner_time = max_planner_time,
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)

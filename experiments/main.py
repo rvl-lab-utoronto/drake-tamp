@@ -90,6 +90,12 @@ def make_argument_parser():
         default=None,
         required=False
     )
+    parser.add_argument(
+        '--max_planner_time',
+        type=float,
+        default=10,
+        required=False
+    )
     return parser
 
 if __name__ == '__main__':
@@ -117,6 +123,7 @@ if __name__ == '__main__':
         simulate=False,
         oracle_kwargs=oracle_options,
         path=args.logpath,
+        max_planner_time = args.max_planner_time,
         **domain_options
     )
     if args.profile:
