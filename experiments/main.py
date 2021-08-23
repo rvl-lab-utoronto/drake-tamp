@@ -11,32 +11,39 @@ domains = {
     'two_arm_blocks_world': run_two_arm_blocks_world,
     'hanoi': run_hanoi
 }
+
+example = '{"model_path":"/home/agrobenj/drake-tamp/model_files/blocksworld_V2_adaptive/best.pt"}'
 def make_argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--domain",
         type=str,
         choices=list(domains.keys()),
-        default="kitchen"
+        default="kitchen",
+        help = "The name of the domain to test"
     )
     parser.add_argument(
         "--domain-options",
-        type=str
+        type=str,
+        help = "Domain specific options in json kwarg format"
     )
     parser.add_argument(
         "--problem-file",
         type=str,
-        required=False
+        required=False,
+        help = "A path to the .yaml problem file"
     )
     parser.add_argument(
         "--oracle-options",
-        type=str
+        type=str,
+        help = f"Keyword arguments passed to the model in json format, like {example}"
     )
     parser.add_argument(
         "--algorithm",
         type=str,
         default="adaptive",
-        choices=["informedV2", "adaptive"]
+        choices=["informedV2", "adaptive"],
+        help = "Which algorithm do you want to run the trial with?"
     )
     parser.add_argument(
         "--mode",
@@ -59,42 +66,50 @@ def make_argument_parser():
     )
     parser.add_argument(
         "--use-unique",
-        action="store_true"
+        action="store_true",
+        help = "Make INFORMED use strictly unique results (refined) during planning. Warning, this will usually drasically slow things down"
     )
     parser.add_argument(
         "--should-save",
-        action="store_true"
+        action="store_true",
+        help = "Force the oracle to save data to the save path"
     )
     parser.add_argument(
         "--max-time",
         type=int,
-        default=60
+        default=60,
+        help="Maximum total runtime of the trial"
     )
     parser.add_argument(
         '--eager-mode',
-        action="store_true"
+        action="store_true",
+        help = "Do you want to run INFORMED in eager-mode? (i.e every stream result popped of the queue has all it's children added to the I^*"
     )
     parser.add_argument(
         '--profile',
         type=str,
         default=None,
-        required=False
+        required=False,
+        help = "A path to (optionally) save a .profile file to (from CProfile)"
     )
     parser.add_argument(
         '--url',
-        type=str, required=False
+        type=str, required=False,
+        help="A meshcat url for viewing the problem"
     )
     parser.add_argument(
         '--logpath',
         type=str,
         default=None,
-        required=False
+        required=False,
+        help="The directory to save the logs"
     )
     parser.add_argument(
         '--max_planner_time',
         type=float,
         default=10,
-        required=False
+        required=False,
+        help="The maximum time before FastDownward times out (per call)"
     )
     return parser
 

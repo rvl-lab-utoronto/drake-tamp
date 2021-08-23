@@ -28,38 +28,52 @@ import torch
 
 def make_argument_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-home", type=str, default="/tmp")
+    parser.add_argument(
+        "--model-home",
+        type=str,
+        default="/tmp",
+        help = "A directory in which logs and parameters will be saved during training"
+    )
     parser.add_argument(
         "--test-only",
         action="store_true",
+        help = "If you only want to test a model (not end-to-end)"
     )
     parser.add_argument(
-        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2"], default="hyper"
+        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2"], default="hyper",
+        help = "The type of model you want to train. See learning/gnn/models.py for more information"
     )
-    parser.add_argument("--epochs", type=int, default=500)
-    parser.add_argument("--save-every", type=int, default=10)
-    parser.add_argument("--pos-weight", type=float, default=3.0)
-    # parser.add_argument(
-    #     "--augment-data",
-    #     action="store_true"
-    # )
-    parser.add_argument("--stratify-train-prop", type=float, default=None)
-    parser.add_argument("--lr", default=0.0001, type=float)
-    parser.add_argument("--gradient-batch-size", default=1, type=int)
-    parser.add_argument("--batch-size", default=128, type=int)
-    parser.add_argument("--num-preprocessors", default=8, type=int)
-    parser.add_argument("--from-best", action="store_true")
-    #parser.add_argument("--use-reduced-graph", action="store_true")
-    parser.add_argument("--use-problem-graph", action="store_true")
+    parser.add_argument(
+        "--epochs", type=int, default=500,
+        help = "The number of epochs to train for"
+    )
+    parser.add_argument(
+        "--save-every", type=int, default=10,
+        help = "The number of epochs between tests on the validation set and saving model parameters"
+    )
+    parser.add_argument(
+        "--pos-weight", type=float, default=3.0,
+        help="The weighting given to positive examples in the training set"
+    )
+    parser.add_argument(
+        "--stratify-train-prop", type=float, default=None,
+        help = "The proportion of positive examples shown to the model" #TODO: is this correct?
+    )
+    parser.add_argument("--lr", default=0.0001, type=float, help = "The learning rate")
+    parser.add_argument("--gradient-batch-size", default=1, type=int, help = "") #TODO: what is this
+    parser.add_argument("--batch-size", default=128, type=int, help = "The batch size")
+    parser.add_argument("--num-preprocessors", default=8, type=int, help = "The number of cpu cores allowed to help preprocess the data")
+    parser.add_argument("--from-best", action="store_true", help = "Do you want to use the best.pt file saved in the model directory during testing")
+    parser.add_argument("--use-problem-graph", action="store_true", help = "Do you want to use the problem graph model")
     parser.add_argument(
         "--datafile",
         type=str,
         help="A path to a json file containing train and validation keys wich have a list of pkl paths as values.",
     )
-    parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--epoch-size", default=1280, type=int)
-    parser.add_argument("--preprocess-all", action="store_true")
-    parser.add_argument("--ablation", action="store_true")
+    parser.add_argument("--debug", action="store_true", help = "Are you debugging?")
+    parser.add_argument("--epoch-size", default=1280, type=int, help = "The number of labels shown per epoch")
+    parser.add_argument("--preprocess-all", action="store_true", help = "Do you want to preprocess all of the data, or processes it when it is needed?")
+    parser.add_argument("--ablation", action="store_true", help = "Are you doing an ablation study?") # what exactly does this do?
     return parser
 
 
