@@ -121,6 +121,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
     def add_panda_with_hand(
         self,
         weld_fingers=False,
+        blocked = False,
         q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, np.pi/4]),
         X_WB = pydrake.math.RigidTransform(),
         panda_name = None,
@@ -147,10 +148,11 @@ class PandaStation(pydrake.systems.framework.Diagram):
             self.plant,
             panda_model_instance_index=panda,
             weld_fingers=weld_fingers,
-            name = hand_name
+            blocked = blocked,
+            name = hand_name,
         )
         self.panda_infos[panda_name] = PandaInfo(
-            panda, hand, panda_name, hand_name, X_WB, weld_fingers
+            panda, hand, panda_name, hand_name, X_WB, weld_fingers or blocked
         )
         return self.panda_infos[panda_name]
 

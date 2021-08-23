@@ -52,8 +52,7 @@ from panda_station import (
     Q_NOMINAL,
 )
 from tamp_statistics import make_plot
-from experiments.blocks_world import blocks_world_streams
-from experiments.blocks_world.data_generation import make_problem
+import mega_streams
 
 VERBOSE = False
 
@@ -73,13 +72,17 @@ def lprint(string):
     if VERBOSE:
         print(string)
 
+
 def retrieve_model_poses(
-    main_station, main_station_context, model_names, link_names,
+    main_station,
+    main_station_context,
+    model_names,
+    link_names,
 ):
     """
     For each model = model_names[i], return the worldpose of main_link_name[i]
 
-  
+
     where X_WM is a RigidTransform reprsenting the model worldpose
     """
 
@@ -89,19 +92,17 @@ def retrieve_model_poses(
     res = []
 
     for model_name, link_name in zip(model_names, link_names):
-        body = plant.GetBodyByName(
-            link_name,
-            plant.GetModelInstanceByName(model_name)
-        )
+        body = plant.GetBodyByName(link_name, plant.GetModelInstanceByName(model_name))
         X_WB = plant.EvalBodyPoseInWorld(plant_context, body)
         res.append(
             {
-                "name": (model_name,link_name),
+                "name": (model_name, link_name),
                 "X": X_WB,
             }
         )
 
     return res
+
 
 def construct_problem_from_sim(simulator, stations, problem_info):
     """
@@ -116,7 +117,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     station_contexts = {}
     for name in stations:
         station_contexts[name] = stations[name].CreateDefaultContext()
-    # start poses of all manipulands
     start_poses = parse_start_poses(main_station, main_station_context)
 
     # this needs to be done first so all of the RTs are updated
@@ -126,8 +126,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         transform = RigidTransformWrapper(pose, name=f"X_W{name}")
         transforms[name] = transform
         start_poses[name] = transform
-        if "on-block" in problem_info.objects[name]:
-            supports.append(problem_info.objects[name]["on-block"])
+        if "on-item" in problem_info.objects[name]:
+            supports.append(problem_info.objects[name]["on-item"])
 
     for i, fact in enumerate(goal):
         if not isinstance(fact, tuple):
@@ -135,33 +135,33 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         goal[i] = list(goal[i])
         for j, obj in enumerate(fact):
             if isinstance(obj, list):
-                goal[i][j] = transforms[fact[j-1]]
+                goal[i][j] = transforms[fact[j - 1]]
         goal[i] = tuple(goal[i])
 
     for name, pose in start_poses.items():
         init += [
-            ("block", name),
+            ("item", name),
             ("worldpose", name, pose),
             ("atworldpose", name, pose),
         ]
-        if "on-table" in problem_info.objects[name]:
+        if "on-region" in problem_info.objects[name]:
             init += [
                 (
-                    "table-support",
+                    "region-support",
                     name,
                     pose,
-                    tuple(problem_info.objects[name]["on-table"]),
+                    tuple(problem_info.objects[name]["on-region"]),
                 ),
-                ("on-table", name, tuple(problem_info.objects[name]["on-table"]))
+                ("on-region", name, tuple(problem_info.objects[name]["on-region"])),
             ]
-        elif "on-block" in problem_info.objects[name]:
-            block = problem_info.objects[name]["on-block"]
+        elif "on-item" in problem_info.objects[name]:
+            item = problem_info.objects[name]["on-item"]
             init += [
-                ("block-support", name, pose, block, start_poses[block]),
-                ("on-block", name, block)
+                ("item-support", name, pose, item, start_poses[item]),
+                ("on-item", name, item),
             ]
         else:
-            raise SyntaxError(f"Object {name} needs to specify on-table or on-block")
+            raise SyntaxError(f"Object {name} needs to specify on-region or on-item")
         if not (name in supports):
             init += [
                 ("clear", name),
@@ -181,30 +181,25 @@ def construct_problem_from_sim(simulator, stations, problem_info):
 
     for object_name in problem_info.surfaces:
         for link_name in problem_info.surfaces[object_name]:
-            table = (object_name, link_name)
-            init += [("table", table)]
+            region = (object_name, link_name)
+            init += [("region", region)]
+            if object_name == "sink":
+                init += [("sink", region)]
+            if "burner" in link_name:
+                init += [("burner", region)]
             static_model_names.append(object_name)
             static_link_names.append(link_name)
 
     static_model_poses = retrieve_model_poses(
-        main_station,
-        main_station_context,
-        static_model_names,
-        static_link_names
+        main_station, main_station_context, static_model_names, static_link_names
     )
 
     for s in static_model_poses:
         s["static"] = True
-    
+
     start_poses_d = []
     for s in start_poses.items():
-        start_poses_d.append(
-            {
-                "name": s[0],
-                "X": s[1],
-                "static": False
-            }
-        )
+        start_poses_d.append({"name": s[0], "X": s[1], "static": False})
 
     model_poses = start_poses_d + static_model_poses
     model_poses.append(
@@ -277,27 +272,27 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             if other_name is not None:
                 update_arm(station, station_context, other_name, q_other)
 
-    def find_grasp(block):
-        lprint(f"{Colors.BLUE}Starting grasp stream for {block}{Colors.RESET}")
+    def find_grasp(item):
+        lprint(f"{Colors.BLUE}Starting grasp stream for {item}{Colors.RESET}")
         station = stations["move_free"]
-        object_info = station.object_infos[block][0]
+        object_info = station.object_infos[item][0]
         shape_info = update_graspable_shapes(object_info)[0]
         while True:
-            lprint(f"{Colors.REVERSE}Yielding X_H{block}{Colors.RESET}")
+            lprint(f"{Colors.REVERSE}Yielding X_H{item}{Colors.RESET}")
             yield RigidTransformWrapper(
-                blocks_world_streams.find_grasp(shape_info), name=f"X_H{block}"
+                mega_streams.find_grasp(shape_info), name=f"X_H{item}"
             ),
 
-    def find_ik(arm_name, block, X_WB, X_HB):
-        lprint(f"{Colors.BLUE}Starting ik stream for {block} at {X_WB}{Colors.RESET}")
+    def find_ik(arm_name, item, X_WB, X_HB):
+        lprint(f"{Colors.BLUE}Starting ik stream for {item} at {X_WB}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
             station,
             station_context,
-            [("atworldpose", block, X_WB)],
+            [("atworldpose", item, X_WB)],
             set_others_to_inf=True,
         )
-        object_info = station.object_infos[block][0]
+        object_info = station.object_infos[item][0]
         panda_info = station.panda_infos[arm_name]
         p_WB = X_WB.get_rt().translation()
         X_WP = panda_info.X_WB
@@ -307,8 +302,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         q_initial = Q_NOMINAL[:]
         q_initial[0] = q0
         while True:
-            lprint(f"{Colors.GREEN}Finding ik for {block}{Colors.RESET}")
-            q, cost = blocks_world_streams.find_ik_with_relaxed(
+            lprint(f"{Colors.GREEN}Finding ik for {item}{Colors.RESET}")
+            q, cost = mega_streams.find_ik_with_relaxed(
                 station,
                 station_context,
                 object_info,
@@ -317,90 +312,112 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 q_initial=q_initial,
             )
             if not np.isfinite(cost):
-                lprint(f"{Colors.RED}Failed ik for {block}{Colors.RESET}")
+                lprint(f"{Colors.RED}Failed ik for {item}{Colors.RESET}")
                 return
             pre_q = find_pregrasp(
                 station, station_context, q, 0.07, panda_info=panda_info
             )
-            lprint(f"{Colors.REVERSE}Yielding ik for {block}{Colors.RESET}")
+            lprint(f"{Colors.REVERSE}Yielding ik for {item}{Colors.RESET}")
             yield pre_q, q
             update_station(
                 station,
                 station_context,
-                [("atworldpose", block, X_WB)],
+                [("atworldpose", item, X_WB)],
                 set_others_to_inf=True,
             )
 
-    def find_table_place(block, table):
+    def find_region_place(item, region):
         lprint(
-            f"{Colors.BLUE}Starting place stream for {block} on {table}{Colors.RESET}"
+            f"{Colors.BLUE}Starting place stream for {item} on {region}{Colors.RESET}"
         )
         station, station_context = get_station("move_free")
-        holding_object_info = station.object_infos[block][0]
+        holding_object_info = station.object_infos[item][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
         while True:
-            object_name, link_name = table
+            object_name, link_name =region 
             target_object_info = station.object_infos[object_name][0]
             surface = update_surfaces(
                 target_object_info, link_name, station, station_context
             )[0]
             yield RigidTransformWrapper(
-                blocks_world_streams.find_table_place(
+                mega_streams.find_table_place(
                     station, station_context, shape_info, surface
                 ),
-                name=f"X_W{block}",
+                name=f"X_W{item}",
             ),
 
-    def find_block_place(block, lowerblock, X_WL):
+    def find_item_place(item, loweritem, X_WL):
         station, station_context = get_station("move_free")
         update_station(
             station,
             station_context,
-            [("atworldpose", lowerblock, X_WL)],
+            [("atworldpose", loweritem, X_WL)],
             set_others_to_inf=True,
         )
-        holding_object_info = station.object_infos[block][0]
+        holding_object_info = station.object_infos[item][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
-        target_object_info = station.object_infos[lowerblock][0]
+        target_object_info = station.object_infos[loweritem][0]
         surface = update_surfaces(
             target_object_info, "base_link", station, station_context
         )[0]
         while True:
-            yield RigidTransformWrapper(
-                blocks_world_streams.find_block_place(
+            res = mega_streams.find_block_place(
                     station, station_context, shape_info, surface
-                ),
-                name=f"X_W{block}_on_{lowerblock}",
-            ),
+                )
+            if res is None:
+                return
+            res = RigidTransformWrapper(
+                res,
+                name=f"X_W{item}_on_{loweritem}",
+            )
+            yield (res,)
             update_station(
                 station,
                 station_context,
-                [("atworldpose", lowerblock, X_WL)],
+                [("atworldpose", loweritem, X_WL)],
                 set_others_to_inf=True,
             )
 
-    def check_colfree_block(arm_name, q, block, X_WB):
+    def check_colfree_empty(arm_name, q, item, X_WB):
         lprint(
-            f"{Colors.BLUE}Checking for collisions between {arm_name} and {block}{Colors.RESET}"
+            f"{Colors.BLUE}Checking for collisions between {arm_name} and {item}{Colors.RESET}"
         )
         station, station_context = get_station("move_free")
         update_station(
-            station, station_context, [("atpose", block, X_WB)], set_others_to_inf=True
+            station, station_context, [("atpose", item, X_WB)], set_others_to_inf=True
         )
-        return blocks_world_streams.check_colfree_block(
+        res =  mega_streams.check_colfree_block(
             station, station_context, arm_name, q
         )
+        return res
+
+    def check_colfree_holding(arm_name, q, item, X_WB):
+        lprint(
+            f"{Colors.BLUE}Checking for collisions between {arm_name} and {item}{Colors.RESET}"
+        )
+        station, station_context = get_station("blocked")
+        update_station(
+            station, station_context, [("atpose", item, X_WB)], set_others_to_inf=True
+        )
+        res =  mega_streams.check_colfree_block(
+            station, station_context, arm_name, q
+        )
+        return res
 
     stream_map = {
         "find-traj": from_gen_fn(find_motion),
         "find-ik": from_gen_fn(find_ik),
         "find-grasp": from_gen_fn(find_grasp),
-        "find-table-place": from_gen_fn(find_table_place),
-        "find-block-place": from_gen_fn(find_block_place),
-        "check-colfree-block": from_test(check_colfree_block),
+        "find-region-place": from_gen_fn(find_region_place),
+        "find-item-place": from_gen_fn(find_item_place),
+        "check-colfree-empty": from_test(check_colfree_empty),
+        "check-colfree-holding": from_test(check_colfree_holding),
     }
 
-    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), model_poses
+    return (
+        PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal),
+        model_poses,
+    )
 
 
 def make_and_init_simulation(zmq_url, prob):
@@ -413,6 +430,7 @@ def make_and_init_simulation(zmq_url, prob):
     problem_info = ProblemInfo(prob)
     station = problem_info.make_main_station(time_step=1e-3)
     stations = {"main": station, "move_free": problem_info.make_move_free_station()}
+    stations["blocked"] = problem_info.make_blocked_free_station()
     builder.AddSystem(station)
     scene_graph = station.get_scene_graph()
 
@@ -508,12 +526,12 @@ def run_blocks_world(
     algorithm="adaptive",
     buffer_radius=0,
     simulate=False,
-    max_stack_num = None,
+    max_stack_num=None,
     use_unique=False,
     oracle_kwargs={},
     should_save=False,
     eager_mode=False,
-    path=None
+    path=None,
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -539,8 +557,8 @@ def run_blocks_world(
             num_blockers=num_blockers,
             colorize=True,
             buffer_radius=buffer_radius,
-            max_start_stack = 1,
-            max_goal_stack=max_stack_num
+            max_start_stack=1,
+            max_goal_stack=max_stack_num,
         )
         with open(f"{path}problem.yaml", "w") as stream:
             yaml.dump(yaml_data, stream, default_flow_style=False)
@@ -570,7 +588,7 @@ def run_blocks_world(
         use_unique=use_unique,
         max_time=max_time,
         eager_mode=eager_mode,
-        search_sample_ratio=search_sample_ratio
+        search_sample_ratio=search_sample_ratio,
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
@@ -581,10 +599,12 @@ def run_blocks_world(
         return False, problem_file
 
     if len(plan) == 0:
-        print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
+        print(
+            f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}"
+        )
         return False, problem_file
 
-    if should_save or mode == 'save':
+    if should_save or mode == "save":
         oracle.save_stats(path + "stats.json")
 
     if not algorithm.startswith("informed"):
@@ -656,11 +676,11 @@ def generate_data(
     url=None,
     simulate=False,
     max_stack_num=None,
-    num_repeat_per_problem = 3
+    num_repeat_per_problem=3,
 ):
 
     """
-    params: 
+    params:
         num_blocks: the number of blocks that will be used for stacking
 
         num_blockers: the number of larger blocks that will be extraneous,
@@ -675,11 +695,11 @@ def generate_data(
         max_stack_num:
             The maximum number of blocks that will be stacked ontop of one another
             in the start or goal states.
-            The having many blocks stacked ontop of one another becomes very 
+            The having many blocks stacked ontop of one another becomes very
             computatinoaly expensive to simulate even the first 0.2 s during
             the initialization phase (if SIM_INIT_TIME > 0).
 
-        url: zmq_url where meshcat server is running. 
+        url: zmq_url where meshcat server is running.
             Use drake-tamp/experiments/start_meshcat_server.py to create one
 
         simulate: whether or not the plan should be simulated
@@ -698,13 +718,13 @@ def generate_data(
     if not res:
         return
     mode = "oracle"
-    for i in range((num_repeat_per_problem*2) - 1):
+    for i in range((num_repeat_per_problem * 2) - 1):
         mode = "oracle" if (i % 2 == 0) else "save"
         res, _ = run_blocks_world(
             problem_file=problem_file,
             mode="oracle",
-            url = url,
-            simulate = simulate,
+            url=url,
+            simulate=simulate,
             max_time=max_time,
         )
         if not res:
@@ -714,12 +734,11 @@ def generate_data(
                     data = json.load(f)
             data.append(problem_file)
             with open("oracle_failures.json", "w") as f:
-                json.dump(data, f, sort_keys=True, indent = 4)
-
+                json.dump(data, f, sort_keys=True, indent=4)
 
 
 def main_generation_loop():
-    url = None#"tcp://127.0.0.1:6000"
+    url = None  # "tcp://127.0.0.1:6000"
 
     max_num_blocks = 6
     max_num_blockers = 6
@@ -734,20 +753,21 @@ def main_generation_loop():
                 num_blockers,
                 buffer_radius=0,
                 url=url,
-                max_stack_num= max_stack,
-                simulate = False,
-                max_time = 360,
-                num_repeat_per_problem= 3
+                max_stack_num=max_stack,
+                simulate=False,
+                max_time=360,
+                num_repeat_per_problem=3,
             )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # main_generation_loop()
     url = "tcp://127.0.0.1:6003"
 
     res, _ = run_blocks_world(
-        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
+        problem_file=os.path.join(file_path, "problems", "default_blocks_world.yaml"),
         mode="normal",
-        url = url,
-        simulate = True,
-        max_time = 180
+        url=url,
+        simulate=True,
+        max_time=600,
     )

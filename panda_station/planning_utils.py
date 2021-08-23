@@ -98,7 +98,8 @@ class ProblemInfo:
         X_PO = None,
         planning = False,
         dummy = False,
-        time_step = 1e-3
+        time_step = 1e-3,
+        blocked = False,
     ):
         """
         Makes a PandaStation based on this problem instance.
@@ -132,7 +133,8 @@ class ProblemInfo:
                 hand_name = arm_info["hand_name"],
                 panda_name = arm_info["panda_name"],
                 X_WB = ProblemInfo.list_to_transform(arm_info["X_WB"]),
-                weld_fingers=weld_fingers
+                weld_fingers=weld_fingers,
+                blocked = blocked
             )
             if info.panda_name == arm_name:
                 panda_info = info
@@ -179,7 +181,22 @@ class ProblemInfo:
         print(f"{Colors.BLUE}Building move_free station{Colors.RESET}")
         return self.make_station(
             list(self.objects.keys()),
-            weld_fingers=True,
+            weld_fingers = True,
+            name="move_free",
+            planning = True,
+            arm_name = arm_name,
+            dummy = True
+        )
+
+    def make_blocked_free_station(self, arm_name = None):
+        """
+        Make the move_free station for TAMP: a station with all objects welded
+        to the world
+        """
+        print(f"{Colors.BLUE}Building move_free station{Colors.RESET}")
+        return self.make_station(
+            list(self.objects.keys()),
+            blocked = True,
             name="move_free",
             planning = True,
             arm_name = arm_name,
