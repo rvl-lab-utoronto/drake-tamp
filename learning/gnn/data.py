@@ -35,12 +35,12 @@ def stream_id(stream_dict):
 def get_stream_schedule(invocation, roots):
     candidate = {"name": invocation.result.name, "input_objects": invocation.result.input_objects, "output_objects": invocation.result.output_objects}
     candidate_id = stream_id(candidate)
-    stream_schedule = [candidate]
-    scheduled_streams = set([candidate_id])
+    stream_schedule = []
+    scheduled_streams = set()
     obj_stream_map = invocation.object_stream_map
 
     computed_objects = set() | roots
-    to_compute = list(candidate["input_objects"])
+    to_compute = list(set(candidate["input_objects"]))
     deferred = set()
     while to_compute:
         obj_to_compute = to_compute.pop(0)
@@ -50,24 +50,26 @@ def get_stream_schedule(invocation, roots):
         assert parent_stream is not None, obj_to_compute
 
         stream_instance_id = stream_id(parent_stream)
-        # if not (set(parent_stream["input_objects"]) <= computed_objects):
-        #     if obj_to_compute in deferred:
-        #         raise RuntimeError(f"Detected an infinite loop. Object cannot be computed. {stream_instance_id}")
-        #     to_compute.append(obj_to_compute)
-        #     deferred.add(obj_to_compute)
-        #     continue
+        input_objects = set(parent_stream["input_objects"])
+        if not (input_objects <= computed_objects):
+            # if obj_to_compute in deferred:
+            #     raise RuntimeError(f"Detected an infinite loop. Object cannot be computed. {stream_instance_id}")
+            for obj in input_objects - computed_objects:
+                to_compute.append(obj)
+            to_compute.append(obj_to_compute)
+            deferred.add(obj_to_compute)
+            continue
         # parent_stream could not have already been added to the schedule?
         # that would mean that a previously computed_objects object was output
         # by the same stream instance, but this one was not computed
         assert stream_instance_id not in scheduled_streams
 
-        to_compute.extend(parent_stream['input_objects'])
         for out_obj in parent_stream['output_objects']:
             computed_objects.add(out_obj)
-        stream_schedule.insert(0, parent_stream)
+        stream_schedule.append(parent_stream)
         scheduled_streams.add(stream_instance_id)
         assert obj_to_compute in computed_objects
-    
+    stream_schedule.append(candidate)
     return stream_schedule #, roots
 
 def construct_stream_classifier_input_v2(invocation, problem_info, model_info):
