@@ -3,7 +3,7 @@ import json
 import os
 
 from torch_geometric.data.dataloader import DataLoader
-from learning.data_models import StreamInstanceClassifierInfo
+from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierV2Info
 from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
     EvaluationDatasetSampler,
@@ -14,12 +14,13 @@ from learning.gnn.data import (
     TrainingDataset,
     Dataset,
     construct_hypermodel_input_faster,
+    construct_stream_classifier_input_v2,
     construct_with_problem_graph,
     get_base_datapath,
     get_pddl_key,
     query_data,
 )
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier
+from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
 import torch
@@ -33,7 +34,7 @@ def make_argument_parser():
         action="store_true",
     )
     parser.add_argument(
-        "--model", type=str, choices=["hyper", "streamclass"], default="hyper"
+        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2"], default="hyper"
     )
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--save-every", type=int, default=10)
@@ -111,6 +112,11 @@ if __name__ == "__main__":
         model_fn = lambda model_info: StreamInstanceClassifier(
             model_info, use_gcn=True, use_object_model=False
         )
+    elif args.model == "streamclassv2":
+        assert args.batch_size == 1, "Batching not yet supported for StreamInstanceClassifierV2Info"
+        input_fn = construct_stream_classifier_input_v2
+        model_info_class = StreamInstanceClassifierV2Info
+        model_fn = StreamInstanceClassifierV2
     else:
         raise ValueError
 

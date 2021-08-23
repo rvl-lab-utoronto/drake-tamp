@@ -29,6 +29,54 @@ from tqdm import tqdm
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
+def stream_id(stream_dict):
+    return f'{stream_dict["name"]}{tuple(stream_dict["input_objects"])}->{tuple(stream_dict["output_objects"])}'
+
+def get_stream_schedule(invocation, roots):
+    candidate = {"name": invocation.result.name, "input_objects": invocation.result.input_objects, "output_objects": invocation.result.output_objects}
+    candidate_id = stream_id(candidate)
+    stream_schedule = [candidate]
+    scheduled_streams = set([candidate_id])
+    obj_stream_map = invocation.object_stream_map
+
+    computed_objects = set() | roots
+    to_compute = list(candidate["input_objects"])
+    deferred = set()
+    while to_compute:
+        obj_to_compute = to_compute.pop(0)
+        if obj_to_compute in computed_objects:
+            continue
+        parent_stream = obj_stream_map.get(obj_to_compute, None)
+        assert parent_stream is not None, obj_to_compute
+
+        stream_instance_id = stream_id(parent_stream)
+        # if not (set(parent_stream["input_objects"]) <= computed_objects):
+        #     if obj_to_compute in deferred:
+        #         raise RuntimeError(f"Detected an infinite loop. Object cannot be computed. {stream_instance_id}")
+        #     to_compute.append(obj_to_compute)
+        #     deferred.add(obj_to_compute)
+        #     continue
+        # parent_stream could not have already been added to the schedule?
+        # that would mean that a previously computed_objects object was output
+        # by the same stream instance, but this one was not computed
+        assert stream_instance_id not in scheduled_streams
+
+        to_compute.extend(parent_stream['input_objects'])
+        for out_obj in parent_stream['output_objects']:
+            computed_objects.add(out_obj)
+        stream_schedule.insert(0, parent_stream)
+        scheduled_streams.add(stream_instance_id)
+        assert obj_to_compute in computed_objects
+    
+    return stream_schedule #, roots
+
+def construct_stream_classifier_input_v2(invocation, problem_info, model_info):
+    data = Data(x=torch.tensor([1]))
+    roots = objects_from_facts(problem_info.initial_facts)
+    data.stream_schedule = get_stream_schedule(invocation, roots)
+    data.problem_graph = construct_problem_graph_input(problem_info, model_info)
+
+    return data
 
 def construct_scene_graph(model_poses):
     """

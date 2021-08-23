@@ -147,6 +147,80 @@ class HyperClassifier(nn.Module):
             return torch.sigmoid(out)
 
         return out
+
+class MultiHeadStreamMLP(nn.Module):
+    def __init__(self, num_inputs, num_outputs, feature_size, hidden_size=16):
+        super().__init__()
+        self.encoder = MLP([hidden_size], num_inputs*feature_size)
+        self.scorer = MLP([hidden_size, 1], hidden_size)
+        self.decoders = []
+        for i in range(num_outputs):
+            mlp = MLP([hidden_size, feature_size], hidden_size)
+            setattr(self, f"decoder{i}", mlp)
+            self.decoders.append(mlp)
+
+    def forward(self, x):
+        hidden = self.encoder(x)
+        outputs = [decoder(hidden) for decoder in self.decoders]
+        score = self.scorer(hidden)
+        return score, outputs
+
+class StreamInstanceClassifierV2(nn.Module):
+
+    def __init__(
+        self,
+        model_info,
+        feature_size=8,
+        hidden_size=8,
+    ):
+        super().__init__()
+        self.problem_graph_network = ProblemGraphNetwork(
+            node_feature_size=model_info.problem_graph_node_feature_size,
+            edge_feature_size=model_info.problem_graph_edge_feature_size,
+            hidden_size=feature_size,
+            graph_hidden_size=hidden_size
+        )
+        stream_domains = model_info.stream_domains[1:]
+        stream_num_inputs = model_info.stream_num_inputs[1:]
+        stream_num_outputs = model_info.stream_num_outputs[1:]
+        self.stream_to_index = model_info.stream_to_index
+        assert len(stream_domains) == len(stream_num_inputs), "Inequal number of streams"
+        self.stream_num_inputs = stream_num_inputs
+        self.stream_num_outputs = stream_num_outputs
+
+        self.mlps = []
+        for num_inputs, num_outputs in zip(stream_num_inputs, stream_num_outputs):
+            self.mlps.append(
+                MultiHeadStreamMLP(num_inputs, num_outputs, feature_size=feature_size, hidden_size=hidden_size)
+            )
+
+        for i, mlp in enumerate(self.mlps):
+            setattr(self, f"mlp{i}", mlp)
+
+
+    def forward(self, data, object_reps=None, score=False, update_reps=False):
+        stream_schedule = data.stream_schedule
+        problem_graph = data.problem_graph
+        assert (problem_graph is None or object_reps is None) and not (object_reps is None and problem_graph is None)
+        if object_reps is None:
+            problem_graph = Batch().from_data_list(problem_graph)
+            prob_x = self.problem_graph_network(problem_graph, return_x=True)
+            object_reps = {name: prob_x[i] for i,name in enumerate(problem_graph.nodes[0])}
+
+        for stream in stream_schedule[0]:
+            stream_index = self.stream_to_index[stream["name"]] - 1
+            stream_mlp = self.mlps[stream_index]
+            stream_inputs = torch.cat([object_reps[n] for n in stream["input_objects"]], dim=0)
+            out, outputs = stream_mlp(stream_inputs)
+            for out_name, out_rep in zip(stream["output_objects"], outputs):
+                object_reps[out_name] = out_rep
+
+        out = out.unsqueeze(0)
+        # candidate object embeddings, and candidate fact embeddings to mlp
+        if score:
+            return torch.sigmoid(out)
+
+        return out
             
 class StreamInstanceClassifier(nn.Module):
     def __init__(self, model_info, feature_size=8, lstm_size=10,  mlp_out=1, use_gcn=True, use_object_model=True):
@@ -351,12 +425,14 @@ class ProblemGraphNetwork(nn.Module):
             node_model=GraphAwareNodeModel(hidden_size, hidden_size, graph_hidden_size, hidden_size, dropout=dropout),
             global_model=GlobalModel(node_representation_size=hidden_size, edge_representation_size=hidden_size, graph_feature_size=graph_hidden_size, graph_representation_size=graph_hidden_size)
         )
-    def forward(self, data, attr='x'):
+    def forward(self, data, attr='x', return_x=False):
         x, edge_idx, edge_attr = getattr(data, attr), data.edge_index, data.edge_attr
         assert hasattr(data, "batch"), "Need to batch the data"
         x, edge_attr, u = self.meta_layer_1(x, edge_idx, edge_attr, u=None, batch = data.batch)
         x, edge_attr, u = self.meta_layer_2(x, edge_idx, edge_attr, u=u, batch = data.batch)
         x, edge_attr, u = self.meta_layer_3(x, edge_idx, edge_attr, u=u, batch = data.batch)
+        if return_x:
+            return x
         return u
 
 class SimpleGCN(nn.Module):
