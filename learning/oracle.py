@@ -721,9 +721,11 @@ class MultiHeadModel(Oracle):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
             return 0.5/l
-        
-        if result.instance in self.history:
-            score, reps = self.history[result.instance]
+
+        result_key = self.calculate_result_key(result, atom_map)
+        count = self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        if result_key in self.history:
+            score, reps = self.history[result_key]
             outputs = tuple()
             for o, r in zip(map(obj_to_pddl, result.output_objects), reps):
                 self.object_reps[o] = r 
@@ -732,10 +734,5 @@ class MultiHeadModel(Oracle):
             outputs = tuple(map(obj_to_pddl, result.output_objects))
             data = Data(stream_schedule=[[{"name": result.name, "input_objects": inputs, "output_objects": outputs}]])
             score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
-            self.history[result.instance] = (score, [self.object_reps[o] for o in outputs])
-
-        result_key = self.calculate_result_key(result, atom_map)
-        self.counts[result_key] = self.counts.get(result_key, 0) + 1
-        count = self.counts[result_key]
-        # count = 0
+            self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
         return score/(l  + count  - 1)
