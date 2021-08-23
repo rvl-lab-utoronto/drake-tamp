@@ -705,8 +705,19 @@ class MultiHeadModel(Oracle):
         problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
         self.object_reps = self.model.get_init_reps(problem_graph_input)
         self.history = {}
+        self.counts = {}
+        self.init_objects = objects_from_facts(self.problem_info.initial_facts)
     
-    def predict(self, result, node_from_atom, levels, **kwargs):
+    def calculate_result_key(self, result, atom_map):
+        facts = [fact_to_pddl(f) for f in result.get_certified()]
+        domain = [fact_to_pddl(f) for f in result.domain]
+        result_key = tuple()
+        for fact in facts:
+            atom_map[fact] = domain
+            result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
+        return result_key
+
+    def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
             return 0.5/l
@@ -723,4 +734,8 @@ class MultiHeadModel(Oracle):
             score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
             self.history[result.instance] = (score, [self.object_reps[o] for o in outputs])
 
-        return score / l
+        result_key = self.calculate_result_key(result, atom_map)
+        self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        count = self.counts[result_key]
+        # count = 0
+        return score/(l  + count  - 1)
