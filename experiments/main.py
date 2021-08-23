@@ -43,9 +43,9 @@ def make_argument_parser():
         type=str,
         default="normal",
         choices=[
-            "normal",
-            "save",
-            "oracle",
+            "normal", # nothing is saved to index.json, no oracle is used
+            "save", # no oracle is used, stats_path is saved to index.json
+            "oracle", 
             "complexityV3",
             "complexityandstructure",
             "complexitycollector",
@@ -55,7 +55,7 @@ def make_argument_parser():
             "cachingmodel",
             "multiheadmodel",
             "complexityoracle"
-        ]
+        ],
     )
     parser.add_argument(
         "--use-unique",
@@ -90,7 +90,6 @@ def make_argument_parser():
         default=None,
         required=False
     )
-    
     return parser
 
 if __name__ == '__main__':

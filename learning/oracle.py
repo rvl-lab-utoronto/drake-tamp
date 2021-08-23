@@ -75,8 +75,10 @@ class Oracle:
         initial_conditions,
         goal_conditions,
         model_poses = None,
-        data_collection_mode=False
+        data_collection_mode=False,
+        stats_path = None
     ):
+        print("STATS_PATH", stats_path)
         # model_poses is for scene graph, optional list of ["model_name", X_WM]
         # where X_WM is a RigidTransform
         self.domain_pddl = domain_pddl
@@ -85,7 +87,7 @@ class Oracle:
         self.goal_conditions = goal_conditions
         self.str_init = logical_to_string(initial_conditions)
         self.str_goal = logical_to_string(goal_conditions)
-        self.stats_path = None
+        self.stats_path = stats_path
         # self.labeled_path = labeled_path
         self.save_path = (
             FILEPATH
@@ -244,7 +246,7 @@ class Oracle:
         str_index = self.str_init + self.str_goal
         if pddl not in index:
             raise KeyError(
-                ("Oracle does not have information of this" "domain.pddl/stream.pddl")
+                "Oracle does not have information of this domain.pddl/stream.pddl in index.json. If the path is known, construct the oracle with at stats_path"
             )
         if str_index not in index[pddl]:
             raise KeyError("Oracle does not have information of this problem.pddl")
