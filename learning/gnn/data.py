@@ -938,7 +938,7 @@ class DifficultClasses:
     very_hard = [("run_time", lambda t: t > 180)]
 
 
-def query_data(pddl: str, query: list):
+def query_data(pddl: str, query: list, make_data_info = False):
     """
     Returns a list of paths to pkl files that satisfy the query
 
@@ -969,12 +969,14 @@ def query_data(pddl: str, query: list):
             - max_goal_stack
             - buffer_radius
     """
-    info = make_data_info(write = False)
-    #datapath = get_base_datapath()
-    #data_info_path = datapath + "data_info.json"
-    #assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
-    #with open(data_info_path, "r") as f:
-        #info = json.load(f)
+    if make_data_info:
+        info = make_data_info(write = False)
+    else:
+        datapath = get_base_datapath()
+        data_info_path = os.path.join(datapath, "data_info.json")
+        assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
+        with open(data_info_path, "r") as f:
+            info = json.load(f)
     assert (
         pddl in info
     ), "This domain.pddl and stream.pddl cannot be found in previous runs"
@@ -1006,10 +1008,13 @@ def get_base_datapath():
     return datapath
 
 
-def get_pddl_key(domain):
-    datapath = os.path.join(get_base_datapath(), "data_info.json")
-    with open(datapath, "r") as datafile:
-        data = json.load(datafile)
+def get_pddl_key(domain, make_data_info = False):
+    if make_data_info:
+        data = make_data_info(write = False)
+    else:
+        datapath = os.path.join(get_base_datapath(), "data_info.json")
+        with open(datapath, "r") as datafile:
+            data = json.load(datafile)
     for pddl in data:
         if domain in pddl:
             return pddl
