@@ -28,13 +28,13 @@ def instance_caching(predict_fn):
         score, num_visits, was_refined = instance_history[instance]
         if was_refined == is_refined:
             instance_history[instance] = (score, num_visits + 1, was_refined)
-            return score, num_visits
+            return score
         else:
             assert not was_refined and is_refined, "Somehow the instance got unrefined"
     num_visits = 0
     score = predict_fn(self, result, *args, **kwargs)
     instance_history[instance] = (score, num_visits + 1, is_refined)
-    return score, num_visits
+    return score
   return cached_predict
 
 
