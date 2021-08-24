@@ -215,15 +215,23 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
 def print_header(st):
     print(('\n' * 2) + ('#' * 10), st, ('#' * 10) + ('\n' * 1))
 
+
+
 if __name__ == '__main__':
     import pandas as pd
 
+    def plot_and_print(dir):
+        print_header(dir)
+        data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/{dir}/save/', 'adaptive')
+        data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/{dir}/oracle/', 'oracle')
+        table_compare(data_adaptive + data_oracle)
+        #num_discs_vs_exp(data_oracle + data_adaptive)
+        #num_blocks_vs_exp(data_adaptive + data_oracle)
+        bar_plot_compare("num_blocks_run_time.png", data_adaptive + data_oracle, "num_blocks", "run_time", tex_save_path= "num_blocks_run_time.tex", bar_width = 0.25)
+        bar_plot_compare("num_blocks_solved.png", data_adaptive + data_oracle, "num_blocks", "solved", tex_save_path= "num_blocks_solved.tex", bar_width = 0.25)
 
-    data_adaptive = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/random_logs/save/', 'adaptive')
-    data_oracle = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/random_logs/oracle/', 'oracle')
-
-    table_compare(data_adaptive + data_oracle)
-    #num_discs_vs_exp(data_oracle + data_adaptive)
-    #num_blocks_vs_exp(data_adaptive + data_oracle)
-    bar_plot_compare("num_blocks_run_time.png", data_adaptive + data_oracle, "num_blocks", "run_time", tex_save_path= "num_blocks_run_time.tex", bar_width = 0.25)
-    bar_plot_compare("num_blocks_solved.png", data_adaptive + data_oracle, "num_blocks", "solved", tex_save_path= "num_blocks_solved.tex", bar_width = 0.25)
+    plot_and_print("test_logs")
+    #plot_and_print("non_monotonic_logs")
+    #plot_and_print("clutter_logs")
+    #plot_and_print("sorting_logs")
+    #plot_and_print("stacking_logs")
