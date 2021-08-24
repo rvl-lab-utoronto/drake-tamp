@@ -71,7 +71,7 @@
         :domain (and
             (disc ?disc) 
             (disc ?lowerdisc) 
-            ;(smaller ?disc ?lowerdisc)
+            (smaller ?disc ?lowerdisc)
             (worldpose ?lowerdisc ?X_WL)
         )
         :outputs (?X_WB)

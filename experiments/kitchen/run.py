@@ -542,7 +542,8 @@ def run_kitchen(
         stream_info = {
             'find-ik': StreamInfo(use_unique=True)
         },
-        max_planner_time = max_planner_time
+        max_planner_time = max_planner_time,
+        problem_file_path = problem_file
     )
 
     print(f"\n\n{algorithm} solution:")

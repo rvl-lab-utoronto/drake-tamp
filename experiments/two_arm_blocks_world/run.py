@@ -560,7 +560,8 @@ def run_blocks_world(
         max_time=max_time,
         search_sample_ratio=search_sample_ratio,
         eager_mode=eager_mode,
-        max_planner_time = max_planner_time
+        max_planner_time = max_planner_time,
+        problem_file_path = problem_file
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
