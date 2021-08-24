@@ -19,6 +19,24 @@ from pddlstream.language.object import SharedOptValue, UniqueOptValue
 
 FILEPATH, _ = os.path.split(os.path.realpath(__file__))
 
+def instance_caching(predict_fn):
+  instance_history = {}
+  def cached_predict(self, result, *args, **kwargs):
+    instance = result.instance
+    is_refined = instance.is_refined()
+    if instance in instance_history:
+        score, num_visits, was_refined = instance_history[instance]
+        if was_refined == is_refined:
+            instance_history[instance] = (score, num_visits + 1, was_refined)
+            return score
+        else:
+            assert not was_refined and is_refined, "Somehow the instance got unrefined"
+    num_visits = 0
+    score = predict_fn(self, result, *args, **kwargs)
+    instance_history[instance] = (score, num_visits + 1, is_refined)
+    return score
+  return cached_predict
+
 
 def is_matching(l, ans_l, preimage, atom_map, init):
     """
@@ -337,6 +355,8 @@ class OracleModel(Oracle):
             return is_match, match
 
         return unique_is_relevant
+
+    @instance_caching
     def predict(self, result, node_from_atom, **kwargs):
         if not hasattr(self, 'relevant_checker'):
             self.relevant_checker = self.make_is_relevant_checker()
@@ -404,6 +424,7 @@ class Model(Oracle):
 
         return checker
 
+    @instance_caching
     def predict(self, result, node_from_atom, **kwargs):
         if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
             return 1
@@ -438,6 +459,7 @@ class CachingModel(Model):
             result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
         return result_key
 
+    @instance_caching
     def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
@@ -457,26 +479,6 @@ class CachingModel(Model):
         self.counts[result_key] = self.counts.get(result_key, 0) + 1
         return self.logits[result_key]/(l  + self.counts[result_key] - 1)
 
-class StupidModel(Oracle):
-    def predict(self, instance, atom_map, instantiator):
-        return np.random.uniform()
-
-class ComplexityModel(Oracle):
-    def predict(self, instance, atom_map, instantiator):
-        complexity = instantiator.compute_complexity(instance)
-        return complexity
-
-
-class ComplexityModelV2(Oracle):
-    def predict(self, result, node_from_atom, **kwargs):
-        if not result.is_refined() or not all([d in node_from_atom for d in result.domain]):
-            return 1
-        invocation_info = InvocationInfo(result, node_from_atom)
-        level = -1
-        for f in result.domain:
-            level = max(level, 1 + fact_level(fact_to_pddl(f), invocation_info))
-
-        return level/10
 
 class ComplexityModelV3(Oracle):
     def predict(self, result, node_from_atom, levels, **kwargs):
@@ -499,6 +501,7 @@ class ComplexityModelV3StructureAware(Oracle):
             result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
         return result_key
 
+    @instance_caching
     def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
@@ -521,6 +524,7 @@ class OracleModelExpansion(OracleModel):
 
         self.last_preimage = preimage_no_leaves
 
+    @instance_caching
     def predict(self, result, node_from_atom, **kwargs):
         if not hasattr(self, 'relevant_checker'):
             self.relevant_checker = self.make_is_relevant_checker()
@@ -536,6 +540,7 @@ class OracleModelExpansion(OracleModel):
 
 class OracleAndComplexityModelExpansion(OracleModelExpansion):
     """Uses an oracle + complexity for refined facts and just complexity for unrefined""" 
+    @instance_caching
     def predict(self, result, node_from_atom, levels,**kwargs):
         if not hasattr(self, 'relevant_checker'):
             self.relevant_checker = self.make_is_relevant_checker()
@@ -571,6 +576,7 @@ class OracleDAggerModel(OracleModel):
 
         return is_match, match
 
+    @instance_caching
     def predict(self, result, node_from_atom, levels, **kwargs):
         if not hasattr(self, 'relevant_checker'):
             self.relevant_checker = self.make_is_relevant_checker()
@@ -662,6 +668,7 @@ class ComplexityDataCollector(ComplexityModelV3):
             self.save_stats(logpath + "stats.json")
             self.save_labeled(logpath + "stats.json")
 
+    @instance_caching
     def predict(self, result, node_from_atom, levels, **kwargs):
         if all([d in node_from_atom for d in result.domain]):
             self.saved_node_from_atoms[result] = node_from_atom.copy()
@@ -725,9 +732,11 @@ class MultiHeadModel(Oracle):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
             return 0.5/l
-        
-        if result.instance in self.history:
-            score, reps = self.history[result.instance]
+
+        result_key = self.calculate_result_key(result, atom_map)
+        count = self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        if result_key in self.history:
+            score, reps = self.history[result_key]
             outputs = tuple()
             for o, r in zip(map(obj_to_pddl, result.output_objects), reps):
                 self.object_reps[o] = r 
@@ -736,10 +745,5 @@ class MultiHeadModel(Oracle):
             outputs = tuple(map(obj_to_pddl, result.output_objects))
             data = Data(stream_schedule=[[{"name": result.name, "input_objects": inputs, "output_objects": outputs}]])
             score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
-            self.history[result.instance] = (score, [self.object_reps[o] for o in outputs])
-
-        result_key = self.calculate_result_key(result, atom_map)
-        self.counts[result_key] = self.counts.get(result_key, 0) + 1
-        count = self.counts[result_key]
-        # count = 0
+            self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
         return score/(l  + count  - 1)

@@ -7,10 +7,6 @@ def construct_oracle(mode, pddl_problem, problem_info, model_poses, **kwargs):
         oracle_class = ora.OracleModel
     elif mode == "oracleexpansion":
         oracle_class = ora.OracleModelExpansion
-    elif mode == "complexity":
-        oracle_class = ora.ComplexityModel
-    elif mode == "complexityV2":
-        oracle_class = ora.ComplexityModelV2
     elif mode == "complexityV3":
         oracle_class = ora.ComplexityModelV3
     elif mode == "complexityandstructure":
