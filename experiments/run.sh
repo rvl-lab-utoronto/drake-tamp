@@ -12,5 +12,5 @@ for FILE in $PROBLEMS; do
   echo "Running $(realpath $FILE)"
   RUN=$(basename $FILE)
   LOGDIR=$(realpath ./$RUN)_logs/
-  timeout --signal 2 --foreground 180s python -O $DIR/experiments/main.py $RUN_ARGS --logpath $LOGDIR --problem-file $FILE | tee ./$RUN.log
+  timeout --signal 2 --foreground 180s python -O $DIR/experiments/main.py $RUN_ARGS --logpath $LOGDIR --problem-file $FILE --max_planner_time 10 | tee ./$RUN.log
 done

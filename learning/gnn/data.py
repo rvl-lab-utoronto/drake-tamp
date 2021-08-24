@@ -1,4 +1,6 @@
 import itertools
+from tqdm import tqdm
+from glob import glob
 import math
 import json
 from operator import mod
@@ -321,8 +323,6 @@ def construct_hypermodel_input_faster(
             [i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]]
         )
     )
-
-
     return Data(
         nodes = nodes,
         x = node_features, #torch.cat(node_attr, dim = 0),
@@ -330,108 +330,6 @@ def construct_hypermodel_input_faster(
         edge_index = edge_index,
         candidate = candidate
     )
-
-
-def construct_object_hypergraph(
-    label: InvocationInfo,
-    problem_info: ProblemInfo,
-    model_info: ModelInfo,
-    reduced: bool = True,
-):
-    """
-    Construct an object hypergraph where nodes are pddl objects and edges are
-    the facts that relate them. The hypergraph is represente as a normal graph
-    with the hyperedges turned into multiple normal edges (HypergraphConv does
-    not work)
-
-    reduced: if True, the returned graph consists of only the ancestors of the stream result
-        and the initial conditions (objects + facts)
-
-    node attributes:
-        - overlap_with_goal (bool)
-        - stream (string)
-        - level: the number of stream instantiations required to create this object (int)
-
-    edge_attributes:
-        - predicate (string)
-        - overlap_with_goal (bool)
-        - level (int)
-        - stream (string)
-        - actions it is precondition of (list[string])
-        - actions it is poscondition of (list[string])
-        - the one hot encoding of the source object argument index
-        - the one hot encoding of the destination object argument index
-
-    TODO(agro): level vs initial?
-    TODO(agro): index of domain fact
-    """
-
-    goal_facts = problem_info.goal_facts
-    nodes, edges = [], []
-    node_attr, edge_attr = [], []
-    node_to_ind = {}
-    goal_objects = objects_from_facts(goal_facts)
-
-    # reduced_obj = get_ancestor_objects(label) | get_initial_objects(label)
-    fact_ans = set()
-    for dom_fact in label.result.domain:
-        fact_ans.add(dom_fact)
-        fact_ans |= siblings(dom_fact, label.atom_map)
-        fact_ans |= dep_elders(dom_fact, label.atom_map)
-
-    for fact in label.atom_map:
-        fact_objects = objects_from_facts([fact])
-        if reduced and label.atom_map[fact]:
-            if not fact in fact_ans:
-                continue
-        for o in fact_objects:
-            if o in nodes:
-                continue
-            node_to_ind[o] = len(nodes)
-            nodes.append(o)
-            node_attr.append(
-                {
-                    "overlap_with_goal": o in goal_objects,
-                    "stream": label.object_stream_map.get(o, None),
-                    "level": obj_level(o, label),
-                }
-            )
-
-        if len(fact_objects) == 1:  # unary
-            o = fact_objects.pop()
-            edges.append((node_to_ind[o], node_to_ind[o]))
-            edge_attr.append(
-                {
-                    "predicate": fact[0],
-                    "overlap_with_goal": fact_objects.intersection(goal_objects),
-                    "level": fact_level(fact, label),
-                    "stream": label.stream_map[fact],
-                    "relevant_actions": dep_fact_to_relevant_actions(
-                        fact, model_info.domain, indices=False
-                    ),
-                    "full_fact": fact,  # not used as an attribute, but for indexing
-                    "src_obj_arg_ind": 0,
-                    "dest_obj_arg_ind": 0,
-                }
-            )
-        else:
-            for (o1, o2) in itertools.permutations(fact_objects, 2):
-                edges.append((node_to_ind[o1], node_to_ind[o2]))
-                attr = {
-                    "predicate": fact[0],
-                    "overlap_with_goal": fact_objects.intersection(goal_objects),
-                    "level": fact_level(fact, label),
-                    "stream": label.stream_map[fact],
-                    "relevant_actions": dep_fact_to_relevant_actions(
-                        fact, model_info.domain, indices=False
-                    ),
-                    "full_fact": fact,  # not used as an attribute, but for indexing
-                    "src_obj_arg_ind": fact.index(o1) - 1,
-                    "dest_obj_arg_ind": fact.index(o2) - 1,
-                }
-                edge_attr.append(attr)
-    return nodes, node_attr, edges, edge_attr
-
 
 def construct_fact_graph(goal_facts, atom_map, stream_map):
     goal_objects = objects_from_facts(goal_facts)
@@ -501,94 +399,6 @@ def construct_fact_graph(goal_facts, atom_map, stream_map):
         edges.append((j, i))
         edge_attributes_list.append(edge_attributes)
     return nodes, node_attributes_list, edges, edge_attributes_list
-
-
-
-# TODO: depreciate/remove 
-def construct_hypermodel_input(
-    label: InvocationInfo,
-    problem_info: ProblemInfo,
-    model_info: ModelInfo,
-    reduced: bool = True,
-):
-
-    assert False, "You should be using the new function `construct_hypermodel_input_faster`"
-
-    nodes, node_attr, edges, edge_attr = construct_object_hypergraph(
-        label, problem_info, model_info, reduced=reduced
-    )
-
-    # indices of input objects to latest stream result
-    fact_to_edge_ind = {}
-    for i, attr in enumerate(edge_attr):
-        fact_to_edge_ind.setdefault(attr["full_fact"], []).append(i)
-
-    candidate = (
-        (model_info.stream_to_index[label.result.name],)
-        + tuple([nodes.index(p) for p in label.result.input_objects])
-        + tuple(
-            [i for dom_fact in label.result.domain for i in fact_to_edge_ind[dom_fact]]
-        )
-    )
-
-    # indices of domain facts of latest stream result
-    node_features = torch.zeros(
-        (len(nodes), model_info.node_feature_size), dtype=torch.float
-    )
-    edge_features = torch.zeros(
-        (len(edges), model_info.edge_feature_size), dtype=torch.float
-    )
-    for i, attr in enumerate(node_attr):
-        stream = None
-        if attr["stream"] is not None:
-            stream = attr["stream"]["name"]
-        node_features[i, model_info.stream_to_index[stream]] = 1
-        node_features[i, -2] = int(attr["overlap_with_goal"])
-        node_features[i, -1] = attr["level"]
-    num_preds = model_info.num_predicates
-    num_actions = model_info.num_actions
-
-    for i, attr in enumerate(edge_attr):
-        ind = num_preds
-        # predicate one hot
-        edge_features[i, model_info.predicate_to_index[attr["predicate"]]] = 1
-        # action precondition multi hot
-        for action in attr["relevant_actions"][0]:
-            edge_features[i, ind + model_info.action_to_index[action]] = 1
-        ind += num_actions
-        # action effect multi hot
-        for action in attr["relevant_actions"][1]:
-            edge_features[i, ind + model_info.action_to_index[action]] = 1
-        ind += num_actions
-        # stream one hot
-        edge_features[i, ind + model_info.stream_to_index[attr["stream"]]] = 1
-        ind += len(model_info.stream_to_index)
-        # level
-        edge_features[i, ind] = attr["level"]
-        # overlap_with_goal
-        edge_features[i, ind + 1] = len(attr["overlap_with_goal"])
-        ind += 2
-        edge_features[i, ind + attr["src_obj_arg_ind"]] = 1
-        ind += model_info.max_predicate_num_args
-        edge_features[i, ind + attr["dest_obj_arg_ind"]] = 1
-
-    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-
-    #check = construct_hypermodel_input_faster(label, problem_info, model_info)
-
-    res = Data(
-        nodes=nodes,
-        x=node_features,
-        edge_attr=edge_features,
-        edge_index=edge_index,
-        candidate=candidate,
-    )
-
-    #assert torch.equal(res.x, check.x)
-    #assert torch.equal(res.edge_attr, check.edge_attr)
-    #assert torch.equal(res.edge_index, check.edge_index)
-
-    return res
 
 
 def construct_problem_graph(problem_info: ProblemInfo):
@@ -809,31 +619,6 @@ def parse_labels(pkl_path, augment=False):
         d = construct_input(invocation_info, problem_info, model_info)
         d.y = torch.tensor([float(invocation_info.label)])
         dataset.append(d)
-    return dataset, model_info
-
-
-def parse_hyper_labels(pkl_path):
-    with open(pkl_path, "rb") as f:
-        data = pickle.load(f)
-
-    model_info = data["model_info"]
-    problem_info = data["problem_info"]
-
-    model_info = HyperModelInfo(
-        predicates=model_info.predicates,
-        streams=model_info.streams,
-        stream_num_domain_facts=model_info.stream_num_domain_facts,
-        stream_num_inputs=model_info.stream_num_inputs,
-        stream_domains=model_info.stream_domains,
-        domain=model_info.domain,
-    )
-
-    dataset = []
-    for invocation_info in data["labels"]:
-        d = construct_hypermodel_input(invocation_info, problem_info, model_info)
-        d.y = torch.tensor([float(invocation_info.label)])
-        dataset.append(d)
-
     return dataset, model_info
 
 
@@ -1184,11 +969,12 @@ def query_data(pddl: str, query: list):
             - max_goal_stack
             - buffer_radius
     """
-    datapath = get_base_datapath()
-    data_info_path = datapath + "data_info.json"
-    assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
-    with open(data_info_path, "r") as f:
-        info = json.load(f)
+    info = make_data_info(write = False)
+    #datapath = get_base_datapath()
+    #data_info_path = datapath + "data_info.json"
+    #assert os.path.isfile(data_info_path), f"{data_info_path} does not exist yet"
+    #with open(data_info_path, "r") as f:
+        #info = json.load(f)
     assert (
         pddl in info
     ), "This domain.pddl and stream.pddl cannot be found in previous runs"
@@ -1216,7 +1002,7 @@ def query_data(pddl: str, query: list):
 
 def get_base_datapath():
     sep = os.path.sep
-    datapath = os.path.join(sep.join(FILEPATH.split(sep)[:-1]),"data/labeled/")
+    datapath = os.path.join(sep.join(FILEPATH.split(sep)[:-1]),"data", "labeled")
     return datapath
 
 
@@ -1230,50 +1016,26 @@ def get_pddl_key(domain):
     raise ValueError(f"{domain} not in data_info.json")
 
 
-#DEPRECIATED
-def dep_fact_to_relevant_actions(fact, domain, indices = True):
-    """
-    Given a fact, determine which actions it is part of the
-    preconditions and effects of.
-    params:
-        fact: A pddl stream fact represented as a tuple
-        domain: a pddlstream.algorithms.downward.Domain object
-        indices (optional): if true, return multi-hot encoding,
-        else return a tuple of list of action names 
-        ([appears in precondition of ], [appears in postcondition of])
-    """
-
-    assert len(fact) > 0, "must input a non-empty fact tuple"
-    fact_name = fact[0]
-    actions = domain.actions
-
-    in_prec = []
-    in_eff = []
-    multi_hot = np.zeros(len(actions*2))
-
-    action_index = 0
-    for action in actions:
-        for precondition in action.precondition.parts:
-            precondition = precondition.predicate
-            if fact_name == precondition:
-                multi_hot[action_index] = 1
-                in_prec.append(action.name)
-                break
-        for effect in action.effects:
-            effect = effect.literal.predicate
-            if fact_name == effect:
-                in_eff.append(action.name)
-                multi_hot[action_index + len(actions)] = 1
-                break 
-        action_index += 1
-
-    if indices:
-        return multi_hot
-
-    return in_prec, in_eff
+def make_data_info(base_path = None, write = True):
+    base_path = get_base_datapath()
+    data_info = {}
+    print("Making data_info.json")
+    for pkl_path in tqdm(glob(os.path.join(base_path, '*.pkl'))):
+        with open(pkl_path, "rb") as f:
+            pkl_data = pickle.load(f)
+            pddl = pkl_data["domain_pddl"] + pkl_data["stream_pddl"]
+            if pddl not in data_info:
+                data_info[pddl] = []
+            data_info[pddl].append((pkl_data["data_info"], os.path.split(pkl_path)[1], pkl_data["num_labels"]))
+    if write:
+        with open(os.path.join(base_path, "data_info.json"), "w") as f:
+            json.dump(data_info, f, indent =4 , sort_keys = True)
+    return data_info
 
 
 if __name__ == "__main__":
+
+    make_data_info()
 
     """
     datafile = open(

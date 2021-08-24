@@ -434,8 +434,8 @@ def make_non_monotonic_problem(num_blocks, clump = False, buffer_radius = 0, pri
     yaml_data["run_attr"] = {
         "num_blocks": num_blocks,
         "num_blockers": num_blockers,
-        "max_start_stack": 0,
-        "max_goal_stack": 0,
+        "max_start_stack": 1,
+        "max_goal_stack": max_goal_stack,
         "buffer_radius": buffer_radius,
         "type": "non_monotonic"
     }

@@ -502,7 +502,8 @@ def run_blocks_world(
     oracle_kwargs={},
     should_save=False,
     eager_mode=False,
-    path=None
+    path=None,
+    max_planner_time = 10
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -558,7 +559,9 @@ def run_blocks_world(
         use_unique=use_unique,
         max_time=max_time,
         search_sample_ratio=search_sample_ratio,
-        eager_mode=eager_mode
+        eager_mode=eager_mode,
+        max_planner_time = max_planner_time,
+        problem_file_path = problem_file
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
