@@ -1,8 +1,11 @@
 from glob import glob
+import yaml
 import json
 import os
 import re
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import tikzplotlib
 
@@ -51,7 +54,17 @@ def load_results_from_stats(exp_dir, exp_name):
     for i, stats_path in enumerate(glob(os.path.join(exp_dir, '*_logs/stats.json'))):
         with open(stats_path, 'r') as f:
             run_stats = json.load(f)
+
         d = run_stats['summary']
+        problem_file_path = run_stats["problem_file_path"]
+        if problem_file_path is not None:
+            with open(problem_file_path, "r") as f:
+                problem_info = yaml.safe_load(f)
+                assert "run_attr" in problem_info, f"No run_attr recorded in this problem file {problem_file_path}"
+                for k,v in problem_info["run_attr"].items():
+                    d[k] = v
+        else:
+            print(f"Warning: no problem_file_path provided from {stats_path}")
         d['results'] = max(run_stats['results'][1])
         d['evaluations'] = max(run_stats['evaluations'][1])
         # fd stats
@@ -167,11 +180,37 @@ def num_blocks_vs_exp(data):
     d = df.groupby(['num_blocks', 'exp_name']).agg(['mean', 'median']).pivot_table(columns='exp_name', values=[('results', 'mean')], index='num_blocks')
     print(d.to_string(float_format="%.2f"))
 
-def plot_compare(data, x_axis_key, y_axis_key):
+def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", verbose = True, bar_width = 0.35, tex_save_path = None):
     # ie. x_axis_key: "num_discs"
+    # agg in ["mean", "sum", "median"]
 
     data = compare_same_set(data)
     df = pd.DataFrame(data)
+
+    d = df.groupby([x_axis_key, "exp_name"]).agg([agg]).pivot_table(columns="exp_name", values = [(y_axis_key, agg)], index = x_axis_key)
+    if verbose:
+        print(d.to_string(float_format = "%.2f"))
+    x = np.array(d.axes[0])
+    fig, ax = plt.subplots()
+    rects_list = []
+    num_exp = len(d.columns)
+    middle_loc = num_exp*bar_width/2
+    for i, key in enumerate(d.columns):
+        y = np.array(d[key])
+        exp_name = key[-1]
+        rects  = ax.bar(x + bar_width*i + bar_width/2 - middle_loc, y, bar_width, label = exp_name)
+        rects_list.append(rects)
+    ax.set_xlabel(x_axis_key)
+    ax.set_ylabel(y_axis_key)
+    ax.set_xticks(x)
+    ax.legend()
+
+    fig.tight_layout()
+    plt.savefig(img_save_path, dpi = 400)
+    if tex_save_path is not None:
+        tikzplotlib.save(tex_save_path)
+    
+    print()
 
 def print_header(st):
     print(('\n' * 2) + ('#' * 10), st, ('#' * 10) + ('\n' * 1))
@@ -179,9 +218,9 @@ def print_header(st):
 if __name__ == '__main__':
     import pandas as pd
 
-    data_adaptive = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/hanoi_logsV2/save/', 'adaptive')
-    data_oracle = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/hanoi_logsV2/oracle/', 'oracle')
+    data_adaptive = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/random_logs/save/', 'adaptive')
+    data_oracle = load_results_from_stats('/home/agrobenj/drake-tamp/experiments/random_logs/oracle/', 'oracle')
 
     #table_compare(data_adaptive + data_oracle)
     #num_discs_vs_exp(data_oracle + data_adaptive)
-    plot_compare(data_adaptive + data_oracle, "num_discs", "run_time")
+    bar_plot_compare("test_plot.png", data_adaptive + data_oracle, "num_blocks", "run_time", tex_save_path= "test_plot.tex")
