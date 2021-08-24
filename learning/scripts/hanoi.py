@@ -1,8 +1,9 @@
-from learning.gnn.data import query_data, get_pddl_key
+from learning.gnn.data import make_data_info, query_data, get_pddl_key
 import numpy as np
 import os
 import json
 
+make_data_info(write = True)
 hanoi = get_pddl_key('hanoi')
 data = query_data(hanoi, [])
 print(len(data))
