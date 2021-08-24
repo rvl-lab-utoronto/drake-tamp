@@ -220,7 +220,7 @@ def print_header(st):
 if __name__ == '__main__':
     import pandas as pd
 
-    def plot_and_print(dir):
+    def plot_and_print_blocks(dir):
         print_header(dir)
         data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/{dir}/save/', 'adaptive')
         data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/{dir}/oracle/', 'oracle')
@@ -230,7 +230,10 @@ if __name__ == '__main__':
         bar_plot_compare("num_blocks_run_time.png", data_adaptive + data_oracle, "num_blocks", "run_time", tex_save_path= "num_blocks_run_time.tex", bar_width = 0.25)
         bar_plot_compare("num_blocks_solved.png", data_adaptive + data_oracle, "num_blocks", "solved", tex_save_path= "num_blocks_solved.tex", bar_width = 0.25)
 
-    plot_and_print("test_logs")
+    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/hanoi_logs/save/', 'adaptive')
+    bar_plot_compare("test_plot.png", data_adaptive, "num_discs", "solved", tex_save_path= "test_plot.tex", bar_width = 0.25)
+    bar_plot_compare("test_plot.png", data_adaptive, "num_discs", "run_time", tex_save_path= "test_plot.tex", bar_width = 0.25)
+
     #plot_and_print("non_monotonic_logs")
     #plot_and_print("clutter_logs")
     #plot_and_print("sorting_logs")
