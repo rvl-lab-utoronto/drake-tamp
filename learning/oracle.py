@@ -718,6 +718,8 @@ class MultiHeadModel(Oracle):
         self.history = {}
         self.counts = {}
         self.init_objects = objects_from_facts(self.problem_info.initial_facts)
+        self.running_average = 0.1
+        self.N = 10
     
     def calculate_result_key(self, result, atom_map):
         facts = [fact_to_pddl(f) for f in result.get_certified()]
@@ -731,7 +733,7 @@ class MultiHeadModel(Oracle):
     def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
-            return 0.5/l
+            return self.running_average / l
 
         result_key = self.calculate_result_key(result, atom_map)
         count = self.counts[result_key] = self.counts.get(result_key, 0) + 1
@@ -746,4 +748,5 @@ class MultiHeadModel(Oracle):
             data = Data(stream_schedule=[[{"name": result.name, "input_objects": inputs, "output_objects": outputs}]])
             score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
             self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
+            self.running_average = (self.running_average*(self.N-1) + score) / self.N
         return score/(l  + count  - 1)
