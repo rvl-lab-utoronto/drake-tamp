@@ -47,7 +47,7 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    h = HAND_HEIGHT + length/2
+    h = HAND_HEIGHT + length - FINGER_WIDTH/2
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
 
@@ -180,7 +180,6 @@ def find_ik_with_handpose(
     prog.AddQuadraticErrorCost(np.identity(len(q)), q_nominal, q)
     prog.SetInitialGuess(q, q_initial)
     result = Solve(prog)
-    #print(result.GetInfeasibleConstraintNames(prog))
     cost = result.get_optimal_cost()
     if not result.is_success():
         cost = np.inf

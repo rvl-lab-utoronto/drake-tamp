@@ -8,7 +8,6 @@ from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
     EvaluationDatasetSampler,
     TrainingDatasetSampler,
-    construct_hypermodel_input,
     construct_input,
     HyperModelInfo,
     TrainingDataset,
@@ -100,7 +99,7 @@ if __name__ == "__main__":
             f.write(f"Epochs {args.epochs}\n")
             f.write(f"Pos weight {args.pos_weight}\n")
             f.write(f"Stratify train prop {args.stratify_train_prop}\n")
-            f.write(f"learning rate {args.stratify_train_prop}\n")
+            f.write(f"learning rate {args.lr}\n")
             f.write(f"Gadient batch size {args.gradient_batch_size}\n")
             f.write(f"Batch size {args.batch_size}\n")
             f.write(f"Use problem graph {args.use_problem_graph}\n")

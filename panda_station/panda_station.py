@@ -64,12 +64,18 @@ class PandaStation(pydrake.systems.framework.Diagram):
             panda = info.panda
             link5 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "5", panda)
             link7 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "7", panda)
+            link6 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "6", panda)
+            link8 = self.plant.GetBodyByName(ARM_LINK_PREFIX + "8", panda)
             hand = self.plant.GetBodyByName(HAND_FRAME_NAME, hand)
 
             l57_set = self.plant.CollectRegisteredGeometries([link5, link7])
             self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(l57_set))
             lh7_set = self.plant.CollectRegisteredGeometries([hand, link7])
             self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(lh7_set))
+            #lh8_set = self.plant.CollectRegisteredGeometries([hand, link8])
+            #self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(lh8_set))
+            l68_set = self.plant.CollectRegisteredGeometries([link6, link8])
+            self.scene_graph.collision_filter_manager().Apply(pydrake.geometry.CollisionFilterDeclaration().ExcludeWithin(l68_set))
 
         for frame in self.frame_groups:
             if frame.name() == HAND_FRAME_NAME:
