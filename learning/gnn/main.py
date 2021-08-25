@@ -73,6 +73,8 @@ def make_argument_parser():
     parser.add_argument("--epoch-size", default=1280, type=int, help = "The number of labels shown per epoch")
     parser.add_argument("--preprocess-all", action="store_true", help = "Do you want to preprocess all of the data, or processes it when it is needed?")
     parser.add_argument("--ablation", action="store_true", help = "Are you doing an ablation study?") # what exactly does this do?
+    parser.add_argument("--feature-size", type=int, default = 16) # what exactly does this do?
+    parser.add_argument("--hidden-size", type=int, default = 16) # what exactly does this do?
     return parser
 
 
@@ -83,8 +85,8 @@ if __name__ == "__main__":
         data = json.load(f)
     train_files = [os.path.join(base_datapath, d) for d in data["train"]]
     val_files = [os.path.join(base_datapath, d) for d in data["validation"]]
-    print(f"Number of training files: len(train_files)")
-    print("Number of validation files: len(val_files)")
+    print(f"Number of training files: {len(train_files)}")
+    print(f"Number of validation files: {len(val_files)}")
 
     if args.debug:
         train_files = train_files[:1]
@@ -105,6 +107,9 @@ if __name__ == "__main__":
             f.write(f"Use problem graph {args.use_problem_graph}\n")
             f.write(f"Epoch size {args.epoch_size}\n")
             f.write(f"Ablation {args.ablation}\n")
+            if args.model == "streamclassv2":
+                f.write(f"Feature size {args.feature_size}\n")
+                f.write(f"Hidden size {args.feature_size}\n")
 
     if args.model == "hyper":
         input_fn = construct_hypermodel_input_faster
@@ -129,7 +134,7 @@ if __name__ == "__main__":
         assert args.batch_size == 1, "Batching not yet supported for StreamInstanceClassifierV2Info"
         input_fn = construct_stream_classifier_input_v2
         model_info_class = StreamInstanceClassifierV2Info
-        model_fn = StreamInstanceClassifierV2
+        model_fn = lambda model_info: StreamInstanceClassifierV2(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
     else:
         raise ValueError
 
