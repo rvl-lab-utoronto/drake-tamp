@@ -8,6 +8,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import tikzplotlib
+import pandas as pd
 
 def dict_from_string(s:str):
     obj = eval(s, type('js', (dict,), dict(__getitem__=lambda s, n: n))())
@@ -57,6 +58,9 @@ def load_results_from_stats(exp_dir, exp_name):
 
         d = run_stats['summary']
         problem_file_path = run_stats["problem_file_path"]
+        if 'drake-tamp/experiments/' in problem_file_path:
+            problem_file_path = re.sub('.*drake-tamp/experiments/', '', problem_file_path)
+            problem_file_path = os.path.join(os.path.dirname(__file__), problem_file_path)
         if problem_file_path is not None:
             with open(problem_file_path, "r") as f:
                 problem_info = yaml.safe_load(f)
@@ -187,7 +191,7 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
     data = compare_same_set(data)
     df = pd.DataFrame(data)
 
-    d = df.groupby([x_axis_key, "exp_name"]).agg([agg]).pivot_table(columns="exp_name", values = [(y_axis_key, agg)], index = x_axis_key)
+    d = df.pivot_table(columns="exp_name", values = y_axis_key, aggfunc=agg, index = x_axis_key)
     if verbose:
         print(d.to_string(float_format = "%.2f"))
     x = np.array(d.axes[0])
@@ -197,7 +201,7 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
     middle_loc = num_exp*bar_width/2
     for i, key in enumerate(d.columns):
         y = np.array(d[key])
-        exp_name = key[-1]
+        exp_name = key
         rects  = ax.bar(x + bar_width*i + bar_width/2 - middle_loc, y, bar_width, label = exp_name)
         rects_list.append(rects)
     ax.set_xlabel(x_axis_key)
