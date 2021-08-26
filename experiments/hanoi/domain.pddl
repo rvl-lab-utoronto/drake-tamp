@@ -70,7 +70,11 @@
             (atworldpose ?disc ?X_WB)
             (empty ?arm)
             (atconf ?arm ?pre_q)
+            (conf ?arm ?pre_q)
+            (graspconf ?arm ?q)
             (on-peg ?disc ?peg)
+            (worldpose ?disc ?X_WB)
+            (handpose ?disc ?X_HB)
             ;(forall (?otherblock)
                 ;(imply 
                     ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))
@@ -90,6 +94,8 @@
     (:action move
         :parameters (?arm ?q1 ?traj ?q2) 
         :precondition (and
+            (conf ?arm ?q1)
+            (conf ?arm ?q2)
             (motion ?arm ?q1 ?traj ?q2) 
             (atconf ?arm ?q1)
         )
@@ -110,6 +116,10 @@
             (atconf ?arm ?pre_q)
             (peg-support ?disc ?X_WB ?peg)
             (empty-peg ?peg)
+            (worldpose ?disc ?X_WB)
+            (handpose ?disc ?X_HB)
+            (conf ?arm ?pre_q)
+            (graspconf ?arm ?q)
             ;(forall (?otherblock)
                 ;(imply 
                     ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))
@@ -140,6 +150,11 @@
             (atconf ?arm ?pre_q)
             (disc-support ?disc ?X_WB ?lowerdisc ?X_WL)
             (smaller ?disc ?lowerdisc)
+            (worldpose ?disc ?X_WB)
+            (worldpose ?lowerdisc ?X_WL)
+            (handpose ?disc ?X_HB)
+            (conf ?arm ?pre_q)
+            (graspconf ?arm ?q)
             ;(forall (?otherblock)
                 ;(imply 
                     ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))
@@ -170,6 +185,10 @@
             (empty ?arm)
             (atconf ?arm ?pre_q)
             (on-disc ?disc ?lowerdisc)
+            (worldpose ?disc ?X_WB)
+            (handpose ?disc ?X_HB)
+            (conf ?arm ?pre_q)
+            (graspconf ?arm ?q)
             ;(forall (?otherblock)
                 ;(imply 
                     ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))

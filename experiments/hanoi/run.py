@@ -683,13 +683,13 @@ def run_hanoi(
 
 if __name__ == '__main__':
     # main_generation_loop()
-    url = "tcp://127.0.0.1:6001"
+    url = "tcp://127.0.0.1:6005"
 
     res, _ = run_hanoi(
-        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
+        problem_file=os.path.join(file_path, "problems", "default_problem.yaml"),
         #problem_file=os.path.join(file_path, "problems", "default_problem.yaml"),
         mode="normal",
         url = url,
-        simulate = True,
+        simulate = False,
         #max_time = 180
     )

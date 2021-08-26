@@ -29,6 +29,7 @@
         :inputs (?arm ?disc ?X_WB ?X_HB)
         :domain (and
             (arm ?arm)
+            (disc ?disc)
             (worldpose ?disc ?X_WB) 
             (handpose ?disc ?X_HB)
         ) 
