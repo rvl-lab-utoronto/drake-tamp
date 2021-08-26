@@ -219,7 +219,6 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
         tikzplotlib.save(tex_save_path)
     
 def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True, bar_width = 0.35, tex_save_path = None):
-    assert False, "DEPRECIATED"
     # ie. x_axis_key: "num_discs"
     # agg in ["mean", "sum", "median"]
 
@@ -239,7 +238,6 @@ def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True
             dx = d.where(d[x_axis_key] == x)
             y_vals = list(dx[y_axis_key].dropna())
             y_val_list.append(np.array(y_vals))
-            #ax.boxplot(y_vals)#, positions = [x])#, labels = exp)
 
     positions = []
     labels = []
@@ -248,8 +246,15 @@ def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True
             positions.append(x_axis_vals[i] + j*bar_width +bar_width/2 - len(exp_names)*bar_width/2)
             labels.append(exp_names[j])
 
-    boxes = ax.boxplot(y_val_list, positions =  np.array(positions), widths = bar_width)
-    print(len(boxes))
+
+    boxes = ax.boxplot(y_val_list, positions =  np.array(positions), widths = bar_width, patch_artist=True, medianprops=dict(color="black"))
+    colors = ["orange", "blue", "green", "red"]
+    l_to_color = {l:c for l,c in zip(set(labels), colors)}
+
+    for l, box in zip(labels, boxes["boxes"]):
+        plt.setp(box, color = l_to_color[l])
+
+    ax.legend(boxes["boxes"][:len(l_to_color)], labels[:len(l_to_color)])
 
     ax.set_xticks(x_axis_vals)
     ax.set_xticklabels(x_axis_vals)
@@ -281,4 +286,5 @@ if __name__ == '__main__':
     data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/test_logs/save/', 'adaptive')
     data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/test_logs/oracle/', 'oracle')
     table_compare(data_adaptive + data_oracle)
-    bar_plot_compare("test_plot.png", data_adaptive + data_oracle, "num_blocks", "run_time", bar_width = 0.25)
+    box_plot_compare("test_plot.png", data_adaptive + data_oracle, "num_blocks", "run_time", bar_width = 0.25)
+    
