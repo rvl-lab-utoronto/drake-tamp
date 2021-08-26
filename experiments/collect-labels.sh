@@ -20,7 +20,6 @@ for FILE in $PROBLEMS; do
   timeout --signal 2 --foreground ${TIMEOUT}s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode normal --logpath $LOGDIR --problem-file $FILE --max-time $TIMEOUT --max_planner_time $MAXPLAN | tee ./save/$RUN.log
   LOGDIR=$(realpath ./oracle/$RUN)_logs/
   STATSPATH=$(realpath ./save/$RUN)_logs/stats.json
-  # STATSPATH: If using mode = oracle after mode =normal, the directory of the stats.json to use for the preimage"
   JSON='{"data_collection_mode":true,"stats_path":"'"$STATSPATH"'"}' # don't add spaces to this or it will break
   timeout --signal 2 --foreground ${TIMEOUT}s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode oracle --oracle-options=$JSON --logpath $LOGDIR --max-time $TIMEOUT --problem-file $FILE  --max_planner_time $MAXPLAN | tee ./oracle/$RUN.log
 done

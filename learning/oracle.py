@@ -1,4 +1,6 @@
 from collections import defaultdict
+from panda_station.utils import Colors
+import sys
 import json
 import os
 import pickle
@@ -277,6 +279,10 @@ class Oracle:
         if os.path.isfile(self.get_stats()):
             with open(self.get_stats()) as stream:
                 data = json.load(stream)
+                if not data["summary"]["solved"]:
+                    print(f"{Colors.RED}WARNING: CANNOT RUN ORACLE WITH THIS PREIMAGE, solved=false{Colors.RESET}")
+                    sys.exit(1)
+                    #raise KeyError("Cannot run oracle with this preimage, solved=False")
                 self.last_preimage = list(map(tuple, data["last_preimage"]))
                 self.atom_map = item_to_dict(data["atom_map"])
                 self.init = {x for x in self.atom_map if not self.atom_map[x]}
