@@ -191,28 +191,22 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
     #data = compare_same_set(data)
     df = pd.DataFrame(data)
 
-<<<<<<< HEAD
     d = df.groupby([x_axis_key, "exp_name"]).agg([agg]).pivot_table(columns="exp_name", values = [(y_axis_key, agg)], index = x_axis_key)
-    d_err = df.groupby([x_axis_key, "exp_name"]).agg(["std"]).pivot_table(columns="exp_name", values = [(y_axis_key, agg)], index = x_axis_key)
-=======
-    d = df.pivot_table(columns="exp_name", values = y_axis_key, aggfunc=agg, index = x_axis_key)
->>>>>>> f5bd9059c6140ef3d7d47fb516f195df87904d75
+    d_err = df.groupby([x_axis_key, "exp_name"]).std().pivot_table(columns="exp_name", values = [(y_axis_key)], index = x_axis_key)
     if verbose:
         print(d.to_string(float_format = "%.2f"))
+
     x = np.array(d.axes[0])
     fig, ax = plt.subplots()
     rects_list = []
     num_exp = len(d.columns)
     middle_loc = num_exp*bar_width/2
     i = 0
-    stds = []
-    #for i, key in enumerate(d.columns[2:]):
-        #stds.append(np.array(d[key]))
-    #print(stds)
-    for i, key in enumerate(d.columns[:2]):
+    for i, (key, key2) in enumerate(zip(d.columns, d_err.columns)):
         y = np.array(d[key])
-        exp_name = key
-        rects  = ax.bar(x + bar_width*i + bar_width/2 - middle_loc, y, bar_width, label = exp_name)
+        std = np.array(d_err[key2])
+        exp_name = key[-1].capitalize()
+        rects  = ax.bar(x + bar_width*i + bar_width/2 - middle_loc, y, bar_width, label = exp_name, yerr = std, capsize=10)
         rects_list.append(rects)
     ax.set_xlabel(x_axis_key.replace("_", " ").title())
     ax.set_ylabel(y_axis_key.replace("_", " ").title())
@@ -225,6 +219,7 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
         tikzplotlib.save(tex_save_path)
     
 def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True, bar_width = 0.35, tex_save_path = None):
+    assert False, "DEPRECIATED"
     # ie. x_axis_key: "num_discs"
     # agg in ["mean", "sum", "median"]
 
@@ -283,7 +278,7 @@ if __name__ == '__main__':
         bar_plot_compare("num_blocks_run_time.png", data_adaptive + data_oracle, "num_blocks", "run_time", tex_save_path= "num_blocks_run_time.tex", bar_width = 0.25)
         bar_plot_compare("num_blocks_solved.png", data_adaptive + data_oracle, "num_blocks", "solved", tex_save_path= "num_blocks_solved.tex", bar_width = 0.25)
 
-    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_logs/save/', 'adaptive')
-    #data_informed = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_logs/informed/', 'informed')
-    table_compare(data_adaptive)#  + data_informed)
-    #bar_plot_compare("test_plot.png", data_adaptive + data_informed, "num_discs", "total_fd_search_time", bar_width = 0.25)
+    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/test_logs/save/', 'adaptive')
+    data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/test_logs/oracle/', 'oracle')
+    table_compare(data_adaptive + data_oracle)
+    bar_plot_compare("test_plot.png", data_adaptive + data_oracle, "num_blocks", "run_time", bar_width = 0.25)
