@@ -255,13 +255,16 @@ def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True
         plt.setp(box, color = l_to_color[l])
 
     ax.legend(boxes["boxes"][:len(l_to_color)], labels[:len(l_to_color)])
+    ax.set_xlabel(x_axis_key.replace("_", " ").title())
+    ax.set_ylabel(y_axis_key.replace("_", " ").title())
 
     ax.set_xticks(x_axis_vals)
     ax.set_xticklabels(x_axis_vals)
-    #ax.legend()
 
     fig.tight_layout()
     plt.savefig(img_save_path, dpi = 400)
+    if tex_save_path is not None:
+        tikzplotlib.save(tex_save_path)
 
     print()
 
