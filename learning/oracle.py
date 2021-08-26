@@ -677,8 +677,18 @@ class ComplexityDataCollector(ComplexityModelV3):
 class MultiHeadModel(Oracle):
     def __init__(self, *args, **kwargs):
         model_path = kwargs.pop('model_path')
+        if "feature_size" in kwargs:
+            feature_size = kwargs.pop('feature_size')
+        else:
+            feature_size = 16
+        if "hidden_size"  in kwargs:
+            hidden_size = kwargs.pop('hidden_size')
+        else:
+            hidden_size = 16
         super().__init__(*args, **kwargs)
         self.model_path = model_path
+        self.feature_size = feature_size
+        self.hidden_size = hidden_size
         self.model = None
     
     def set_model_info(self, domain, externals):
@@ -706,8 +716,9 @@ class MultiHeadModel(Oracle):
         self.load_model()
 
     def load_model(self):
+        print(self.feature_size, self.hidden_size)
         self.model = StreamInstanceClassifierV2(
-            self.model_info,
+            self.model_info, feature_size = self.feature_size, hidden_size = self.hidden_size
         )
         self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
         self.model.eval()

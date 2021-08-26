@@ -109,7 +109,7 @@ if __name__ == "__main__":
             f.write(f"Ablation {args.ablation}\n")
             if args.model == "streamclassv2":
                 f.write(f"Feature size {args.feature_size}\n")
-                f.write(f"Hidden size {args.feature_size}\n")
+                f.write(f"Hidden size {args.hidden_size}\n")
 
     if args.model == "hyper":
         input_fn = construct_hypermodel_input_faster
