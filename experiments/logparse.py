@@ -188,6 +188,7 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
     df = pd.DataFrame(data)
 
     d = df.groupby([x_axis_key, "exp_name"]).agg([agg]).pivot_table(columns="exp_name", values = [(y_axis_key, agg)], index = x_axis_key)
+    d_err = df.groupby([x_axis_key, "exp_name"]).agg(["std"]).pivot_table(columns="exp_name", values = [(y_axis_key, agg)], index = x_axis_key)
     if verbose:
         print(d.to_string(float_format = "%.2f"))
     x = np.array(d.axes[0])
@@ -195,7 +196,12 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
     rects_list = []
     num_exp = len(d.columns)
     middle_loc = num_exp*bar_width/2
-    for i, key in enumerate(d.columns):
+    i = 0
+    stds = []
+    #for i, key in enumerate(d.columns[2:]):
+        #stds.append(np.array(d[key]))
+    #print(stds)
+    for i, key in enumerate(d.columns[:2]):
         y = np.array(d[key])
         exp_name = key[-1]
         rects  = ax.bar(x + bar_width*i + bar_width/2 - middle_loc, y, bar_width, label = exp_name)
@@ -210,6 +216,45 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
     if tex_save_path is not None:
         tikzplotlib.save(tex_save_path)
     
+def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True, bar_width = 0.35, tex_save_path = None):
+    # ie. x_axis_key: "num_discs"
+    # agg in ["mean", "sum", "median"]
+
+    #data = compare_same_set(data)
+    df = pd.DataFrame(data)
+    exp_names = list(set(df["exp_name"]))
+    x_axis_vals = np.array(list(set(df[x_axis_key])))
+    x_axis_vals.sort()
+
+    fig, ax = plt.subplots()
+
+    y_val_list = []
+
+    for exp in exp_names:
+        d = df.where(df["exp_name"] == exp)
+        for x in x_axis_vals:
+            dx = d.where(d[x_axis_key] == x)
+            y_vals = list(dx[y_axis_key].dropna())
+            y_val_list.append(np.array(y_vals))
+            #ax.boxplot(y_vals)#, positions = [x])#, labels = exp)
+
+    positions = []
+    labels = []
+    for i in range(len(x_axis_vals)):
+        for j in range(len(exp_names)):
+            positions.append(x_axis_vals[i] + j*bar_width +bar_width/2 - len(exp_names)*bar_width/2)
+            labels.append(exp_names[j])
+
+    boxes = ax.boxplot(y_val_list, positions =  np.array(positions), widths = bar_width)
+    print(len(boxes))
+
+    ax.set_xticks(x_axis_vals)
+    ax.set_xticklabels(x_axis_vals)
+    #ax.legend()
+
+    fig.tight_layout()
+    plt.savefig(img_save_path, dpi = 400)
+
     print()
 
 def print_header(st):
@@ -230,11 +275,7 @@ if __name__ == '__main__':
         bar_plot_compare("num_blocks_run_time.png", data_adaptive + data_oracle, "num_blocks", "run_time", tex_save_path= "num_blocks_run_time.tex", bar_width = 0.25)
         bar_plot_compare("num_blocks_solved.png", data_adaptive + data_oracle, "num_blocks", "solved", tex_save_path= "num_blocks_solved.tex", bar_width = 0.25)
 
-    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/hanoi_logs/save/', 'adaptive')
-    bar_plot_compare("test_plot.png", data_adaptive, "num_discs", "solved", tex_save_path= "test_plot.tex", bar_width = 0.25)
-    bar_plot_compare("test_plot.png", data_adaptive, "num_discs", "run_time", tex_save_path= "test_plot.tex", bar_width = 0.25)
-
-    #plot_and_print("non_monotonic_logs")
-    #plot_and_print("clutter_logs")
-    #plot_and_print("sorting_logs")
-    #plot_and_print("stacking_logs")
+    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_logs/save/', 'adaptive')
+    #data_informed = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_logs/informed/', 'informed')
+    table_compare(data_adaptive)#  + data_informed)
+    #bar_plot_compare("test_plot.png", data_adaptive + data_informed, "num_discs", "total_fd_search_time", bar_width = 0.25)
