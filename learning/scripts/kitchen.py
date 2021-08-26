@@ -3,15 +3,15 @@ import numpy as np
 import json
 
 make_data_info(write = True)
-blocks_world = get_pddl_key('kitchen')
-data = query_data(blocks_world, [])
+kitchen = get_pddl_key('kitchen')
+data = query_data(kitchen, [])
 print(f"Num kitchen problems: {len(data)}")
 
 num_valid = min(15, len(data) // 5)
 np.random.shuffle(data)
 valid = data[-num_valid:]
 train = data[:-num_valid]
-with open('/home/agrobenj/drake-tamp/learning/data/experiments/new_kitchen.json', 'w') as f:
+with open('/home/agrobenj/drake-tamp/learning/data/experiments/kitchen_less_axioms.json', 'w') as f:
     json.dump(dict(
         train=train,
         validation=valid,

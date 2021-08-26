@@ -53,6 +53,7 @@ def parse_logs(exp_dir, exp_name):
 def load_results_from_stats(exp_dir, exp_name):
     data = []
     for i, stats_path in enumerate(glob(os.path.join(exp_dir, '*_logs/stats.json'))):
+
         with open(stats_path, 'r') as f:
             run_stats = json.load(f)
 
@@ -192,7 +193,7 @@ def bar_plot_compare(img_save_path, data, x_axis_key, y_axis_key, agg = "mean", 
     df = pd.DataFrame(data)
 
     d = df.groupby([x_axis_key, "exp_name"]).agg([agg]).pivot_table(columns="exp_name", values = [(y_axis_key, agg)], index = x_axis_key)
-    d_err = df.groupby([x_axis_key, "exp_name"]).std().pivot_table(columns="exp_name", values = [(y_axis_key)], index = x_axis_key)
+    d_err = df.groupby([x_axis_key, "exp_name"]).std().fillna(0).pivot_table(columns="exp_name", values = [(y_axis_key)], index = x_axis_key)
     if verbose:
         print(d.to_string(float_format = "%.2f"))
 
@@ -274,20 +275,10 @@ def print_header(st):
 
 
 if __name__ == '__main__':
-    import pandas as pd
 
-    def plot_and_print_blocks(dir):
-        print_header(dir)
-        data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/{dir}/save/', 'adaptive')
-        data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/{dir}/oracle/', 'oracle')
-        table_compare(data_adaptive + data_oracle)
-        #num_discs_vs_exp(data_oracle + data_adaptive)
-        #num_blocks_vs_exp(data_adaptive + data_oracle)
-        bar_plot_compare("num_blocks_run_time.png", data_adaptive + data_oracle, "num_blocks", "run_time", tex_save_path= "num_blocks_run_time.tex", bar_width = 0.25)
-        bar_plot_compare("num_blocks_solved.png", data_adaptive + data_oracle, "num_blocks", "solved", tex_save_path= "num_blocks_solved.tex", bar_width = 0.25)
-
-    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/test_logs/save/', 'adaptive')
-    data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/test_logs/oracle/', 'oracle')
-    table_compare(data_adaptive + data_oracle)
-    box_plot_compare("test_plot.png", data_adaptive + data_oracle, "num_blocks", "run_time", bar_width = 0.25)
+    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/save/', 'adaptive')
+    #data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/oracle/', 'oracle')
+    table_compare(data_adaptive)# + data_oracle)
+    box_plot_compare("test_box_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
+    bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
     
