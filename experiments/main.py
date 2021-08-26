@@ -1,6 +1,7 @@
 from experiments.blocks_world.run import run_blocks_world
 from experiments.two_arm_blocks_world.run import run_blocks_world as run_two_arm_blocks_world
 from experiments.kitchen.run import run_kitchen
+from experiments.kitchen_less_axioms.run import run_kitchen_less_axioms
 from experiments.hanoi.run import run_hanoi
 import argparse
 import json
@@ -9,7 +10,8 @@ domains = {
     'kitchen': run_kitchen,
     'blocks_world':run_blocks_world,
     'two_arm_blocks_world': run_two_arm_blocks_world,
-    'hanoi': run_hanoi
+    'hanoi': run_hanoi,
+    'kitchen_less_axioms': run_kitchen_less_axioms
 }
 
 example = '{"model_path":"/home/agrobenj/drake-tamp/model_files/blocksworld_V2_adaptive/best.pt"}'
@@ -130,16 +132,16 @@ if __name__ == '__main__':
 
     file = os.path.join(args.logpath, "run-params.txt")
     with open(file, "w") as f:
-        f.write(f"Mode: {args.mode}")
-        f.write(f"Algorithm: {args.algorithm}")
-        f.write(f"Domain options: {args.domain_options}")
-        f.write(f"Use unique: {args.use_unique}")
-        f.write(f"Max Time: {args.max_time}")
-        f.write(f"Max Planner Time: {args.max_planner_time}")
-        f.write(f"Logpath: {args.logpath}")
-        f.write(f"Eager Mode: {args.eager_mode}")
-        f.write(f"Domain: {args.domain}")
-        f.write(f"Problem File: {args.problem_file}")
+        f.write(f"Mode: {args.mode}\n")
+        f.write(f"Algorithm: {args.algorithm}\n")
+        f.write(f"Domain options: {args.domain_options}\n")
+        f.write(f"Use unique: {args.use_unique}\n")
+        f.write(f"Max Time: {args.max_time}\n")
+        f.write(f"Max Planner Time: {args.max_planner_time}\n")
+        f.write(f"Logpath: {args.logpath}\n")
+        f.write(f"Eager Mode: {args.eager_mode}\n")
+        f.write(f"Domain: {args.domain}\n")
+        f.write(f"Problem File: {args.problem_file}\n")
 
     run_exp(
         mode=args.mode,

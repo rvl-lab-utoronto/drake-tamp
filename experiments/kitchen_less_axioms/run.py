@@ -473,7 +473,7 @@ def setup_parser():
     return parser
 
 
-def run_kitchen(
+def run_kitchen_less_axioms(
     num_cabbages=1,
     num_raddishes=0,
     num_glasses=2,
@@ -654,7 +654,7 @@ def generate_data(
         iterations of ("save" and "oracle"), ("save" and "oracle") ...)
     """
 
-    res, problem_file = run_kitchen(
+    res, problem_file = run_kitchen_less_axioms(
         num_cabbages=num_cabbages,
         num_raddishes=num_raddishes,
         num_glasses=num_glasses,
@@ -672,7 +672,7 @@ def generate_data(
     mode = "oracle"
     for i in range((num_repeat_per_problem * 2) - 1):
         mode = "oracle" if (i % 2 == 0) else "save"
-        res, _ = run_kitchen(
+        res, _ = run_kitchen_less_axioms(
             max_time=max_time,
             mode=mode,
             url=url,
@@ -692,7 +692,7 @@ def generate_data(
 if __name__ == "__main__":
 
     url = "tcp://127.0.0.1:6005"
-    res, problem_file = run_kitchen(
+    res, problem_file = run_kitchen_less_axioms(
         problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
         mode="normal",
         algorithm='adaptive',

@@ -73,8 +73,8 @@ def make_argument_parser():
     parser.add_argument("--epoch-size", default=1280, type=int, help = "The number of labels shown per epoch")
     parser.add_argument("--preprocess-all", action="store_true", help = "Do you want to preprocess all of the data, or processes it when it is needed?")
     parser.add_argument("--ablation", action="store_true", help = "Are you doing an ablation study?") # what exactly does this do?
-    parser.add_argument("--feature-size", type=int, default = 16) # what exactly does this do?
-    parser.add_argument("--hidden-size", type=int, default = 16) # what exactly does this do?
+    parser.add_argument("--feature-size", type=int, default = 16) 
+    parser.add_argument("--hidden-size", type=int, default = 16)    
     return parser
 
 
