@@ -1,0 +1,114 @@
+directive: "directives/kitchen.yaml"
+# the internal representation used for planning
+planning_directive: "directives/kitchen_planning.yaml"  
+
+arms:
+     panda:
+          panda_name: panda
+          hand_name: hand
+          X_WB: [0, 0, 0, 0, 0, 0]
+
+objects:
+     glass1:
+          path: "models/kitchen/sdf/glass.sdf"
+          X_WO: [-0.6, 0.1, 0.35, 0, 0, 0]
+          main_link: "base_link"
+          contained: ["leftplacemat", "leftside"]
+
+     #glass2:
+     #     path: "models/kitchen/sdf/glass.sdf"
+     #     X_WO: [-0.3, 0.4, 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+     #     contained: ["rightplacemat", "leftside"]
+
+     cabbage1:
+          path: "models/kitchen/sdf/cabbage.sdf"
+          X_WO: [0.5, 0.05, 0.35, 0, 0, 0]
+          main_link: "base_link"
+          contained: ["tray", "base_link"]
+
+     #cabbage2:
+     #     path: "models/kitchen/sdf/cabbage.sdf"
+     #     X_WO: [0.5, 0.15, 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+     #     contained: ["tray", "base_link"]
+
+     #raddish1:
+     #     path: "models/kitchen/sdf/raddish.sdf"
+     #     X_WO: [0.55, 0.05, 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+     #     contained: ["tray", "base_link"]
+
+     #raddish2:
+     #     path: "models/kitchen/sdf/raddish.sdf"
+     #     X_WO: [0.45, 0.05 , 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+     #     contained: ["tray", "base_link"]
+
+     #raddish3:
+     #     path: "models/kitchen/sdf/raddish.sdf"
+     #     X_WO: [0.55, 0.15, 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+
+     #raddish4:
+     #     path: "models/kitchen/sdf/raddish.sdf"
+     #     X_WO: [0.45, 0.15 , 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+
+     #raddish5:
+     #     path: "models/kitchen/sdf/raddish.sdf"
+     #     X_WO: [0.5, 0.2, 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+
+     #raddish6:
+     #     path: "models/kitchen/sdf/raddish.sdf"
+     #     X_WO: [0.5, 0.1 , 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+     #     contained: ["tray", "base_link"]
+        
+     #raddish7:
+     #     path: "models/kitchen/sdf/raddish.sdf"
+     #     X_WO: [0.5, 0, 0.35, 0, 0, 0]
+     #     main_link: "base_link"
+     #     contained: ["tray", "base_link"]
+
+main_links:
+   table_long: "base_link"
+   table_square: "base_link"
+   table_serving: "base_link"
+   stove: "base_link"
+   sink: "base_link"
+   leftplacemat: "base_link"
+   rightplacemat: "base_link"
+   leftplate: "base_link"
+   rightplate: "base_link"
+   tray: "base_link"
+
+surfaces:
+   #table_long: 
+   #     - "base_link"
+   #table_square: 
+   #     - "base_link"
+   #table_serving: 
+   #     - "base_link"
+   stove: 
+        - "infopad"
+        - "burner1"
+        - "burner2"
+        - "burner3"
+        - "burner4"
+        - "burner5"
+   sink: 
+        - "base_link"
+   leftplacemat: 
+        - "leftside"
+        - "rightside"
+   leftplate: 
+        - "base_link"
+   rightplacemat: 
+        - "leftside"
+        - "rightside"
+   rightplate: 
+        - "base_link"
+   tray: 
+        - "base_link"
