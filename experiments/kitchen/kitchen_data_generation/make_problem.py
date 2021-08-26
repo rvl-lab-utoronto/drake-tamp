@@ -1,4 +1,5 @@
 import os
+import yaml
 from panda_station.models.blocks_world.sdf.make_blocks import TEMPLATE_NAME
 from learning.poisson_disc_sampling import PoissonSampler
 import numpy as np
@@ -422,4 +423,7 @@ def pick_random_region():
 
 if __name__ == "__main__":
 
-    make_random_problem(1, 1, 1)
+    yaml_data = make_random_problem(num_cabbages = 4, num_raddishes = 2, num_glasses = 1)
+    with open("test_problem.yaml", "w") as f:
+        yaml.dump(yaml_data, f, default_flow_style=False)
+

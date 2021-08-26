@@ -127,6 +127,20 @@ if __name__ == '__main__':
         import cProfile, pstats, io
         pr = cProfile.Profile()
         pr.enable() 
+
+    file = os.path.join(args.logpath, "run-params.txt")
+    with open(file, "w") as f:
+        f.write(f"Mode: {args.mode}")
+        f.write(f"Algorithm: {args.algorithm}")
+        f.write(f"Domain options: {args.domain_options}")
+        f.write(f"Use unique: {args.use_unique}")
+        f.write(f"Max Time: {args.max_time}")
+        f.write(f"Max Planner Time: {args.max_planner_time}")
+        f.write(f"Logpath: {args.logpath}")
+        f.write(f"Eager Mode: {args.eager_mode}")
+        f.write(f"Domain: {args.domain}")
+        f.write(f"Problem File: {args.problem_file}")
+
     run_exp(
         mode=args.mode,
         algorithm=args.algorithm,

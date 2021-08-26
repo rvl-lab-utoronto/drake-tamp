@@ -54,6 +54,7 @@ from panda_station import (
 from tamp_statistics import make_plot
 from experiments.blocks_world import blocks_world_streams
 from experiments.blocks_world.data_generation import make_problem
+from pddlstream.language.stream import StreamInfo
 
 VERBOSE = False
 
@@ -573,7 +574,10 @@ def run_blocks_world(
         eager_mode=eager_mode,
         search_sample_ratio=search_sample_ratio,
         max_planner_time = max_planner_time,
-        problem_file_path = problem_file
+        problem_file_path = problem_file,
+        stream_info = {
+            'find-ik': StreamInfo(use_unique=True)
+        },
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)

@@ -683,8 +683,18 @@ class ComplexityDataCollector(ComplexityModelV3):
 class MultiHeadModel(Oracle):
     def __init__(self, *args, **kwargs):
         model_path = kwargs.pop('model_path')
+        if "feature_size" in kwargs:
+            feature_size = kwargs.pop('feature_size')
+        else:
+            feature_size = 16
+        if "hidden_size"  in kwargs:
+            hidden_size = kwargs.pop('hidden_size')
+        else:
+            hidden_size = 16
         super().__init__(*args, **kwargs)
         self.model_path = model_path
+        self.feature_size = feature_size
+        self.hidden_size = hidden_size
         self.model = None
     
     def set_model_info(self, domain, externals):
@@ -712,8 +722,9 @@ class MultiHeadModel(Oracle):
         self.load_model()
 
     def load_model(self):
+        print(self.feature_size, self.hidden_size)
         self.model = StreamInstanceClassifierV2(
-            self.model_info,
+            self.model_info, feature_size = self.feature_size, hidden_size = self.hidden_size
         )
         self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
         self.model.eval()
@@ -724,6 +735,8 @@ class MultiHeadModel(Oracle):
         self.history = {}
         self.counts = {}
         self.init_objects = objects_from_facts(self.problem_info.initial_facts)
+        self.running_average = 0.1
+        self.N = 10
     
     def calculate_result_key(self, result, atom_map):
         facts = [fact_to_pddl(f) for f in result.get_certified()]
@@ -737,7 +750,7 @@ class MultiHeadModel(Oracle):
     def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         if not all([d in node_from_atom for d in result.domain]):
-            return 0.5/l
+            return self.running_average / l
 
         result_key = self.calculate_result_key(result, atom_map)
         count = self.counts[result_key] = self.counts.get(result_key, 0) + 1
@@ -752,4 +765,5 @@ class MultiHeadModel(Oracle):
             data = Data(stream_schedule=[[{"name": result.name, "input_objects": inputs, "output_objects": outputs}]])
             score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
             self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
+            self.running_average = (self.running_average*(self.N-1) + score) / self.N
         return score/(l  + count  - 1)

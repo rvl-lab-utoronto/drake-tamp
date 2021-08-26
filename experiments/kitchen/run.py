@@ -249,7 +249,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal
                 q1,
                 q2,
                 ignore_endpoint_collisions=False,
-                verbose=True,
+                verbose=False,
             )
             if traj is None:  # if a trajectory could not be found (invalid)
                 if holdingitem:
@@ -691,84 +691,12 @@ def generate_data(
 
 if __name__ == "__main__":
 
-    url = None#"tcp://127.0.0.1:6000"
-
-    """
-    max_cabbages = 4
-    max_raddishes = 4
-    max_glasses = 4
-
-
-    for num_c, num_r, num_g in itertools.product(
-        range(max_cabbages + 1), range(max_raddishes + 1), range(max_glasses + 1)
-    ):
-
-        if num_c + num_r + num_g == 0:
-            continue
-
-        for num_goal in range(1, num_c + num_r + num_g + 1):
-            generate_data(
-                num_cabbages=num_c,
-                num_raddishes=num_r,
-                num_glasses=num_g,
-                num_goal = num_goal,
-                buffer_radius=0.00,
-                url=url,
-                simulate=False,
-                max_time = 360
-            )
-    """
-
-
-    # L = ["c", "r", "g"]
-
-    # for num in range(2,6):
-    #     for comb in itertools.combinations_with_replacement(L, num):
-    #         num_c = comb.count('c')
-    #         num_r = comb.count('r')
-    #         num_g = comb.count('g')
-    #         generate_data(
-    #             num_cabbages=num_c,
-    #             num_raddishes=num_r,
-    #             num_glasses=num_g,
-    #             num_goal = None,
-    #             buffer_radius=0.00,
-    #             url=url,
-    #             simulate=False,
-    #             max_time = 360,
-    #             num_repeat_per_problem=3
-    #         )
-
-    # import cProfile, pstats, io
-    # pr = cProfile.Profile()
-    # pr.enable()
+    url = "tcp://127.0.0.1:6000"
     res, problem_file = run_kitchen(
-        problem_file=os.path.join(file_path, "problems", "custom_problem.yaml"),
-        #mode="save",
-        #algorithm='adaptive',
-        mode="complexityV3",
-        algorithm='informedV2',
+        problem_file=os.path.join(file_path, "kitchen_data_generation", "test_problem.yaml"),
+        mode="normal",
+        algorithm='adaptive',
         url = url,
         simulate = False,
-        max_time = 60,
-        use_unique=False
+        max_time = 90,
     )
-    # pr.disable()
-    # s = io.StringIO()
-    # ps = pstats.Stats(pr, stream=s)
-    # ps.print_stats()
-    # ps.dump_stats('complexityv3_opt.profile')
-    # print(s.getvalue())
-
-
-    """
-    parser = setup_parser()
-    args = parser.parse_args()
-    mode = args.mode.lower()
-    run_kitchen(
-        num_cabbages=2,
-        num_raddishes= 2,
-        num_glasses = 2,
-        url = args.url
-    )
-    """
