@@ -269,6 +269,46 @@ def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True
 
     print()
 
+def runtime_breakdown(img_save_path, data, x_axis_key, agg='mean', tex_save_path=None):
+    groups = [
+        'sample_time',
+        'total_translation_time',
+        'total_fd_search_time',
+        'search_time_unaccounted',
+        'scoring_time'
+    ]
+    x_axis = 'num_goal'
+    df = pd.DataFrame(data)
+    num_exp = int(df['exp_name'].nunique())
+    bottoms = [np.zeros(df[x_axis].nunique()) for i in range(num_exp)]
+    bar_width = 0.35
+    middle_loc = num_exp*bar_width/2
+    cmap = plt.get_cmap("tab10")
+    colors = [cmap(i) for i in range(len(groups))]
+    fig, ax = plt.subplots(figsize=(6,4))
+    for j, group in enumerate(groups):
+        d = df.pivot_table(index=x_axis, columns='exp_name', values=group, aggfunc=agg)
+        x = np.array(d.axes[0])
+        for i, key in enumerate(d.columns):
+            y = np.array(d[key])
+            ax.bar(x + bar_width*i + bar_width/2 - middle_loc, y, bar_width, bottom=bottoms[i], hatch='//' if i == 1 else None, color=colors[j])
+            bottoms[i] += y
+
+    handles = []
+    for group, color in zip(groups, colors):
+        handles.append(mpatches.Patch(color=color,label=group))
+    # handles.append(mpatches.Patch(hatch='//'))
+    # groups.append('informed')
+    leg1 = ax.legend(handles, groups)
+    ax.add_artist(leg1)
+    ax.set_xlabel(x_axis_key)
+    ax.set_ylabel('Runtime(s)')
+
+    fig.tight_layout()
+    plt.savefig(img_save_path, dpi = 400)
+    if tex_save_path is not None:
+        tikzplotlib.save(tex_save_path)
+
 def print_header(st):
     print(('\n' * 2) + ('#' * 10), st, ('#' * 10) + ('\n' * 1))
 
