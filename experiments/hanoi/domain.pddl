@@ -75,12 +75,6 @@
             (on-peg ?disc ?peg)
             (worldpose ?disc ?X_WB)
             (handpose ?disc ?X_HB)
-            ;(forall (?otherblock)
-                ;(imply 
-                    ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))
-                    ;(disc-safe ?arm ?q ?otherblock)
-                ;)
-            ;)
         ) 
         :effect (and
             (athandpose ?arm ?disc ?X_HB)
@@ -120,12 +114,6 @@
             (handpose ?disc ?X_HB)
             (conf ?arm ?pre_q)
             (graspconf ?arm ?q)
-            ;(forall (?otherblock)
-                ;(imply 
-                    ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))
-                    ;(disc-safe ?arm ?q ?otherblock)
-                ;)
-            ;)
         ) 
         :effect (and
             (not (athandpose ?arm ?disc ?X_HB))
@@ -155,12 +143,6 @@
             (handpose ?disc ?X_HB)
             (conf ?arm ?pre_q)
             (graspconf ?arm ?q)
-            ;(forall (?otherblock)
-                ;(imply 
-                    ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))
-                    ;(disc-safe ?arm ?q ?otherblock)
-                ;)
-            ;)
         )
         :effect (and
             (empty ?arm)
@@ -189,12 +171,6 @@
             (handpose ?disc ?X_HB)
             (conf ?arm ?pre_q)
             (graspconf ?arm ?q)
-            ;(forall (?otherblock)
-                ;(imply 
-                    ;(and (disc ?otherblock) (arm ?arm) (graspconf ?arm ?q))
-                    ;(disc-safe ?arm ?q ?otherblock)
-                ;)
-            ;)
         ) 
         :effect (and
             (athandpose ?arm ?disc ?X_HB)

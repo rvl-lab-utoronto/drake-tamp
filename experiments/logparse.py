@@ -278,7 +278,7 @@ def runtime_breakdown(img_save_path, data, x_axis_key, agg='mean', tex_save_path
         'search_time_unaccounted',
         'scoring_time'
     ]
-    x_axis = 'num_goal'
+    x_axis = x_axis_key
     df = pd.DataFrame(data)
     df['search_time_accounted'] = df['total_fd_search_time'] + df['total_translation_time'] + df['scoring_time']
     df['search_time_unaccounted'] = df['search_time'] - df['search_time_accounted']
@@ -318,9 +318,17 @@ def print_header(st):
 
 if __name__ == '__main__':
 
-    data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/save/', 'adaptive')
-    #data_oracle = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/oracle/', 'oracle')
-    table_compare(data_adaptive)# + data_oracle)
-    box_plot_compare("test_box_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
-    bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
+    #data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/save/', 'adaptive')
+    #data_informed = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/informed/', 'informed')
+    #table_compare(data_adaptive)# + data_informed)
+    #box_plot_compare("test_box_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
+    #bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
+    #runtime_breakdown("breakdown_hanoi.png", data_adaptive + data_informed, "num_discs")
+    
+    ada = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/blocks_world_move_fix/save/', 'adaptive')
+    ora = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/blocks_world_move_fix/oracle/', 'oracle')
+    table_compare(ora)
+    table_compare(ada)
+    #bar_plot_compare("test_plot.png", ora + ada, "num_blocks", "run_time", agg = "sum")
+    runtime_breakdown("breakdown_new.png", ada + ora, "num_blocks")
     
