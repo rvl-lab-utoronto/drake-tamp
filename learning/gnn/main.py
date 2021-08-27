@@ -16,8 +16,6 @@ from learning.gnn.data import (
     construct_stream_classifier_input_v2,
     construct_with_problem_graph,
     get_base_datapath,
-    get_pddl_key,
-    query_data,
 )
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
 from learning.gnn.train import evaluate_model, train_model_graphnetwork

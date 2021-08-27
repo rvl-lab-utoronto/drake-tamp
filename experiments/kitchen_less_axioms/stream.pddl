@@ -68,42 +68,4 @@
         )
     )
 
-    
-
-    ;(:stream check-safe-place
-    ;    :inputs (?q ?itemholding ?X_HI ?item ?X_WI) 
-    ;    :domain (and
-    ;        (item ?itemholding)
-    ;        (item ?item)
-    ;        (graspconf ?q)
-    ;        (worldpose ?item ?X_WI)
-    ;        (handpose ?itemholding ?X_HI)
-    ;    )
-    ;    :certified (and
-    ;        (colfreeholding ?q ?itemholding ?X_HI ?item ?X_WI) 
-    ;    )
-    ;)
-
-
-    ;(:stream check-pick
-    ;    :inputs (?grasp_q ?item ?X_WI)
-    ;    :domain (and
-    ;        (item ?item) 
-    ;        (conf ?grasp_q)
-    ;        (worldpose ?item ?X_WI)
-    ;    ) 
-    ;    :certified (safeikfree ?grasp_q ?item ?X_WI)
-    ;)
-
-    ;(:stream check-place
-    ;    :inputs (?place_q ?holdingitem ?X_HI ?worlditem ?X_WI)
-    ;    :domain (and
-    ;        (item ?holdingitem) 
-    ;        (item ?worlditem)
-    ;        (conf ?place_q)
-    ;        (worldpose ?worlditem ?X_WI)
-    ;        (handpose ?holdingitem ?X_HI)
-    ;    ) 
-    ;    :certified (safeikholding ?place_q ?holdingitem ?X_HI ?worlditem ?X_WI)
-    ;)
 )

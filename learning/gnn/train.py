@@ -98,10 +98,12 @@ def evaluate_dataset(model, criterion, dataset):
     losses = {}
     model.eval()
     print("Starting Evaluation")
+    datas = []
     for d in tqdm(dataset):
         problem_keys = d.problem_index # this is a list of single element lists
         preds = model(d)
         logit = torch.sigmoid(preds)
+        datas.append(d)
         for row_index, problem_key in enumerate(problem_keys):
             problem_key = problem_key[0]
             loss = criterion(preds[row_index], d.y[row_index].unsqueeze(dim=0))
