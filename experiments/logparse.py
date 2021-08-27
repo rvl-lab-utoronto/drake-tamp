@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import tikzplotlib
 import pandas as pd
+import matplotlib.patches as mpatches
 
 def dict_from_string(s:str):
     obj = eval(s, type('js', (dict,), dict(__getitem__=lambda s, n: n))())
@@ -269,7 +270,7 @@ def box_plot_compare(img_save_path, data, x_axis_key, y_axis_key, verbose = True
 
     print()
 
-def runtime_breakdown(img_save_path, data, x_axis_key, agg='mean', tex_save_path=None):
+def runtime_breakdown(img_save_path, data, x_axis_key, agg='mean', tex_save_path=None, bar_width=0.35):
     groups = [
         'sample_time',
         'total_translation_time',
@@ -279,13 +280,14 @@ def runtime_breakdown(img_save_path, data, x_axis_key, agg='mean', tex_save_path
     ]
     x_axis = 'num_goal'
     df = pd.DataFrame(data)
+    df['search_time_accounted'] = df['total_fd_search_time'] + df['total_translation_time'] + df['scoring_time']
+    df['search_time_unaccounted'] = df['search_time'] - df['search_time_accounted']
     num_exp = int(df['exp_name'].nunique())
     bottoms = [np.zeros(df[x_axis].nunique()) for i in range(num_exp)]
-    bar_width = 0.35
-    middle_loc = num_exp*bar_width/2
+    middle_loc = num_exp*bar_width / num_exp
     cmap = plt.get_cmap("tab10")
     colors = [cmap(i) for i in range(len(groups))]
-    fig, ax = plt.subplots(figsize=(6,4))
+    fig, ax = plt.subplots()
     for j, group in enumerate(groups):
         d = df.pivot_table(index=x_axis, columns='exp_name', values=group, aggfunc=agg)
         x = np.array(d.axes[0])
