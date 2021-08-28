@@ -48,8 +48,8 @@ def make_cube(name, color, size, buffer, ball_radius=1e-7):
 
 if __name__ == "__main__":
 
-    block_size = np.array([0.045, 0.045, 0.045])
-    blocker_size = np.array([0.045, 0.045, 0.1])
+    block_size = np.array([0.05, 0.05, 0.05])
+    blocker_size = np.array([0.05, 0.05, 0.1])
     buffer = 0.001
     colors = [
         "1 0.1 0.1 1",
