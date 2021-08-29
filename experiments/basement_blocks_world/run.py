@@ -18,6 +18,7 @@ import matplotlib
 import yaml
 
 matplotlib.use("Agg")
+from experiments.shared import construct_oracle
 import os
 from re import I
 import argparse
@@ -33,13 +34,13 @@ from pddlstream.algorithms.algorithm import reset_globals
 from learning import visualization
 from learning import oracle as ora
 from panda_station import (
+    rt_to_xyzrpy,
     ProblemInfo,
     parse_start_poses,
     parse_config,
     update_station,
     update_arm,
     PlanToTrajectory,
-    TrajType,
     TrajectoryDirector,
     find_traj,
     Colors,
@@ -51,15 +52,15 @@ from panda_station import (
     Q_NOMINAL,
 )
 from tamp_statistics import make_plot
-import basement_blocks_world_streams 
-from data_generation import make_problem
+from experiments.basement_blocks_world import basement_blocks_world_streams
+from experiments.basement_blocks_world.data_generation import make_problem
+from pddlstream.language.stream import StreamInfo
 
 VERBOSE = False
-WOODEN_TABLE_CENTER = np.array([0.755, 0, 0.74])
 
 np.set_printoptions(precision=4, suppress=True)
 ARRAY = tuple
-SIM_INIT_TIME = 0
+SIM_INIT_TIME = 0.0
 GRASP_DIST = 0.04
 DUMMY_STREAMS = False
 rams = []
@@ -139,9 +140,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         goal[i] = tuple(goal[i])
 
     for name, pose in start_poses.items():
-        translation = pose.get_rt().translation()[:3]
-        print(f"Item {name}")
-        print(f"Offset from table center: {translation - WOODEN_TABLE_CENTER}")
         init += [
             ("block", name),
             ("worldpose", name, pose),
@@ -218,15 +216,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         }
     )
 
-    oracle = ora.Oracle(
-        domain_pddl,
-        stream_pddl,
-        init,
-        goal,
-        model_poses = model_poses
-    )
-    oracle.set_run_attr(problem_info.attr)
-
     def get_station(name, arm_name=None):
         if arm_name is None:
             return stations[name], station_contexts[name]  # ie. move_free
@@ -272,7 +261,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         if other_name is not None:
             update_arm(station, station_context, other_name, q_other)
         panda = station.panda_infos[arm_name].panda
-        #cl = None if holding_block is not None else 0.005 
         while True:
             traj = find_traj(
                 station,
@@ -282,8 +270,6 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 ignore_endpoint_collisions=False,
                 panda=panda,
                 verbose=VERBOSE,
-                #interpolate = False
-                #use_min_clearance = cl,
             )
             if traj is None:
                 return
@@ -300,7 +286,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         while True:
             lprint(f"{Colors.REVERSE}Yielding X_H{block}{Colors.RESET}")
             yield RigidTransformWrapper(
-                 basement_blocks_world_streams.find_grasp(shape_info), name=f"X_H{block}"
+                basement_blocks_world_streams.find_grasp(shape_info), name=f"X_H{block}"
             ),
 
     def find_ik(arm_name, block, X_WB, X_HB):
@@ -323,7 +309,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         q_initial[0] = q0
         while True:
             lprint(f"{Colors.GREEN}Finding ik for {block}{Colors.RESET}")
-            q, cost =  basement_blocks_world_streams.find_ik_with_relaxed(
+            q, cost = basement_blocks_world_streams.find_ik_with_relaxed(
                 station,
                 station_context,
                 object_info,
@@ -360,7 +346,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 target_object_info, link_name, station, station_context
             )[0]
             yield RigidTransformWrapper(
-                 basement_blocks_world_streams.find_table_place(
+                basement_blocks_world_streams.find_table_place(
                     station, station_context, shape_info, surface
                 ),
                 name=f"X_W{block}",
@@ -382,7 +368,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         )[0]
         while True:
             yield RigidTransformWrapper(
-                 basement_blocks_world_streams.find_block_place(
+                basement_blocks_world_streams.find_block_place(
                     station, station_context, shape_info, surface
                 ),
                 name=f"X_W{block}_on_{lowerblock}",
@@ -402,7 +388,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         update_station(
             station, station_context, [("atpose", block, X_WB)], set_others_to_inf=True
         )
-        return  basement_blocks_world_streams.check_colfree_block(
+        return basement_blocks_world_streams.check_colfree_block(
             station, station_context, arm_name, q
         )
 
@@ -415,7 +401,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         "check-colfree-block": from_test(check_colfree_block),
     }
 
-    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), oracle
+    return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), model_poses
 
 
 def make_and_init_simulation(zmq_url, prob):
@@ -513,9 +499,8 @@ def setup_parser():
     return parser
 
 
-def run_blocks_world(
+def run_basement_blocks_world(
     num_blocks=2,
-    num_blockers=2,
     problem_file=None,
     mode="normal",
     url=None,
@@ -523,7 +508,13 @@ def run_blocks_world(
     algorithm="adaptive",
     buffer_radius=0,
     simulate=False,
-    max_stack_num = None
+    max_stack_num = None,
+    use_unique=False,
+    oracle_kwargs={},
+    should_save=False,
+    eager_mode=False,
+    path=None,  
+    max_planner_time = 10,
 ):
 
     memory_percent = psutil.virtual_memory().percent
@@ -540,12 +531,12 @@ def run_blocks_world(
     if not os.path.isdir(f"{file_path}/logs/{time}"):
         os.mkdir(f"{file_path}/logs/{time}")
 
-    path = f"{file_path}/logs/{time}/"
+    if path is None:
+        path = f"{file_path}/logs/{time}/"
 
     if problem_file is None:
         yaml_data = make_problem.make_random_problem(
             num_blocks=num_blocks,
-            num_blockers=num_blockers,
             colorize=True,
             buffer_radius=buffer_radius,
             max_start_stack = 1,
@@ -562,12 +553,13 @@ def run_blocks_world(
         meshcat_vis,
         prob_info,
     ) = make_and_init_simulation(url, problem_file)
-    problem, oracle = construct_problem_from_sim(sim, station_dict, prob_info)
+    problem, model_poses = construct_problem_from_sim(sim, station_dict, prob_info)
+    oracle = construct_oracle(mode, problem, prob_info, model_poses, **oracle_kwargs)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
 
-    given_oracle = oracle if mode == "oracle" else None
+    given_oracle = oracle if mode not in ["normal", "save"] else None
     search_sample_ratio = 1 if (mode == "save" or mode == "normal") else 1
     solution = solve(
         problem,
@@ -575,9 +567,15 @@ def run_blocks_world(
         verbose=VERBOSE,
         logpath=path,
         oracle=given_oracle,
-        use_unique=mode == "oracle",
+        use_unique=use_unique,
         max_time=max_time,
-        search_sample_ratio=search_sample_ratio
+        eager_mode=eager_mode,
+        search_sample_ratio=search_sample_ratio,
+        max_planner_time = max_planner_time,
+        problem_file_path = problem_file,
+        #stream_info = {
+            #'find-ik': StreamInfo(use_unique=True)
+        #},
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
@@ -591,50 +589,48 @@ def run_blocks_world(
         print(f"{Colors.BOLD}Empty plan, no real problem provided, exiting.{Colors.RESET}")
         return False, problem_file
 
-
-    make_plot(path + "stats.json", save_path=path + "plots.png")
-    visualization.stats_to_graph(
-        path + "stats.json", save_path=path + "preimage_graph.html"
-    )
-
-    if mode == "save":
+    if should_save or mode == 'save':
         oracle.save_stats(path + "stats.json")
 
-    if mode == "oracle":
-        oracle.save_labeled(path + "stats.json")
+    if not algorithm.startswith("informed"):
+        make_plot(path + "stats.json", save_path=path + "plots.png")
+        visualization.stats_to_graph(
+            path + "stats.json", save_path=path + "preimage_graph.html"
+        )
 
-    action_map = {
-        "move": {
-            "function": PlanToTrajectory.move,
-            "argument_indices": [2],
-            "arm_name": 0,
-        },
-        "pick": {
-            "function": PlanToTrajectory.pick,
-            "argument_indices": [5, 6, 5],
-            "arm_name": 0,
-        },
-        "place": {
-            "function": PlanToTrajectory.place,
-            "argument_indices": [5, 6, 5],
-            "arm_name": 0,
-        },
-        "stack": {
-            "function": PlanToTrajectory.place,
-            "argument_indices": [6, 7, 6],
-            "arm_name": 0,
-        },
-        "unstack": {
-            "function": PlanToTrajectory.pick,
-            "argument_indices": [5, 6, 5],
-            "arm_name": 0,
-        },
-    }
-
-    traj_maker = PlanToTrajectory(station_dict["main"], traj_mode = TrajType.GENERATOR)
-    traj_maker.write_conf_file(plan, action_map, os.path.join(path, "confs.txt"))
+        if mode == "oracle":
+            oracle.save_labeled(path + "stats.json")
 
     if simulate:
+        action_map = {
+            "move": {
+                "function": PlanToTrajectory.move,
+                "argument_indices": [2],
+                "arm_name": 0,
+            },
+            "pick": {
+                "function": PlanToTrajectory.pick,
+                "argument_indices": [5, 6, 5],
+                "arm_name": 0,
+            },
+            "place": {
+                "function": PlanToTrajectory.place,
+                "argument_indices": [5, 6, 5],
+                "arm_name": 0,
+            },
+            "stack": {
+                "function": PlanToTrajectory.place,
+                "argument_indices": [6, 7, 6],
+                "arm_name": 0,
+            },
+            "unstack": {
+                "function": PlanToTrajectory.pick,
+                "argument_indices": [5, 6, 5],
+                "arm_name": 0,
+            },
+        }
+
+        traj_maker = PlanToTrajectory(station_dict["main"])
         traj_maker.make_trajectory(plan, SIM_INIT_TIME, action_map)
 
         for panda_name in traj_directors:
@@ -727,15 +723,36 @@ def generate_data(
 
 
 
-if __name__ == "__main__":
+def main_generation_loop():
+    url = None#"tcp://127.0.0.1:6000"
 
-    #num_blocks = 3
-    #num_blockers = 1
-    url = "tcp://127.0.0.1:6009"
+    max_num_blocks = 6
+    max_num_blockers = 6
 
-    res, _ = run_blocks_world(
-        problem_file=os.path.join(file_path, "problems", "default_problem.yaml"),
+    for num_blocks, num_blockers in itertools.product(
+        range(1, max_num_blocks + 1), range(max_num_blockers + 1)
+    ):
+
+        for max_stack in range(1, num_blocks + 1):
+            generate_data(
+                num_blocks,
+                num_blockers,
+                buffer_radius=0,
+                url=url,
+                max_stack_num= max_stack,
+                simulate = False,
+                max_time = 360,
+                num_repeat_per_problem= 3
+            )
+
+if __name__ == '__main__':
+    # main_generation_loop()
+    url = "tcp://127.0.0.1:6000"
+
+    res, _ = run_basement_blocks_world(
+        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
+        #problem_file=os.path.join(file_path, "problems", "default_problem.yaml"),
         mode="normal",
-        url = url,
-        simulate = True,
+        max_time = 180,
+        url = url
     )

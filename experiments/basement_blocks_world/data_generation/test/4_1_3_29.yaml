@@ -1,0 +1,94 @@
+arms:
+  panda:
+    X_WB:
+    - 0.05
+    - 0
+    - 0.8
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/basement.yaml
+goal:
+- and
+- - on-table
+  - block1
+  - - wooden_table
+    - base_link
+- - on-table
+  - block3
+  - - wooden_table
+    - base_link
+- - on-block
+  - block0
+  - block3
+- - on-block
+  - block2
+  - block0
+main_links:
+  thor_table: base_link
+  wooden_table: base_link
+objects:
+  block0:
+    X_WO:
+    - 0.655
+    - 0.2
+    - 0.74
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-table:
+    - wooden_table
+    - base_link
+    path: models/blocks_world/sdf/block0.sdf
+  block1:
+    X_WO:
+    - 0.755
+    - 0.30000000000000004
+    - 0.74
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-table:
+    - wooden_table
+    - base_link
+    path: models/blocks_world/sdf/block1.sdf
+  block2:
+    X_WO:
+    - 0.655
+    - -0.30000000000000004
+    - 0.74
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-table:
+    - wooden_table
+    - base_link
+    path: models/blocks_world/sdf/block2.sdf
+  block3:
+    X_WO:
+    - 0.755
+    - 0.2
+    - 0.74
+    - 0.0
+    - 0.0
+    - 0.0
+    main_link: base_link
+    on-table:
+    - wooden_table
+    - base_link
+    path: models/blocks_world/sdf/block3.sdf
+planning_directive: directives/basement.yaml
+run_attr:
+  buffer_radius: 0
+  max_goal_stack: 3
+  max_start_stack: 1
+  num_blocks: 4
+  type: basement_blocks_world
+surfaces:
+  wooden_table:
+  - base_link

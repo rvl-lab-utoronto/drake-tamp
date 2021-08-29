@@ -20,7 +20,7 @@ WOODEN_TABLE_DIMS = np.array([0.76, 1.215]) - np.ones(2) * R
 BLOCKER_DIMS = np.array([0.05, 0.05, 0.1])
 
 TABLE_CENTER = np.array([0.755, 0])
-VALID_POS = [np.array([0.1*x,0.1*y]) + TABLE_CENTER for x in range(-1, 1) for y in range(-4,5)]
+VALID_POS = [np.array([0.1*x,0.1*y]) + TABLE_CENTER for x in range(-1, 1) for y in range(-3,4)]
 
 TEMPLATE_PATH = "models/blocks_world/sdf/red_block.sdf"
 MODELS_PATH = "models/blocks_world/sdf/"
@@ -216,6 +216,6 @@ def make_random_problem(num_blocks, colorize=True, buffer_radius=0, max_start_st
 
 if __name__ == "__main__":
 
-    yaml_data = make_random_problem(num_blocks=10, max_start_stack=1, max_goal_stack = 5, colorize=True)
+    yaml_data = make_random_problem(num_blocks=5, max_start_stack=1, max_goal_stack = 5, colorize=True)
     with open("test_problem.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)
