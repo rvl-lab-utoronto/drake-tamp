@@ -3,6 +3,7 @@ from experiments.two_arm_blocks_world.run import run_blocks_world as run_two_arm
 from experiments.kitchen.run import run_kitchen
 from experiments.kitchen_less_axioms.run import run_kitchen_less_axioms
 from experiments.hanoi.run import run_hanoi
+from experiments.basement_blocks_world.run import run_basement_blocks_world
 import argparse
 import json
 import os
@@ -11,7 +12,8 @@ domains = {
     'blocks_world':run_blocks_world,
     'two_arm_blocks_world': run_two_arm_blocks_world,
     'hanoi': run_hanoi,
-    'kitchen_less_axioms': run_kitchen_less_axioms
+    'kitchen_less_axioms': run_kitchen_less_axioms,
+    'basement_blocks_world': run_basement_blocks_world
 }
 
 example = '{"model_path":"/home/agrobenj/drake-tamp/model_files/blocksworld_V2_adaptive/best.pt"}'
