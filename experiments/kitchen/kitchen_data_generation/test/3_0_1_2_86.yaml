@@ -14,26 +14,22 @@ goal:
 - and
 - - in
   - cabbage0
-  - - leftplacemat
-    - rightside
-- - cooked
-  - cabbage0
+  - - tray
+    - base_link
 - - in
   - cabbage1
-  - - rightplacemat
-    - leftside
-- - cooked
-  - cabbage1
+  - - sink
+    - base_link
 - - in
   - cabbage2
-  - - leftplate
-    - base_link
+  - - leftplacemat
+    - leftside
 - - cooked
   - cabbage2
 - - in
   - glass0
-  - - leftplacemat
-    - leftside
+  - - rightplacemat
+    - rightside
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -48,25 +44,25 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - -0.45
-    - 0.15
-    - 0.341
+    - -0.11464466094067262
+    - 0.6267766952966369
+    - 0.326
     - 0.0
     - 0.0
-    - 0.27095912368192565
+    - -2.90147335630997
     contained:
-    - leftplate
-    - base_link
+    - rightplacemat
+    - rightside
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - 0.37459727092260564
-    - -0.45879695236565227
+    - 0.40372482318081604
+    - -0.48758539093583825
     - 0.326
     - 0.0
     - 0.0
-    - -2.9583306049143445
+    - 2.6639168024229503
     contained:
     - sink
     - base_link
@@ -74,25 +70,25 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   cabbage2:
     X_WO:
-    - 0.02677669529663687
-    - 0.4853553390593274
+    - 0.39303511204165764
+    - 0.02672805990147757
     - 0.326
     - 0.0
     - 0.0
-    - 0.03688116901642587
+    - -2.1927466003881126
     contained:
-    - rightplacemat
-    - rightside
+    - tray
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - 0.6100152453351223
-    - 0.07979731295220238
+    - 0.5740388678386704
+    - 0.2607174601685491
     - 0.326
     - 0.0
     - 0.0
-    - -2.914933983550948
+    - -1.855565714193355
     contained:
     - tray
     - base_link
@@ -105,7 +101,7 @@ run_attr:
   num_glasses: 1
   num_goal: 4
   num_raddishes: 0
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

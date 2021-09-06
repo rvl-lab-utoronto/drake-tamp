@@ -14,7 +14,7 @@ goal:
 - and
 - - in
   - cabbage0
-  - - sink
+  - - tray
     - base_link
 - - cooked
   - cabbage0
@@ -26,14 +26,12 @@ goal:
   - cabbage1
 - - in
   - raddish0
-  - - rightplacemat
-    - leftside
+  - - sink
+    - base_link
 - - in
   - glass0
-  - - rightplate
-    - base_link
-- - clean
-  - glass0
+  - - rightplacemat
+    - rightside
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -48,38 +46,38 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - 0.49807541976400516
-    - 0.22479883997672284
-    - 0.326
+    - -0.15
+    - 0.45
+    - 0.341
     - 0.0
     - 0.0
-    - -1.1857210943251764
+    - -2.4446170910856546
     contained:
-    - tray
+    - rightplate
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - -0.45
-    - 0.15
-    - 0.341
+    - 0.5770770021680226
+    - 0.24258145719567709
+    - 0.326
     - 0.0
     - 0.0
-    - -2.2215791421370654
+    - 1.4080956968322422
     contained:
-    - leftplate
+    - tray
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - 0.607108643215516
-    - -0.054686782881010476
+    - 0.5809190465164755
+    - 0.14334172117722016
     - 0.326
     - 0.0
     - 0.0
-    - -0.2789290966621663
+    - 0.04912944763415043
     contained:
     - tray
     - base_link
@@ -87,15 +85,15 @@ objects:
     path: models/kitchen/sdf/glass.sdf
   raddish0:
     X_WO:
-    - 0.5916935648369451
-    - 0.26235621745668386
+    - -0.4853553390593274
+    - -0.02677669529663687
     - 0.326
     - 0.0
     - 0.0
-    - 2.274866642211811
+    - -0.2369681723208015
     contained:
-    - tray
-    - base_link
+    - leftplacemat
+    - leftside
     main_link: base_link
     path: models/kitchen/sdf/raddish.sdf
 planning_directive: directives/kitchen_planning.yaml
@@ -105,7 +103,7 @@ run_attr:
   num_glasses: 1
   num_goal: 4
   num_raddishes: 1
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

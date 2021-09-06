@@ -14,26 +14,24 @@ goal:
 - and
 - - in
   - cabbage0
-  - - tray
-    - base_link
+  - - leftplacemat
+    - rightside
 - - cooked
   - cabbage0
 - - in
   - raddish0
   - - leftplacemat
-    - rightside
+    - leftside
 - - in
   - glass0
-  - - leftplate
+  - - rightplate
     - base_link
 - - clean
   - glass0
 - - in
   - glass1
   - - rightplacemat
-    - rightside
-- - clean
-  - glass1
+    - leftside
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -48,38 +46,38 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - 0.4295985014646894
-    - -0.46424451833583114
+    - -0.4853553390593274
+    - -0.02677669529663687
     - 0.326
     - 0.0
     - 0.0
-    - 2.0699533189626047
+    - 3.1029005540751533
     contained:
-    - sink
-    - base_link
+    - leftplacemat
+    - leftside
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - -0.41464466094067265
-    - 0.3267766952966369
-    - 0.326
+    - -0.45
+    - 0.15
+    - 0.341
     - 0.0
     - 0.0
-    - -0.9141742959946708
+    - -0.2920180508901738
     contained:
-    - leftplacemat
-    - rightside
+    - leftplate
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/glass.sdf
   glass1:
     X_WO:
-    - -0.11464466094067262
-    - 0.6267766952966369
+    - 0.02677669529663687
+    - 0.4853553390593274
     - 0.326
     - 0.0
     - 0.0
-    - 1.1316297345417605
+    - -0.13754852260395037
     contained:
     - rightplacemat
     - rightside
@@ -87,14 +85,14 @@ objects:
     path: models/kitchen/sdf/glass.sdf
   raddish0:
     X_WO:
-    - 0.48849970182245117
-    - -0.06416734300373175
-    - 0.326
+    - -0.15
+    - 0.45
+    - 0.341
     - 0.0
     - 0.0
-    - 2.170664920745713
+    - 2.7064003459602413
     contained:
-    - tray
+    - rightplate
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/raddish.sdf
@@ -105,7 +103,7 @@ run_attr:
   num_glasses: 2
   num_goal: 4
   num_raddishes: 1
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

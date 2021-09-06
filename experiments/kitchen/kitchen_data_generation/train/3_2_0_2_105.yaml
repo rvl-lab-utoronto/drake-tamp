@@ -14,28 +14,28 @@ goal:
 - and
 - - in
   - cabbage0
+  - - rightplacemat
+    - leftside
+- - cooked
+  - cabbage0
+- - in
+  - cabbage1
   - - rightplate
     - base_link
 - - in
-  - cabbage1
-  - - rightplacemat
+  - cabbage2
+  - - leftplacemat
     - leftside
 - - cooked
-  - cabbage1
-- - in
   - cabbage2
-  - - rightplacemat
-    - rightside
 - - in
   - raddish0
-  - - rightplacemat
-    - rightside
+  - - leftplate
+    - base_link
 - - in
   - raddish1
-  - - rightplacemat
-    - leftside
-- - cooked
-  - raddish1
+  - - sink
+    - base_link
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -50,25 +50,25 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - -0.15
-    - 0.45
-    - 0.341
+    - 0.39106746448920543
+    - 0.07961830030130701
+    - 0.326
     - 0.0
     - 0.0
-    - -1.7319917980022874
+    - -2.1550002928442997
     contained:
-    - rightplate
+    - tray
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - 0.38673150041672283
-    - 0.24215600359666217
+    - 0.5101538316093515
+    - 0.25504407636654836
     - 0.326
     - 0.0
     - 0.0
-    - 2.2985705432479033
+    - 0.3411547832181671
     contained:
     - tray
     - base_link
@@ -76,25 +76,25 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   cabbage2:
     X_WO:
-    - -0.41464466094067265
-    - 0.3267766952966369
-    - 0.326
+    - -0.45
+    - 0.15
+    - 0.341
     - 0.0
     - 0.0
-    - 3.1173039223075465
+    - -0.76129554888494
     contained:
-    - leftplacemat
-    - rightside
+    - leftplate
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   raddish0:
     X_WO:
-    - 0.4837287157917341
-    - -0.4328396905198169
+    - 0.5240192727136181
+    - -0.39507283058820597
     - 0.326
     - 0.0
     - 0.0
-    - -0.23192607556789852
+    - -1.0498189374357152
     contained:
     - sink
     - base_link
@@ -102,12 +102,12 @@ objects:
     path: models/kitchen/sdf/raddish.sdf
   raddish1:
     X_WO:
-    - 0.4808958379390331
-    - -0.34496263506149716
+    - 0.46497995884601545
+    - -0.4412293122948697
     - 0.326
     - 0.0
     - 0.0
-    - 0.2977239481080061
+    - 2.380915124375791
     contained:
     - sink
     - base_link
@@ -120,7 +120,7 @@ run_attr:
   num_glasses: 0
   num_goal: 5
   num_raddishes: 2
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

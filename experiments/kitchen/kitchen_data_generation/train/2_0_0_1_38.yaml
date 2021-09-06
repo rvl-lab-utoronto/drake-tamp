@@ -14,14 +14,14 @@ goal:
 - and
 - - in
   - cabbage0
-  - - leftplacemat
-    - leftside
-- - cooked
-  - cabbage0
+  - - sink
+    - base_link
 - - in
   - cabbage1
-  - - rightplacemat
-    - leftside
+  - - tray
+    - base_link
+- - cooked
+  - cabbage1
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -36,28 +36,28 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - -0.41464466094067265
-    - 0.3267766952966369
+    - 0.44827706030251385
+    - -0.3613091257007992
     - 0.326
     - 0.0
     - 0.0
-    - -1.1035783996966733
+    - -1.8467407291923321
     contained:
-    - leftplacemat
-    - rightside
+    - sink
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - -0.45
-    - 0.15
-    - 0.341
+    - -0.11464466094067262
+    - 0.6267766952966369
+    - 0.326
     - 0.0
     - 0.0
-    - -2.8885645986108495
+    - -1.3796813390351892
     contained:
-    - leftplate
-    - base_link
+    - rightplacemat
+    - rightside
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
 planning_directive: directives/kitchen_planning.yaml
@@ -67,7 +67,7 @@ run_attr:
   num_glasses: 0
   num_goal: 2
   num_raddishes: 0
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

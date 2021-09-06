@@ -14,14 +14,14 @@ goal:
 - and
 - - in
   - cabbage0
-  - - leftplate
+  - - rightplate
     - base_link
 - - cooked
   - cabbage0
 - - in
   - cabbage1
   - - rightplacemat
-    - rightside
+    - leftside
 - - cooked
   - cabbage1
 - - in
@@ -30,21 +30,19 @@ goal:
     - rightside
 - - in
   - raddish1
-  - - rightplacemat
-    - leftside
-- - cooked
-  - raddish1
+  - - tray
+    - base_link
 - - in
   - raddish2
   - - sink
     - base_link
 - - in
   - glass0
-  - - leftplacemat
-    - rightside
+  - - sink
+    - base_link
 - - in
   - glass1
-  - - rightplate
+  - - leftplate
     - base_link
 main_links:
   leftplacemat: base_link
@@ -65,7 +63,7 @@ objects:
     - 0.326
     - 0.0
     - 0.0
-    - -3.0368898518191183
+    - 2.8690082425360433
     contained:
     - leftplacemat
     - leftside
@@ -73,12 +71,12 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - 0.5260283635031028
-    - 0.26015325850344156
+    - 0.4184495986693898
+    - -0.06448789262981061
     - 0.326
     - 0.0
     - 0.0
-    - -1.3256404784520417
+    - 2.1160155029592302
     contained:
     - tray
     - base_link
@@ -86,12 +84,12 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - 0.506721766381408
-    - 0.03158032065298193
+    - 0.39193873501184945
+    - 0.24171361017927556
     - 0.326
     - 0.0
     - 0.0
-    - -2.3804548800015737
+    - 2.0117543772567785
     contained:
     - tray
     - base_link
@@ -99,54 +97,54 @@ objects:
     path: models/kitchen/sdf/glass.sdf
   glass1:
     X_WO:
-    - 0.4389702813528018
-    - -0.34247731539331333
+    - -0.18535533905932738
+    - 0.27322330470336315
     - 0.326
     - 0.0
     - 0.0
-    - -0.7356109547354628
+    - -2.1508267886867345
     contained:
-    - sink
-    - base_link
+    - rightplacemat
+    - leftside
     main_link: base_link
     path: models/kitchen/sdf/glass.sdf
   raddish0:
     X_WO:
-    - -0.45
-    - 0.15
-    - 0.341
+    - 0.6116602706886918
+    - 0.25550852979248395
+    - 0.326
     - 0.0
     - 0.0
-    - -0.9467508156523581
+    - 1.2802741234989223
     contained:
-    - leftplate
+    - tray
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/raddish.sdf
   raddish1:
     X_WO:
-    - -0.4853553390593274
-    - -0.02677669529663687
+    - 0.4665495663400049
+    - 0.23373256067854026
     - 0.326
     - 0.0
     - 0.0
-    - 2.7248067250173484
+    - -2.7524755472512648
     contained:
-    - leftplacemat
-    - leftside
+    - tray
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/raddish.sdf
   raddish2:
     X_WO:
-    - 0.49054469238376625
-    - -0.3920307046457774
+    - -0.11464466094067262
+    - 0.6267766952966369
     - 0.326
     - 0.0
     - 0.0
-    - -1.7356847847906105
+    - 0.7356079766287005
     contained:
-    - sink
-    - base_link
+    - rightplacemat
+    - rightside
     main_link: base_link
     path: models/kitchen/sdf/raddish.sdf
 planning_directive: directives/kitchen_planning.yaml
@@ -156,7 +154,7 @@ run_attr:
   num_glasses: 2
   num_goal: 7
   num_raddishes: 3
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

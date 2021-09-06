@@ -14,21 +14,19 @@ goal:
 - and
 - - in
   - cabbage0
+  - - tray
+    - base_link
+- - in
+  - cabbage1
+  - - tray
+    - base_link
+- - in
+  - cabbage2
   - - rightplacemat
     - rightside
 - - in
-  - cabbage1
-  - - leftplate
-    - base_link
-- - cooked
-  - cabbage1
-- - in
-  - cabbage2
-  - - sink
-    - base_link
-- - in
   - glass0
-  - - rightplate
+  - - leftplate
     - base_link
 - - clean
   - glass0
@@ -46,12 +44,12 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - 0.38759778914691
-    - 0.2506043726980077
+    - 0.5466501455255101
+    - 0.2514261330747058
     - 0.326
     - 0.0
     - 0.0
-    - -0.6674016465658037
+    - 2.1045442259000207
     contained:
     - tray
     - base_link
@@ -59,38 +57,38 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - 0.39817742917005094
-    - 0.0853676253540748
+    - -0.3267766952966369
+    - 0.41464466094067265
     - 0.326
     - 0.0
     - 0.0
-    - 1.792773006710736
+    - 2.2688059109106145
+    contained:
+    - rightplacemat
+    - leftside
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  cabbage2:
+    X_WO:
+    - 0.3886359342745159
+    - -0.05580001006838822
+    - 0.326
+    - 0.0
+    - 0.0
+    - -2.652625713080573
     contained:
     - tray
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
-  cabbage2:
-    X_WO:
-    - -0.41464466094067265
-    - 0.3267766952966369
-    - 0.326
-    - 0.0
-    - 0.0
-    - 2.943716382254895
-    contained:
-    - leftplacemat
-    - rightside
-    main_link: base_link
-    path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - 0.4501256456484447
-    - -0.05168105364492884
+    - 0.4066877046918035
+    - 0.050682545870855085
     - 0.326
     - 0.0
     - 0.0
-    - 0.24567267155051514
+    - -2.135918716361535
     contained:
     - tray
     - base_link
@@ -103,7 +101,7 @@ run_attr:
   num_glasses: 1
   num_goal: 4
   num_raddishes: 0
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

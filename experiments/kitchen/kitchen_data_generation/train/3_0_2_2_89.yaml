@@ -14,15 +14,17 @@ goal:
 - and
 - - in
   - cabbage0
-  - - rightplate
-    - base_link
+  - - leftplacemat
+    - leftside
 - - in
   - cabbage1
   - - sink
     - base_link
+- - cooked
+  - cabbage1
 - - in
   - cabbage2
-  - - leftplacemat
+  - - rightplacemat
     - leftside
 - - cooked
   - cabbage2
@@ -34,8 +36,8 @@ goal:
   - glass0
 - - in
   - glass1
-  - - rightplacemat
-    - leftside
+  - - rightplate
+    - base_link
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -50,38 +52,38 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - -0.45
-    - 0.15
-    - 0.341
+    - 0.40925446915343705
+    - 0.11616168100197793
+    - 0.326
     - 0.0
     - 0.0
-    - -1.6302976375026366
+    - 0.333515864835781
     contained:
-    - leftplate
+    - tray
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - -0.3267766952966369
-    - 0.41464466094067265
+    - 0.41177286773903776
+    - -0.48990238475100456
     - 0.326
     - 0.0
     - 0.0
-    - 2.28238373108052
+    - -1.1630715831767164
     contained:
-    - rightplacemat
-    - leftside
+    - sink
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage2:
     X_WO:
-    - 0.6116034556290658
-    - 0.2436132029885495
+    - 0.44501234636690995
+    - 0.21941891469811758
     - 0.326
     - 0.0
     - 0.0
-    - -1.4443860421690797
+    - 0.23209459397704768
     contained:
     - tray
     - base_link
@@ -89,12 +91,12 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - 0.4136067246790822
-    - 0.2580704982838123
+    - 0.5022524883003954
+    - 0.26258941782159106
     - 0.326
     - 0.0
     - 0.0
-    - -1.6156995105428804
+    - 2.615096305869124
     contained:
     - tray
     - base_link
@@ -102,12 +104,12 @@ objects:
     path: models/kitchen/sdf/glass.sdf
   glass1:
     X_WO:
-    - 0.3961641646035634
-    - 0.11839901916499068
+    - 0.5939669455947073
+    - 0.21093878471052196
     - 0.326
     - 0.0
     - 0.0
-    - 0.26090185449745384
+    - 0.8829565511109474
     contained:
     - tray
     - base_link
@@ -120,7 +122,7 @@ run_attr:
   num_glasses: 2
   num_goal: 5
   num_raddishes: 0
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

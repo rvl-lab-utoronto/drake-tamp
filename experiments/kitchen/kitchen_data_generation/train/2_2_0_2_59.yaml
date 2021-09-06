@@ -14,20 +14,22 @@ goal:
 - and
 - - in
   - cabbage0
+  - - rightplate
+    - base_link
+- - cooked
+  - cabbage0
+- - in
+  - cabbage1
   - - leftplate
     - base_link
 - - in
-  - cabbage1
-  - - tray
-    - base_link
-- - in
   - raddish0
-  - - sink
-    - base_link
+  - - leftplacemat
+    - rightside
 - - in
   - raddish1
-  - - rightplate
-    - base_link
+  - - rightplacemat
+    - leftside
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -42,12 +44,12 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - 0.39685389211635236
-    - 0.24533873872175238
+    - 0.48850154491936554
+    - 0.25619137508026496
     - 0.326
     - 0.0
     - 0.0
-    - -0.16383841986200598
+    - -0.14770546180669375
     contained:
     - tray
     - base_link
@@ -55,25 +57,25 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - 0.5043387082079216
-    - -0.4108749778655452
+    - -0.27322330470336315
+    - 0.18535533905932733
     - 0.326
     - 0.0
     - 0.0
-    - -2.3772981093401633
+    - 1.8625159068112307
     contained:
-    - sink
-    - base_link
+    - leftplacemat
+    - rightside
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   raddish0:
     X_WO:
-    - 0.5448396788812676
-    - 0.25957370188367573
+    - 0.42678743342797903
+    - 0.1961106566580315
     - 0.326
     - 0.0
     - 0.0
-    - 1.8213565863604244
+    - -2.4034722049112816
     contained:
     - tray
     - base_link
@@ -81,14 +83,14 @@ objects:
     path: models/kitchen/sdf/raddish.sdf
   raddish1:
     X_WO:
-    - -0.15
-    - 0.45
-    - 0.341
+    - 0.6083858735526003
+    - 0.25936664892144323
+    - 0.326
     - 0.0
     - 0.0
-    - -0.19306009990262066
+    - 1.3436830433122247
     contained:
-    - rightplate
+    - tray
     - base_link
     main_link: base_link
     path: models/kitchen/sdf/raddish.sdf
@@ -99,7 +101,7 @@ run_attr:
   num_glasses: 0
   num_goal: 4
   num_raddishes: 2
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

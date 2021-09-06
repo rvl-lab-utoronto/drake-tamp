@@ -14,12 +14,12 @@ goal:
 - and
 - - in
   - cabbage0
-  - - leftplacemat
-    - rightside
+  - - rightplate
+    - base_link
 - - in
   - cabbage1
-  - - leftplate
-    - base_link
+  - - leftplacemat
+    - leftside
 - - cooked
   - cabbage1
 - - in
@@ -31,7 +31,9 @@ goal:
 - - in
   - glass0
   - - rightplacemat
-    - leftside
+    - rightside
+- - clean
+  - glass0
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -46,53 +48,53 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - 0.4512515848608498
-    - -0.4562929839973215
+    - -0.11464466094067262
+    - 0.6267766952966369
     - 0.326
     - 0.0
     - 0.0
-    - -2.3718865606367316
+    - -2.341462916060002
     contained:
-    - sink
-    - base_link
+    - rightplacemat
+    - rightside
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - -0.6267766952966369
-    - 0.11464466094067265
-    - 0.326
+    - -0.15
+    - 0.45
+    - 0.341
     - 0.0
     - 0.0
-    - -1.1825671390778718
+    - -0.5292781652034766
     contained:
-    - leftplacemat
-    - leftside
+    - rightplate
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage2:
     X_WO:
-    - -0.4853553390593274
-    - -0.02677669529663687
+    - 0.4527499710088947
+    - 0.22189630922738535
     - 0.326
     - 0.0
     - 0.0
-    - -2.799034528871027
+    - 1.8832691780236785
     contained:
-    - leftplacemat
-    - leftside
+    - tray
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - -0.27322330470336315
-    - 0.18535533905932733
+    - 0.02677669529663687
+    - 0.4853553390593274
     - 0.326
     - 0.0
     - 0.0
-    - -0.18479617166163223
+    - -2.854206602065275
     contained:
-    - leftplacemat
+    - rightplacemat
     - rightside
     main_link: base_link
     path: models/kitchen/sdf/glass.sdf
@@ -103,7 +105,7 @@ run_attr:
   num_glasses: 1
   num_goal: 4
   num_raddishes: 0
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

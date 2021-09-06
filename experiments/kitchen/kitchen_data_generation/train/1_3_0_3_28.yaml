@@ -14,22 +14,22 @@ goal:
 - and
 - - in
   - cabbage0
-  - - sink
-    - base_link
+  - - rightplacemat
+    - rightside
 - - cooked
   - cabbage0
 - - in
   - raddish0
-  - - rightplacemat
-    - rightside
+  - - tray
+    - base_link
 - - in
   - raddish1
-  - - leftplacemat
-    - rightside
+  - - leftplate
+    - base_link
 - - in
   - raddish2
   - - leftplacemat
-    - leftside
+    - rightside
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -44,25 +44,25 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - -0.4853553390593274
-    - -0.02677669529663687
-    - 0.326
+    - -0.15
+    - 0.45
+    - 0.341
     - 0.0
     - 0.0
-    - 0.6085732543199909
+    - 1.8077403122723235
     contained:
-    - leftplacemat
-    - leftside
+    - rightplate
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   raddish0:
     X_WO:
-    - 0.6048943347538674
-    - 0.25820003086813803
+    - 0.40837952895128565
+    - 0.25118989712932677
     - 0.326
     - 0.0
     - 0.0
-    - 1.8003443288062988
+    - 1.2988231121607408
     contained:
     - tray
     - base_link
@@ -70,12 +70,12 @@ objects:
     path: models/kitchen/sdf/raddish.sdf
   raddish1:
     X_WO:
-    - 0.5508663189769807
-    - -0.04309538039159935
+    - 0.40897041447178917
+    - 0.1748854397359598
     - 0.326
     - 0.0
     - 0.0
-    - 2.007546990339632
+    - 2.3159347630283698
     contained:
     - tray
     - base_link
@@ -83,15 +83,15 @@ objects:
     path: models/kitchen/sdf/raddish.sdf
   raddish2:
     X_WO:
-    - -0.18535533905932738
-    - 0.27322330470336315
+    - 0.38890318803186963
+    - 0.1071435368720583
     - 0.326
     - 0.0
     - 0.0
-    - 0.3432950041182619
+    - -0.4651257315835846
     contained:
-    - rightplacemat
-    - leftside
+    - tray
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/raddish.sdf
 planning_directive: directives/kitchen_planning.yaml
@@ -101,7 +101,7 @@ run_attr:
   num_glasses: 0
   num_goal: 4
   num_raddishes: 3
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:

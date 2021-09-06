@@ -14,15 +14,19 @@ goal:
 - and
 - - in
   - cabbage0
-  - - leftplacemat
-    - rightside
+  - - sink
+    - base_link
+- - cooked
+  - cabbage0
 - - in
   - cabbage1
-  - - rightplate
-    - base_link
+  - - leftplacemat
+    - rightside
+- - cooked
+  - cabbage1
 - - in
   - cabbage2
-  - - leftplate
+  - - rightplate
     - base_link
 - - cooked
   - cabbage2
@@ -30,6 +34,8 @@ goal:
   - glass0
   - - rightplacemat
     - leftside
+- - clean
+  - glass0
 main_links:
   leftplacemat: base_link
   leftplate: base_link
@@ -44,12 +50,12 @@ main_links:
 objects:
   cabbage0:
     X_WO:
-    - 0.40869798471609964
-    - 0.0348555072995175
+    - 0.49971595717138617
+    - -0.057556258299140545
     - 0.326
     - 0.0
     - 0.0
-    - -1.4094775342099386
+    - -2.402950659995621
     contained:
     - tray
     - base_link
@@ -57,25 +63,25 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   cabbage1:
     X_WO:
-    - -0.27322330470336315
-    - 0.18535533905932733
+    - 0.5931440760830181
+    - -0.05014107558090697
     - 0.326
     - 0.0
     - 0.0
-    - -2.9409751672051376
+    - 2.9716590295071095
     contained:
-    - leftplacemat
-    - rightside
+    - tray
+    - base_link
     main_link: base_link
     path: models/kitchen/sdf/cabbage.sdf
   cabbage2:
     X_WO:
-    - 0.5972549095610367
-    - -0.05897066090636663
+    - 0.41833608303706726
+    - -0.03042892750866527
     - 0.326
     - 0.0
     - 0.0
-    - 1.0531151279832645
+    - -2.5344975200673026
     contained:
     - tray
     - base_link
@@ -83,15 +89,15 @@ objects:
     path: models/kitchen/sdf/cabbage.sdf
   glass0:
     X_WO:
-    - 0.3450804821313078
-    - -0.43589342607957915
+    - -0.11464466094067262
+    - 0.6267766952966369
     - 0.326
     - 0.0
     - 0.0
-    - 0.4084656528239981
+    - 0.4194035407460314
     contained:
-    - sink
-    - base_link
+    - rightplacemat
+    - rightside
     main_link: base_link
     path: models/kitchen/sdf/glass.sdf
 planning_directive: directives/kitchen_planning.yaml
@@ -101,7 +107,7 @@ run_attr:
   num_glasses: 1
   num_goal: 4
   num_raddishes: 0
-  prob_sink: 0.1
+  prob_sink: 0
   prob_tray: 0.4
 surfaces:
   leftplacemat:
