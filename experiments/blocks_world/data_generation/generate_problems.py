@@ -45,13 +45,13 @@ if __name__ == '__main__':
     glob_index = 0
 
     # 100 x:
-    # num_blocks: [1,6]
+    # num_blocks: [1,5]
     # num_blocks: 2*num_blocks
     # max_start_stack: 1
-    # max_goal_stack: [1,6]
+    # max_goal_stack: [1,5]
 
     for _ in tqdm(range(100)):
-        num_blocks = np.random.randint(1, 6 + 1)
+        num_blocks = np.random.randint(1, 5 + 1)
         num_blockers = 2*num_blocks
         max_stack = np.random.randint(1, min(6, num_blocks) + 1)
 
@@ -71,13 +71,13 @@ if __name__ == '__main__':
         print('Written', outpath)
 
     # grid
-    # num_blocks: [1,6]
-    # repeat each 15 times
+    # num_blocks: [1,4]
+    # repeat each 25 times
     glob_index = 0
 
-    for num_blocks in tqdm(range(2, 6 + 1)):
+    for num_blocks in tqdm(range(1, 4 + 1)):
 
-        for i in range(15):
+        for i in range(25):
             yaml_data = make_problem.make_non_monotonic_problem(
                 num_blocks=num_blocks,
                 buffer_radius=0,
@@ -90,13 +90,14 @@ if __name__ == '__main__':
             print('Written', outpath)
 
     # grid
-    # num_blocks: [5, 20] 
-    # repeat each 6 times
+    # num_blocks: [2, 7] 
+    # repeat each 17 times
+    # total of 102
     # max_goal_stack = 1
     glob_index = 0
     
-    for num_blocks in tqdm(range(5, 20 + 1)):
-        for i in range(6):
+    for num_blocks in tqdm(range(2, 7 + 1)):
+        for i in range(17):
             yaml_data = make_problem.make_sorting_problem(
                 num_blocks=num_blocks,
                 buffer_radius=0,
@@ -108,18 +109,18 @@ if __name__ == '__main__':
             print('Written', outpath)
 
     # random x 50
-    # num_blocks: [1, 7] 
+    # num_blocks: [2, 7] 
     # max_start_stack: [1, 6] 
     # max_goal_stack: [1, 6] 
 
     # random x 50
-    # num_blocks: [1, 7] 
+    # num_blocks: [2, 7] 
     # max_start_stack: 1
     # max_goal_stack: [1, 6] 
     glob_index = 0
     
     for _ in tqdm(range(50)):
-        num_blocks = np.random.randint(1, 7 + 1)
+        num_blocks = np.random.randint(2, 7 + 1)
         num_blockers = 0
         max_start_stack = min(6, num_blocks)
         max_goal_stack = min(6, num_blocks)
@@ -141,7 +142,7 @@ if __name__ == '__main__':
             print('Written', outpath)
 
     for _ in tqdm(range(50)):
-        num_blocks = np.random.randint(1, 7 + 1)
+        num_blocks = np.random.randint(2, 7 + 1)
         num_blockers = 0
         max_start_stack = 1
         max_goal_stack = min(6, num_blocks)
