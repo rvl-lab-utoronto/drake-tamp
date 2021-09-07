@@ -1,0 +1,122 @@
+arms:
+  panda:
+    X_WB:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/one_arm_blocks_world.yaml
+goal:
+- and
+- - on-table
+  - block0
+  - - blue_table
+    - base_link
+- - on-block
+  - block1
+  - block0
+main_links:
+  blue_table: base_link
+  green_table: base_link
+  purple_table: base_link
+  red_table: base_link
+objects:
+  block0:
+    X_WO:
+    - -0.3410963800377863
+    - 0.5209373412188768
+    - 0.325
+    - 0.0
+    - 0.0
+    - 1.6945996027546024
+    main_link: base_link
+    on-table:
+    - green_table
+    - base_link
+    path: models/blocks_world/sdf/block0.sdf
+  block1:
+    X_WO:
+    - -0.5363454585164983
+    - 0.31514053039004064
+    - 0.325
+    - 0.0
+    - 0.0
+    - 3.08555226424976
+    main_link: base_link
+    on-table:
+    - blue_table
+    - base_link
+    path: models/blocks_world/sdf/block1.sdf
+  blocker0:
+    X_WO:
+    - 0.4405365733250678
+    - 0.22196914278186963
+    - 0.325
+    - 0.0
+    - 0.0
+    - 2.948661354289518
+    main_link: base_link
+    on-table:
+    - red_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker1:
+    X_WO:
+    - 0.4344876867999602
+    - 0.3235132143436281
+    - 0.325
+    - 0.0
+    - 0.0
+    - 5.099608120632201
+    main_link: base_link
+    on-table:
+    - red_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker2:
+    X_WO:
+    - 0.5120470758878726
+    - 0.3027246180194616
+    - 0.325
+    - 0.0
+    - 0.0
+    - 1.505340726264169
+    main_link: base_link
+    on-table:
+    - red_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker3:
+    X_WO:
+    - -0.6252924588836886
+    - 0.16367051810389222
+    - 0.325
+    - 0.0
+    - 0.0
+    - 3.64683192657236
+    main_link: base_link
+    on-table:
+    - blue_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+planning_directive: directives/one_arm_blocks_world.yaml
+run_attr:
+  buffer_radius: 0
+  max_goal_stack: 2
+  max_start_stack: 1
+  num_blockers: 4
+  num_blocks: 2
+  type: clutter
+surfaces:
+  blue_table:
+  - base_link
+  green_table:
+  - base_link
+  purple_table:
+  - base_link
+  red_table:
+  - base_link

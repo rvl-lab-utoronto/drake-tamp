@@ -13,18 +13,18 @@ directive: directives/one_arm_blocks_world.yaml
 goal:
 - and
 - - on-table
-  - block0
+  - block1
   - - purple_table
     - base_link
 - - on-table
-  - block1
+  - block0
   - - purple_table
     - base_link
 - - atworldpose
   - blocker0
   - &id001
-    - 0.057089736247095735
-    - 0.42176246524359046
+    - 0.5693480845364185
+    - 0.02894785518003018
     - 0.325
     - 0.0
     - 0.0
@@ -32,8 +32,8 @@ goal:
 - - atworldpose
   - blocker1
   - &id002
-    - -0.09552401527361307
-    - 0.536841994080062
+    - 0.47622961748765086
+    - -0.3258743657023267
     - 0.325
     - 0.0
     - 0.0
@@ -46,42 +46,42 @@ main_links:
 objects:
   block0:
     X_WO:
-    - 0.057089736247095735
-    - 0.4717624652435905
+    - 0.6193480845364184
+    - 0.02894785518003018
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - -0.09552401527361307
-    - 0.5868419940800619
+    - 0.5262296174876508
+    - -0.3258743657023267
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block1.sdf
   blocker0:
     X_WO: *id001
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
   blocker1:
     X_WO: *id002
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
 planning_directive: directives/one_arm_blocks_world.yaml

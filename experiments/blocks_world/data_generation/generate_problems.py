@@ -45,13 +45,13 @@ if __name__ == '__main__':
     glob_index = 0
 
     # 100 x:
-    # num_blocks: [1,5]
+    # num_blocks: [2,5]
     # num_blocks: 2*num_blocks
     # max_start_stack: 1
     # max_goal_stack: [1,5]
 
     for _ in tqdm(range(100)):
-        num_blocks = np.random.randint(1, 5 + 1)
+        num_blocks = np.random.randint(2, 5 + 1)
         num_blockers = 2*num_blocks
         max_stack = np.random.randint(1, min(6, num_blocks) + 1)
 
@@ -71,13 +71,13 @@ if __name__ == '__main__':
         print('Written', outpath)
 
     # grid
-    # num_blocks: [1,4]
-    # repeat each 25 times
+    # num_blocks: [1,3]
+    # repeat each 33 times
     glob_index = 0
 
-    for num_blocks in tqdm(range(1, 4 + 1)):
+    for num_blocks in tqdm(range(1, 3 + 1)):
 
-        for i in range(25):
+        for i in range(33):
             yaml_data = make_problem.make_non_monotonic_problem(
                 num_blocks=num_blocks,
                 buffer_radius=0,

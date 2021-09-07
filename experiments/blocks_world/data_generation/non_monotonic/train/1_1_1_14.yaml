@@ -19,8 +19,8 @@ goal:
 - - atworldpose
   - blocker0
   - &id001
-    - 0.4225371698827228
-    - -0.011520082993885461
+    - 0.32040793352308716
+    - 0.581722089557192
     - 0.325
     - 0.0
     - 0.0
@@ -33,22 +33,22 @@ main_links:
 objects:
   block0:
     X_WO:
-    - 0.4725371698827228
-    - -0.011520082993885461
+    - 0.32040793352308716
+    - 0.6317220895571919
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - red_table
+    - green_table
     - base_link
     path: models/blocks_world/sdf/block0.sdf
   blocker0:
     X_WO: *id001
     main_link: base_link
     on-table:
-    - red_table
+    - green_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
 planning_directive: directives/one_arm_blocks_world.yaml
