@@ -109,18 +109,18 @@ if __name__ == '__main__':
             print('Written', outpath)
 
     # random x 50
-    # num_blocks: [2, 7] 
+    # num_blocks: [2, 4] 
     # max_start_stack: [1, 6] 
     # max_goal_stack: [1, 6] 
 
     # random x 50
-    # num_blocks: [2, 7] 
+    # num_blocks: [2, 4] 
     # max_start_stack: 1
     # max_goal_stack: [1, 6] 
     glob_index = 0
     
     for _ in tqdm(range(50)):
-        num_blocks = np.random.randint(2, 7 + 1)
+        num_blocks = np.random.randint(2, 4 + 1)
         num_blockers = 0
         max_start_stack = min(6, num_blocks)
         max_goal_stack = min(6, num_blocks)
@@ -142,7 +142,7 @@ if __name__ == '__main__':
             print('Written', outpath)
 
     for _ in tqdm(range(50)):
-        num_blocks = np.random.randint(2, 7 + 1)
+        num_blocks = np.random.randint(2, 4 + 1)
         num_blockers = 0
         max_start_stack = 1
         max_goal_stack = min(6, num_blocks)

@@ -13,18 +13,18 @@ directive: directives/one_arm_blocks_world.yaml
 goal:
 - and
 - - on-table
-  - block1
-  - - blue_table
-    - base_link
-- - on-block
-  - block2
-  - block1
-- - on-block
   - block0
-  - block2
+  - - red_table
+    - base_link
 - - on-block
   - block3
   - block0
+- - on-block
+  - block2
+  - block3
+- - on-block
+  - block1
+  - block2
 main_links:
   blue_table: base_link
   green_table: base_link
@@ -33,12 +33,12 @@ main_links:
 objects:
   block0:
     X_WO:
-    - -0.34112035900511883
-    - -0.60504595721954
+    - 0.06349673709980486
+    - -0.5892969193982431
     - 0.325
     - 0.0
     - 0.0
-    - 1.7799382195899676
+    - 3.989201531636657
     main_link: base_link
     on-table:
     - purple_table
@@ -46,41 +46,41 @@ objects:
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - -0.04985087422725254
-    - 0.6308575742760488
+    - 0.4490752024501679
+    - 0.27483097205452767
     - 0.325
     - 0.0
     - 0.0
-    - 2.1672653699690025
-    main_link: base_link
-    on-table:
-    - green_table
-    - base_link
-    path: models/blocks_world/sdf/block1.sdf
-  block2:
-    X_WO:
-    - 0.6110787435990584
-    - 0.04996422991022026
-    - 0.325
-    - 0.0
-    - 0.0
-    - 0.3695102316129678
+    - 2.3375353359068396
     main_link: base_link
     on-table:
     - red_table
     - base_link
-    path: models/blocks_world/sdf/block2.sdf
-  block3:
+    path: models/blocks_world/sdf/block1.sdf
+  block2:
     X_WO:
-    - 0.2983972990162229
-    - 0.4558913178407962
+    - 0.23810591642745005
+    - 0.46126897348615886
     - 0.325
     - 0.0
     - 0.0
-    - 1.0065137434463804
+    - 4.896275735667601
     main_link: base_link
     on-table:
     - green_table
+    - base_link
+    path: models/blocks_world/sdf/block2.sdf
+  block3:
+    X_WO:
+    - -0.1654137399301356
+    - -0.4359019526674318
+    - 0.325
+    - 0.0
+    - 0.0
+    - 0.6395496895463646
+    main_link: base_link
+    on-table:
+    - purple_table
     - base_link
     path: models/blocks_world/sdf/block3.sdf
 planning_directive: directives/one_arm_blocks_world.yaml

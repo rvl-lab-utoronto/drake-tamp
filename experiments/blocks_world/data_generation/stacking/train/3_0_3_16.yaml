@@ -30,38 +30,38 @@ main_links:
 objects:
   block0:
     X_WO:
-    - -0.47335790025386726
-    - -0.2560179819725076
+    - 0.43554453509235846
+    - -0.15443875195830192
     - 0.371
     - 0.0
     - 0.0
-    - 3.712442108306928
+    - 4.115253622145756
     main_link: base_link
-    on-block: block2
+    on-block: block1
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - -0.47335790025386726
-    - -0.2560179819725076
-    - 0.417
-    - 0.0
-    - 0.0
-    - 3.712442108306928
-    main_link: base_link
-    on-block: block0
-    path: models/blocks_world/sdf/block1.sdf
-  block2:
-    X_WO:
-    - -0.47335790025386726
-    - -0.2560179819725076
+    - 0.43554453509235846
+    - -0.15443875195830192
     - 0.325
     - 0.0
     - 0.0
-    - 3.712442108306928
+    - 4.115253622145756
     main_link: base_link
     on-table:
-    - blue_table
+    - red_table
     - base_link
+    path: models/blocks_world/sdf/block1.sdf
+  block2:
+    X_WO:
+    - 0.43554453509235846
+    - -0.15443875195830192
+    - 0.417
+    - 0.0
+    - 0.0
+    - 4.115253622145756
+    main_link: base_link
+    on-block: block0
     path: models/blocks_world/sdf/block2.sdf
 planning_directive: directives/one_arm_blocks_world.yaml
 run_attr:
