@@ -326,12 +326,17 @@ class Oracle:
 
             if is_match:
                 break
-        self.labels.append(InvocationInfo(result, node_from_atom, label=is_match))
 
         return is_match, match
 
 
     def make_is_relevant_checker(self, remove_matched=False):
+        if self.data_collection_mode:
+            def unique_is_relevant(result, node_from_atom):
+                self.labels.append((result, node_from_atom))
+                return True
+            return unique_is_relevant
+    
         if self.last_preimage is None or self.atom_map is None:
             self.load_stats()
         preimage = self.last_preimage.copy()
@@ -340,17 +345,46 @@ class Oracle:
 
         def unique_is_relevant(result, node_from_atom):
             is_match, _ = self.is_relevant(result, node_from_atom, preimage)
-            # if remove_matched and is_match:
-            #    lifted, grounded = match
-            #    preimage.remove(grounded)
-            if self.data_collection_mode:
-                return True
             return is_match
 
         return unique_is_relevant
 
-    def after_run(self, **kwargs):
-        pass
+    def calculate_result_key(self, result, atom_map):
+        facts = [fact_to_pddl(f) for f in result.get_certified()]
+        domain = [fact_to_pddl(f) for f in result.domain]
+        result_key = tuple()
+        for fact in facts:
+            atom_map[fact] = domain
+            result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
+        return result_key
+
+    def after_run(self, store, logpath):
+        if store.is_solved() and hasattr(self, 'data_collection_mode') and self.data_collection_mode:
+            labels = []
+            done = {}
+            preimage = store.last_preimage
+            atom_map = store.node_from_atom_to_atom_map({})
+            self.atom_map = {fact_to_pddl(key): list(map(fact_to_pddl, value)) for key, value in atom_map.items()}
+            self.init = {x for x in self.atom_map if not self.atom_map[x]}
+            self.init_objects = objects_from_facts(self.init)
+            cached = 0
+            while self.labels:
+                (result, node_from_atom) = self.labels.pop()
+                if not result.is_input_refined_recursive():
+                    continue
+                atom_map = make_atom_map(node_from_atom)
+                result_key = self.calculate_result_key(result, atom_map)
+                if result_key in done:
+                    cached += 1
+                    is_match = done[result_key]
+                else:
+                    is_match, _ = self.is_relevant(result, node_from_atom, preimage)
+                    done[result_key] = is_match
+                labels.append(InvocationInfo(result, node_from_atom, label=is_match, atom_map=atom_map))
+            self.labels = labels
+            print('Cached', cached)
+            self.stats_path = logpath + "stats.json"
+            self.save_labeled(logpath + "stats.json")
 
 class OracleModel(Oracle):
     def make_is_relevant_checker(self):
