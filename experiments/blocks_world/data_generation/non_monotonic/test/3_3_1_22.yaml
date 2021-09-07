@@ -14,21 +14,21 @@ goal:
 - and
 - - on-table
   - block1
-  - - blue_table
-    - base_link
-- - on-table
-  - block0
   - - purple_table
     - base_link
 - - on-table
-  - block2
+  - block0
   - - blue_table
+    - base_link
+- - on-table
+  - block2
+  - - purple_table
     - base_link
 - - atworldpose
   - blocker0
   - &id001
-    - 0.23108564498253448
-    - 0.627549064310046
+    - 0.4701651437261927
+    - 0.3308954215795352
     - 0.325
     - 0.0
     - 0.0
@@ -36,8 +36,8 @@ goal:
 - - atworldpose
   - blocker1
   - &id002
-    - 0.5484708408951526
-    - -0.0869921263208277
+    - 0.5228120664098195
+    - -0.14494162336088906
     - 0.325
     - 0.0
     - 0.0
@@ -45,8 +45,8 @@ goal:
 - - atworldpose
   - blocker2
   - &id003
-    - -0.21663077838355993
-    - 0.5032320625289939
+    - 0.2672249360075608
+    - 0.5537936004603475
     - 0.325
     - 0.0
     - 0.0
@@ -59,21 +59,21 @@ main_links:
 objects:
   block0:
     X_WO:
-    - 0.23108564498253448
-    - 0.6775490643100459
+    - 0.5201651437261927
+    - 0.3308954215795352
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - 0.5984708408951526
-    - -0.0869921263208277
+    - 0.5728120664098194
+    - -0.14494162336088906
     - 0.325
     - 0.0
     - 0.0
@@ -85,8 +85,8 @@ objects:
     path: models/blocks_world/sdf/block1.sdf
   block2:
     X_WO:
-    - -0.21663077838355993
-    - 0.5532320625289938
+    - 0.2672249360075608
+    - 0.6037936004603475
     - 0.325
     - 0.0
     - 0.0
@@ -100,7 +100,7 @@ objects:
     X_WO: *id001
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
   blocker1:
@@ -120,8 +120,8 @@ objects:
 planning_directive: directives/one_arm_blocks_world.yaml
 run_attr:
   buffer_radius: 0
-  max_goal_stack: 0
-  max_start_stack: 0
+  max_goal_stack: 1
+  max_start_stack: 1
   num_blockers: 3
   num_blocks: 3
   type: non_monotonic

@@ -18,13 +18,13 @@ goal:
     - base_link
 - - on-table
   - block0
-  - - purple_table
+  - - blue_table
     - base_link
 - - atworldpose
   - blocker0
   - &id001
-    - 0.42014131140627514
-    - -0.2979476963745698
+    - 0.6138558274539861
+    - 0.18760589787382598
     - 0.325
     - 0.0
     - 0.0
@@ -32,8 +32,8 @@ goal:
 - - atworldpose
   - blocker1
   - &id002
-    - -0.12024673063979543
-    - 0.5136936186463902
+    - 0.6308549360258129
+    - -0.15540538966970757
     - 0.325
     - 0.0
     - 0.0
@@ -46,8 +46,8 @@ main_links:
 objects:
   block0:
     X_WO:
-    - 0.4701413114062752
-    - -0.2979476963745698
+    - 0.6638558274539861
+    - 0.18760589787382598
     - 0.325
     - 0.0
     - 0.0
@@ -59,15 +59,15 @@ objects:
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - -0.12024673063979543
-    - 0.5636936186463901
+    - 0.6808549360258128
+    - -0.15540538966970757
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block1.sdf
   blocker0:
@@ -81,14 +81,14 @@ objects:
     X_WO: *id002
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
 planning_directive: directives/one_arm_blocks_world.yaml
 run_attr:
   buffer_radius: 0
-  max_goal_stack: 0
-  max_start_stack: 0
+  max_goal_stack: 1
+  max_start_stack: 1
   num_blockers: 2
   num_blocks: 2
   type: non_monotonic

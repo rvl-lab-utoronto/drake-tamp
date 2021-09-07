@@ -18,7 +18,7 @@ goal:
     - base_link
 - - on-table
   - block0
-  - - blue_table
+  - - purple_table
     - base_link
 - - on-table
   - block2
@@ -27,8 +27,8 @@ goal:
 - - atworldpose
   - blocker0
   - &id001
-    - -0.06586896112413848
-    - 0.5525202831081003
+    - -0.026801504248327335
+    - 0.46625606660327035
     - 0.325
     - 0.0
     - 0.0
@@ -36,8 +36,8 @@ goal:
 - - atworldpose
   - blocker1
   - &id002
-    - -0.33173513624187767
-    - 0.42212574766312644
+    - 0.5366932356949556
+    - 0.2863592578098384
     - 0.325
     - 0.0
     - 0.0
@@ -45,8 +45,8 @@ goal:
 - - atworldpose
   - blocker2
   - &id003
-    - -0.17484745976647043
-    - 0.6198763135908146
+    - 0.5701092153887422
+    - 0.14863146595857246
     - 0.325
     - 0.0
     - 0.0
@@ -59,8 +59,8 @@ main_links:
 objects:
   block0:
     X_WO:
-    - -0.06586896112413848
-    - 0.6025202831081002
+    - -0.026801504248327335
+    - 0.5162560666032704
     - 0.325
     - 0.0
     - 0.0
@@ -72,28 +72,28 @@ objects:
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - -0.33173513624187767
-    - 0.4721257476631265
+    - 0.5866932356949556
+    - 0.2863592578098384
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block1.sdf
   block2:
     X_WO:
-    - -0.17484745976647043
-    - 0.6698763135908146
+    - 0.6201092153887421
+    - 0.14863146595857246
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block2.sdf
   blocker0:
@@ -107,21 +107,21 @@ objects:
     X_WO: *id002
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
   blocker2:
     X_WO: *id003
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
 planning_directive: directives/one_arm_blocks_world.yaml
 run_attr:
   buffer_radius: 0
-  max_goal_stack: 0
-  max_start_stack: 0
+  max_goal_stack: 1
+  max_start_stack: 1
   num_blockers: 3
   num_blocks: 3
   type: non_monotonic
