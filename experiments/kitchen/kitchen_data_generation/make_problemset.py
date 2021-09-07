@@ -11,7 +11,7 @@ if __name__ == "__main__":
                 num_obj = num_cabbages + num_raddishes + num_glasses
                 for num_goal in range(max(num_obj -3, 1), num_obj + 1):
                     yaml_data = make_random_problem(
-                        num_cabbages = num_cabbages, num_raddishes = num_raddishes, num_glasses = num_glasses
+                        num_cabbages = num_cabbages, num_raddishes = num_raddishes, num_glasses = num_glasses, prob_sink = 0
                     )
                     path = os.path.join("train", f"{num_cabbages}_{num_raddishes}_{num_glasses}_{num_goal}_{i}.yaml")
                     with open(path, "w") as f:
@@ -29,7 +29,7 @@ if __name__ == "__main__":
                 num_obj = num_cabbages + num_raddishes + num_glasses
                 for num_goal in range(max(num_obj -3, 1), num_obj + 1):
                     yaml_data = make_random_problem(
-                        num_cabbages = num_cabbages, num_raddishes = num_raddishes, num_glasses = num_glasses
+                        num_cabbages = num_cabbages, num_raddishes = num_raddishes, num_glasses = num_glasses, prob_sink = 0
                     )
                     path = os.path.join("test", f"{num_cabbages}_{num_raddishes}_{num_glasses}_{num_goal}_{i}.yaml")
                     with open(path, "w") as f:
