@@ -1,0 +1,125 @@
+arms:
+  panda:
+    X_WB:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/kitchen.yaml
+goal:
+- and
+- - in
+  - cabbage0
+  - - sink
+    - base_link
+- - in
+  - cabbage1
+  - - sink
+    - base_link
+- - in
+  - cabbage2
+  - - rightplacemat
+    - rightside
+- - in
+  - cabbage3
+  - - rightplacemat
+    - rightside
+main_links:
+  leftplacemat: base_link
+  leftplate: base_link
+  rightplacemat: base_link
+  rightplate: base_link
+  sink: base_link
+  stove: base_link
+  table_long: base_link
+  table_serving: base_link
+  table_square: base_link
+  tray: base_link
+objects:
+  cabbage0:
+    X_WO:
+    - -0.15
+    - 0.45
+    - 0.341
+    - 0.0
+    - 0.0
+    - 1.6899579846665387
+    contained:
+    - rightplate
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  cabbage1:
+    X_WO:
+    - 0.6035159002838004
+    - -0.06077279994713028
+    - 0.326
+    - 0.0
+    - 0.0
+    - -1.6109593677737701
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  cabbage2:
+    X_WO:
+    - 0.5743171386676349
+    - 0.026821122459396468
+    - 0.326
+    - 0.0
+    - 0.0
+    - 0.3548165237484382
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  cabbage3:
+    X_WO:
+    - 0.5129222353125815
+    - -0.047220691314619506
+    - 0.326
+    - 0.0
+    - 0.0
+    - -1.984606556684205
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+planning_directive: directives/kitchen_planning.yaml
+run_attr:
+  buffer_radius: 0
+  num_cabbages: 4
+  num_glasses: 0
+  num_goal: 4
+  num_raddishes: 0
+  prob_sink: 0
+  prob_tray: 0.4
+surfaces:
+  leftplacemat:
+  - leftside
+  - rightside
+  leftplate:
+  - base_link
+  rightplacemat:
+  - leftside
+  - rightside
+  rightplate:
+  - base_link
+  sink:
+  - base_link
+  stove:
+  - infopad
+  - burner1
+  - burner2
+  - burner3
+  - burner4
+  - burner5
+  tray:
+  - base_link

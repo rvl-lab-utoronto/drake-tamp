@@ -1,0 +1,108 @@
+arms:
+  panda:
+    X_WB:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/kitchen.yaml
+goal:
+- and
+- - in
+  - cabbage0
+  - - leftplacemat
+    - leftside
+- - in
+  - cabbage1
+  - - leftplacemat
+    - rightside
+- - in
+  - raddish0
+  - - sink
+    - base_link
+main_links:
+  leftplacemat: base_link
+  leftplate: base_link
+  rightplacemat: base_link
+  rightplate: base_link
+  sink: base_link
+  stove: base_link
+  table_long: base_link
+  table_serving: base_link
+  table_square: base_link
+  tray: base_link
+objects:
+  cabbage0:
+    X_WO:
+    - -0.18535533905932738
+    - 0.27322330470336315
+    - 0.326
+    - 0.0
+    - 0.0
+    - -0.6166288365379541
+    contained:
+    - rightplacemat
+    - leftside
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  cabbage1:
+    X_WO:
+    - 0.4521029216848166
+    - 0.25677839201047886
+    - 0.326
+    - 0.0
+    - 0.0
+    - 1.128922763895481
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  raddish0:
+    X_WO:
+    - 0.6147128430602248
+    - 0.14050432180916514
+    - 0.326
+    - 0.0
+    - 0.0
+    - 0.19132861161006362
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/raddish.sdf
+planning_directive: directives/kitchen_planning.yaml
+run_attr:
+  buffer_radius: 0
+  num_cabbages: 2
+  num_glasses: 0
+  num_goal: 3
+  num_raddishes: 1
+  prob_sink: 0
+  prob_tray: 0.4
+surfaces:
+  leftplacemat:
+  - leftside
+  - rightside
+  leftplate:
+  - base_link
+  rightplacemat:
+  - leftside
+  - rightside
+  rightplate:
+  - base_link
+  sink:
+  - base_link
+  stove:
+  - infopad
+  - burner1
+  - burner2
+  - burner3
+  - burner4
+  - burner5
+  tray:
+  - base_link

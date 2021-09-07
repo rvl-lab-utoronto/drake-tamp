@@ -1,0 +1,142 @@
+arms:
+  panda:
+    X_WB:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/kitchen.yaml
+goal:
+- and
+- - in
+  - cabbage0
+  - - rightplate
+    - base_link
+- - in
+  - cabbage1
+  - - rightplacemat
+    - leftside
+- - in
+  - raddish0
+  - - tray
+    - base_link
+- - in
+  - raddish1
+  - - rightplacemat
+    - rightside
+- - in
+  - glass0
+  - - sink
+    - base_link
+main_links:
+  leftplacemat: base_link
+  leftplate: base_link
+  rightplacemat: base_link
+  rightplate: base_link
+  sink: base_link
+  stove: base_link
+  table_long: base_link
+  table_serving: base_link
+  table_square: base_link
+  tray: base_link
+objects:
+  cabbage0:
+    X_WO:
+    - -0.45
+    - 0.15
+    - 0.341
+    - 0.0
+    - 0.0
+    - 1.9829317730793512
+    contained:
+    - leftplate
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  cabbage1:
+    X_WO:
+    - -0.41464466094067265
+    - 0.3267766952966369
+    - 0.326
+    - 0.0
+    - 0.0
+    - 2.3955000183260977
+    contained:
+    - leftplacemat
+    - rightside
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  glass0:
+    X_WO:
+    - 0.40437884829885706
+    - 0.26414493886717005
+    - 0.326
+    - 0.0
+    - 0.0
+    - -0.7429486269315844
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/glass.sdf
+  raddish0:
+    X_WO:
+    - 0.5060059969172348
+    - 0.08974382811335027
+    - 0.326
+    - 0.0
+    - 0.0
+    - 0.943473089243711
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/raddish.sdf
+  raddish1:
+    X_WO:
+    - 0.552817332953209
+    - 0.25373197049932167
+    - 0.326
+    - 0.0
+    - 0.0
+    - 0.8789708017365756
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/raddish.sdf
+planning_directive: directives/kitchen_planning.yaml
+run_attr:
+  buffer_radius: 0
+  num_cabbages: 2
+  num_glasses: 1
+  num_goal: 5
+  num_raddishes: 2
+  prob_sink: 0
+  prob_tray: 0.4
+surfaces:
+  leftplacemat:
+  - leftside
+  - rightside
+  leftplate:
+  - base_link
+  rightplacemat:
+  - leftside
+  - rightside
+  rightplate:
+  - base_link
+  sink:
+  - base_link
+  stove:
+  - infopad
+  - burner1
+  - burner2
+  - burner3
+  - burner4
+  - burner5
+  tray:
+  - base_link

@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     i  = 0
 
-    for num_cabbages in range(2, 5):
+    for num_cabbages in range(1, 5):
         for num_raddishes in range(0, 4):
             for num_glasses in range(0, 3):
                 num_obj = num_cabbages + num_raddishes + num_glasses

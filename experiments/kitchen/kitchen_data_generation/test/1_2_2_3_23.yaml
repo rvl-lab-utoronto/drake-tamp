@@ -1,0 +1,148 @@
+arms:
+  panda:
+    X_WB:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/kitchen.yaml
+goal:
+- and
+- - in
+  - cabbage0
+  - - rightplate
+    - base_link
+- - cooked
+  - cabbage0
+- - in
+  - raddish0
+  - - rightplacemat
+    - rightside
+- - in
+  - raddish1
+  - - leftplate
+    - base_link
+- - in
+  - glass0
+  - - tray
+    - base_link
+- - clean
+  - glass0
+- - in
+  - glass1
+  - - leftplacemat
+    - rightside
+- - clean
+  - glass1
+main_links:
+  leftplacemat: base_link
+  leftplate: base_link
+  rightplacemat: base_link
+  rightplate: base_link
+  sink: base_link
+  stove: base_link
+  table_long: base_link
+  table_serving: base_link
+  table_square: base_link
+  tray: base_link
+objects:
+  cabbage0:
+    X_WO:
+    - 0.6127163255260052
+    - 0.06749570276281286
+    - 0.326
+    - 0.0
+    - 0.0
+    - -0.04470554713928212
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/cabbage.sdf
+  glass0:
+    X_WO:
+    - 0.48522461680696843
+    - 0.06594737422935787
+    - 0.326
+    - 0.0
+    - 0.0
+    - -1.2093256439776348
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/glass.sdf
+  glass1:
+    X_WO:
+    - -0.15
+    - 0.45
+    - 0.341
+    - 0.0
+    - 0.0
+    - -1.9344137030946131
+    contained:
+    - rightplate
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/glass.sdf
+  raddish0:
+    X_WO:
+    - -0.11464466094067262
+    - 0.6267766952966369
+    - 0.326
+    - 0.0
+    - 0.0
+    - -0.9457406598045498
+    contained:
+    - rightplacemat
+    - rightside
+    main_link: base_link
+    path: models/kitchen/sdf/raddish.sdf
+  raddish1:
+    X_WO:
+    - 0.40137356282801234
+    - -0.06387356340155889
+    - 0.326
+    - 0.0
+    - 0.0
+    - 1.7499045393609076
+    contained:
+    - tray
+    - base_link
+    main_link: base_link
+    path: models/kitchen/sdf/raddish.sdf
+planning_directive: directives/kitchen_planning.yaml
+run_attr:
+  buffer_radius: 0
+  num_cabbages: 1
+  num_glasses: 2
+  num_goal: 5
+  num_raddishes: 2
+  prob_sink: 0
+  prob_tray: 0.4
+surfaces:
+  leftplacemat:
+  - leftside
+  - rightside
+  leftplate:
+  - base_link
+  rightplacemat:
+  - leftside
+  - rightside
+  rightplate:
+  - base_link
+  sink:
+  - base_link
+  stove:
+  - infopad
+  - burner1
+  - burner2
+  - burner3
+  - burner4
+  - burner5
+  tray:
+  - base_link
