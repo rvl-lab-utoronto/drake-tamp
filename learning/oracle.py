@@ -41,7 +41,7 @@ def instance_caching(predict_fn):
   return cached_predict
 
 
-def is_matching(l, ans_l, preimage, atom_map, sub_map):
+def is_matching(l, ans_l, preimage, atom_map, init_sub_map):
     """
     returns True iff there exists a fact, g, in
     atom_map (global) and a substitution
@@ -53,7 +53,7 @@ def is_matching(l, ans_l, preimage, atom_map, sub_map):
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
     for g in preimage:
-        sub_map = sub_map.copy()
+        sub_map = init_sub_map.copy()
         g = tuple(g)
         if not subsitution(l, g, sub_map):  # facts are of same type
             continue
@@ -219,9 +219,6 @@ class Oracle:
         data["num_labels"] = len(self.labels)
         data["data_info"] = self.run_attr
 
-        with open(path, "wb") as stream:
-            pickle.dump(data, stream)
-
         dirpath = os.path.splitext(path)[0]
         if not os.path.isdir(dirpath):
             os.mkdir(dirpath)
@@ -230,6 +227,9 @@ class Oracle:
             labelpath = os.path.join(dirpath, f"label_{i}.pkl")
             with open(labelpath, "wb") as lfile:
                 pickle.dump(label, lfile)
+
+        with open(path, "wb") as stream:
+            pickle.dump(data, stream)
 
     def save_stats(self, stats_path):
         """
@@ -365,12 +365,14 @@ class Oracle:
             labels = []
             done = {}
             preimage = store.last_preimage
+            preimage = set(map(fact_to_pddl, preimage))
             atom_map = store.node_from_atom_to_atom_map({})
             self.atom_map = {fact_to_pddl(key): list(map(fact_to_pddl, value)) for key, value in atom_map.items()}
             self.init = {x for x in self.atom_map if not self.atom_map[x]}
             self.init_sub = sub_map_from_init(self.init)
             self.init_objects = objects_from_facts(self.init)
             cached = 0
+            positive, negative = 0, 0
             hashed_node_from_atom = {}
             while self.labels:
                 (result, node_from_atom) = self.labels.pop()
@@ -390,9 +392,13 @@ class Oracle:
                 else:
                     is_match, _ = self.is_relevant(result, None, preimage, can_atom_map=atom_map)
                     done[result_key] = is_match
+                if is_match:
+                    positive += 1
+                else:
+                    negative += 1
                 labels.append(InvocationInfo(result, None, label=is_match, atom_map=atom_map, object_stream_map=object_stream_map))
             self.labels = labels
-            print('Cached', cached)
+            print('Cached', cached, "Pos", positive, "Neg", negative)
             self.stats_path = logpath + "stats.json"
             self.save_labeled(logpath + "stats.json")
 
@@ -622,7 +628,7 @@ class OracleDAggerModel(OracleModel):
         )
         can_ans = ancestors_tuple(can_fact, can_atom_map)
         is_match, match = is_matching(
-            can_fact, can_ans, preimage, self.atom_map, self.init
+            can_fact, can_ans, preimage, self.atom_map, self.init_sub
         )
 
         return is_match, match
