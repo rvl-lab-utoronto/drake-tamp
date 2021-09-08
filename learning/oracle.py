@@ -41,7 +41,7 @@ def instance_caching(predict_fn):
   return cached_predict
 
 
-def is_matching(l, ans_l, preimage, atom_map, init):
+def is_matching(l, ans_l, preimage, atom_map, sub_map):
     """
     returns True iff there exists a fact, g, in
     atom_map (global) and a substitution
@@ -53,7 +53,7 @@ def is_matching(l, ans_l, preimage, atom_map, init):
     ie. (#o1 -> leg1, #g1 -> [0.1, 0.2, -0.5])
     """
     for g in preimage:
-        sub_map = sub_map_from_init(init)
+        sub_map = sub_map.copy()
         g = tuple(g)
         if not subsitution(l, g, sub_map):  # facts are of same type
             continue
@@ -287,6 +287,7 @@ class Oracle:
                 self.last_preimage = list(map(tuple, data["last_preimage"]))
                 self.atom_map = item_to_dict(data["atom_map"])
                 self.init = {x for x in self.atom_map if not self.atom_map[x]}
+                self.init_sub = sub_map_from_init(self.init)
                 to_add = set()
                 for fact in self.last_preimage:
                     if fact not in self.atom_map:
@@ -299,7 +300,7 @@ class Oracle:
                 f"File {self.get_stats()} does not exist, cannot using oracle"
             )
 
-    def is_relevant(self, result, node_from_atom, preimage):
+    def is_relevant(self, result, node_from_atom, preimage, can_atom_map=None):
         """
         returns True iff either one of the
         certified facts in result.get_certified()
@@ -307,7 +308,8 @@ class Oracle:
         """
         if not result.is_input_refined_recursive():
             return True, None
-        can_atom_map = make_atom_map(node_from_atom)
+        if can_atom_map is None:
+            can_atom_map = make_atom_map(node_from_atom)
         #can_stream_map = make_stream_map(node_from_atom)
         assert objects_from_facts(self.init) == objects_from_facts(
             {f for f in can_atom_map if not can_atom_map[f]}
@@ -321,7 +323,7 @@ class Oracle:
 
         for can_fact in result.get_certified():
             is_match, match = is_matching(
-                fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init
+                fact_to_pddl(can_fact), can_ans, preimage, self.atom_map, self.init_sub
             )
 
             if is_match:
@@ -366,21 +368,29 @@ class Oracle:
             atom_map = store.node_from_atom_to_atom_map({})
             self.atom_map = {fact_to_pddl(key): list(map(fact_to_pddl, value)) for key, value in atom_map.items()}
             self.init = {x for x in self.atom_map if not self.atom_map[x]}
+            self.init_sub = sub_map_from_init(self.init)
             self.init_objects = objects_from_facts(self.init)
             cached = 0
+            hashed_node_from_atom = {}
             while self.labels:
                 (result, node_from_atom) = self.labels.pop()
                 if not result.is_input_refined_recursive():
                     continue
-                atom_map = make_atom_map(node_from_atom)
+                if id(node_from_atom) not in hashed_node_from_atom:
+                    atom_map = make_atom_map(node_from_atom)
+                    object_stream_map = InvocationInfo.make_obj_to_stream_map(node_from_atom)
+                    hashed_node_from_atom[id(node_from_atom)] = (atom_map, object_stream_map)
+                else:
+                    atom_map, object_stream_map = hashed_node_from_atom[id(node_from_atom)]
+                    
                 result_key = self.calculate_result_key(result, atom_map)
                 if result_key in done:
                     cached += 1
                     is_match = done[result_key]
                 else:
-                    is_match, _ = self.is_relevant(result, node_from_atom, preimage)
+                    is_match, _ = self.is_relevant(result, None, preimage, can_atom_map=atom_map)
                     done[result_key] = is_match
-                labels.append(InvocationInfo(result, node_from_atom, label=is_match, atom_map=atom_map))
+                labels.append(InvocationInfo(result, None, label=is_match, atom_map=atom_map, object_stream_map=object_stream_map))
             self.labels = labels
             print('Cached', cached)
             self.stats_path = logpath + "stats.json"
@@ -688,6 +698,7 @@ class ComplexityDataCollector(ComplexityModelV3):
         assert not self.labels
         self.atom_map = {fact_to_pddl(key): list(map(fact_to_pddl, value)) for key, value in atom_map.items()}
         self.init = {x for x in self.atom_map if not self.atom_map[x]}
+        self.init_sub = sub_map_from_init(self.init)
         self.last_preimage = set(map(fact_to_pddl, preimage))
         if EAGER_MODE:
             preimage_no_leaves = set()

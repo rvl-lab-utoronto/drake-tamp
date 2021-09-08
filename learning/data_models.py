@@ -139,13 +139,16 @@ SerializedResult = namedtuple(
     'SerializedResult', ["name", "certified", "domain", "input_objects", "output_objects"]
 )
 class InvocationInfo:
-    def __init__(self, result, node_from_atom, label=None, atom_map = None):
+    def __init__(self, result, node_from_atom, label=None, atom_map = None, object_stream_map=None):
         if atom_map is None:
             self.atom_map = make_atom_map(node_from_atom) 
         else:
             self.atom_map = atom_map
-        self.stream_map = make_stream_map(node_from_atom)
-        self.object_stream_map = self.make_obj_to_stream_map(node_from_atom)
+        # self.stream_map = make_stream_map(node_from_atom)
+        if object_stream_map is None:
+            self.object_stream_map = self.make_obj_to_stream_map(node_from_atom)
+        else:
+            self.object_stream_map = object_stream_map
         self.result = self.result_to_serializable(result)
         self.label = label
 
