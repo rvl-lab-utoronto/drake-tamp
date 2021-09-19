@@ -1,7 +1,6 @@
-<?xml version='1.0'?>
-<sdf version='1.7'>
-  <model name='template_hand_and_block'>
-      <link name = "panda_hand">
+<sdf version="1.7">
+  <model name="test_hand_and_block">
+      <link name="panda_hand">
           <inertial>
               <mass>0.73</mass>
               <pose>0 0.0015244 0.0275912 0 0 0</pose>
@@ -16,7 +15,7 @@
           </inertial>
           <self_collide>0</self_collide>
           <kinematic>0</kinematic>
-          <visual name = "visual">
+          <visual name="visual">
               <pose>0 0 0.15 -1.57079632679 0 0</pose>
               <geometry>
                   <mesh>
@@ -25,7 +24,7 @@
                   </mesh>
               </geometry>
               <material>
-                  <diffuse>1.0 1.0 1.0 1.0</diffuse>
+                  <diffuse>0 0.0 0 1</diffuse>
               </material>
           </visual>
           <collision name="collision">
@@ -100,7 +99,7 @@
           </inertial>
           <self_collide>0</self_collide>
           <kinematic>0</kinematic>
-          <visual name = "visual">
+          <visual name="visual">
               <pose>0 0 0 -1.57 0 3.1415</pose>
               <geometry>
                   <mesh>
@@ -109,7 +108,7 @@
                   </mesh>
               </geometry>
               <material>
-                  <diffuse>1.0 1.0 1.0 1.0</diffuse>
+                  <diffuse>0 0.0 0 1</diffuse>
               </material>
           </visual>
           <collision name="tip_collision">
@@ -239,7 +238,7 @@
           </inertial>
           <self_collide>0</self_collide>
           <kinematic>0</kinematic>
-          <visual name = "visual">
+          <visual name="visual">
               <pose>0 0 0 -1.57079632679 0 0</pose>
               <geometry>
                   <mesh>
@@ -248,7 +247,7 @@
                   </mesh>
               </geometry>
               <material>
-                  <diffuse>1.0 1.0 1.0 1.0</diffuse>
+                  <diffuse>0 0.0 0 1</diffuse>
               </material>
           </visual>
           <collision name="tip_collision">
@@ -377,8 +376,8 @@
           <child>panda_hand</child>
       </joint>
 
-    <!-- start hand -->
-    <link name='base_link'>
+    
+    <link name="base_link">
       <inertial>
         <mass>0.05</mass>
         <inertia>
@@ -392,7 +391,7 @@
         <pose>0 0 0.01 0 0 0</pose>
       </inertial>
       <pose>0 0 0 0 0 0</pose>
-      <visual name='visual'>
+      <visual name="visual">
         <pose>0 0 0.0225 0 0 0</pose>
         <geometry>
             <box>
@@ -400,10 +399,10 @@
             </box>
         </geometry>
         <material>
-          <diffuse>0.1 0.1 1 1</diffuse>
+          <diffuse>0.8294795023105751 0.7368429772121036 0.5958610953672626 1</diffuse>
         </material>
       </visual>
-      <collision name='collision'>
+      <collision name="collision">
         <pose>0 0 0.0225 0 0 0</pose>
         <geometry>
             <box>
@@ -411,71 +410,8 @@
             </box>
         </geometry>
       </collision>
-      <!-- balls help with collisions -->
-      <!--collision name='ball1'>
-        <pose>-0.0225 -0.0225 0.005 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <collision name='ball2'>
-        <pose>0.0225 -0.0225 0.005 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <collision name='ball3'>
-        <pose>-0.0225 0.0225 0.005 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <collision name='ball4'>
-        <pose>0.0225 0.0225 0.005 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <collision name='ball5'>
-        <pose>-0.0225 -0.0225 0.045 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <collision name='ball6'>
-        <pose>0.0225 -0.0225 0.045 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <collision name='ball7'>
-        <pose>-0.0225 0.0225 0.045 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision>
-      <collision name='ball8'>
-        <pose>0.0225 0.0225 0.045 0 0 0</pose>
-        <geometry>
-          <sphere>
-            <radius>1e-7</radius>
-          </sphere>
-        </geometry>
-      </collision-->
+      
+      
     </link>
   </model>
 </sdf>

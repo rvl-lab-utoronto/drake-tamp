@@ -12,7 +12,7 @@ from pydrake.all import (
 )
 from panda_station import *
 
-DIRECTIVE = "directives/hanoi.yaml"
+DIRECTIVE = "directives/video.yaml"
 NAMES_AND_LINKS = [
     (name, "base_link") for name in parse_tables(find_resource(DIRECTIVE))
 ] 
@@ -23,20 +23,20 @@ if __name__ == "__main__":
     station = PandaStation(name = "placement_station")
     station.setup_from_file(DIRECTIVE, names_and_links=NAMES_AND_LINKS)
     station.add_panda_with_hand(
-        blocked=True, X_WB = RigidTransform(RotationMatrix(), [0.05, 0, 0.8])
+        blocked=True, X_WB = RigidTransform(RotationMatrix(), [1000.00, 0, 0.0])
     )
     plant = station.get_multibody_plant()
     station.finalize()
     builder.AddSystem(station)
     scene_graph = station.get_scene_graph()
-    zmq_url = "tcp://127.0.0.1:6000"
+    zmq_url = "tcp://127.0.0.1:6001"
     v = ConnectMeshcatVisualizer(
         builder,
         scene_graph,
         output_port=station.GetOutputPort("query_object"),
         delete_prefix_on_load=True,
         zmq_url=zmq_url,
-        role = Role.kProximity
+        #role = Role.kProximity
     )
     v.load()
     diagram = builder.Build()

@@ -11,18 +11,34 @@ TEMPLATE_NAME = "template_hand_and_block.sdf"
 FILE_PATH, _ = os.path.split(os.path.realpath(__file__))
 
 
-def make_hand_and_block(name, color):
+def make_hand_and_block(name, panda_color, block_color):
     tree = ET.parse(f"{FILE_PATH}/{TEMPLATE_NAME}")
     root = tree.getroot()
     for model in root.iter("model"):
         model.set("name", name)
-    for diffuse in root.iter("diffuse"):
-        diffuse.text = color
+
+    model = root[0]
+    for link in model:
+        if link.tag != "link":
+            continue
+        link_name = link.attrib.get("name", "")
+        if link_name.startswith("panda"):
+            for diffuse in link.iter("diffuse"):
+                diffuse.text = panda_color
+        if link_name == "base_link":
+            for diffuse in link.iter("diffuse"):
+                diffuse.text = block_color
 
     return tree
 
+def random_color():
+    r, g, b = np.random.uniform(low =0, high = 1, size = 3)
+    return f"{r} {g} {b} 1"
 
 if __name__ == "__main__":
+
     name = "test_hand_and_block"
-    tree = make_hand_and_block(name, '0 1 0 1')
-    tree.write(name + ".sdf")
+
+    for i, green in enumerate(np.linspace(0,1,10)):
+        tree = make_hand_and_block(name, panda_color = f'0 {green} 0 1', block_color = random_color())
+        tree.write(f"hand_and_block_{i}" + ".sdf")

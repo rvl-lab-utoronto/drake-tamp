@@ -1,5 +1,5 @@
 <sdf version="1.7">
-  <model name="test_hand_hand_block">
+  <model name="test_hand_and_block">
       <link name="panda_hand">
           <inertial>
               <mass>0.73</mass>
@@ -372,8 +372,8 @@
 
 
       <joint name="block_hand_joint" type="fixed">
-          <parent>panda_hand</parent>
-          <child>base_link</child>
+          <parent>base_link</parent>
+          <child>panda_hand</child>
       </joint>
 
     
@@ -399,7 +399,7 @@
             </box>
         </geometry>
         <material>
-          <diffuse>0 1 0 1</diffuse>
+          <diffuse>0.5 0.5 0.5 1</diffuse>
         </material>
       </visual>
       <collision name="collision">
