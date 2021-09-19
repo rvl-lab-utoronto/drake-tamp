@@ -29,7 +29,7 @@ if __name__ == "__main__":
     station.finalize()
     builder.AddSystem(station)
     scene_graph = station.get_scene_graph()
-    zmq_url = "tcp://127.0.0.1:6003"
+    zmq_url = "tcp://127.0.0.1:6000"
     v = ConnectMeshcatVisualizer(
         builder,
         scene_graph,
