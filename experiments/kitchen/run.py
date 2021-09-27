@@ -568,8 +568,6 @@ def run_kitchen(
             path + "stats.json", save_path=path + "preimage_graph.html"
         )
 
-        if mode == "oracle":
-            oracle.save_labeled(path + "stats.json")
 
     if simulate:
 

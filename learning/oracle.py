@@ -17,6 +17,7 @@ from pddlstream.language.conversion import evaluation_from_fact, fact_from_evalu
 from torch_geometric.data.batch import Batch
 
 from pddlstream.language.object import SharedOptValue, UniqueOptValue
+from tqdm import tqdm
 
 RED   = "\033[1;31m"  
 RESET = "\033[0;0m"
@@ -218,18 +219,10 @@ class Oracle:
         self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
         data["num_labels"] = len(self.labels)
         data["data_info"] = self.run_attr
-
-        dirpath = os.path.splitext(path)[0]
-        if not os.path.isdir(dirpath):
-            os.mkdir(dirpath)
-
-        for i, label in enumerate(self.labels):
-            labelpath = os.path.join(dirpath, f"label_{i}.pkl")
-            with open(labelpath, "wb") as lfile:
-                pickle.dump(label, lfile)
-
+        data["labels"] = self.labels
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
+        print('Saved labels to', path)
 
     def save_stats(self, stats_path):
         """
@@ -360,7 +353,7 @@ class Oracle:
             result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
         return result_key
 
-    def after_run(self, store, logpath):
+    def after_run(self, store, logpath, **kwargs):
         if store.is_solved() and hasattr(self, 'data_collection_mode') and self.data_collection_mode:
             labels = []
             done = {}
@@ -400,7 +393,7 @@ class Oracle:
             self.labels = labels
             print('Cached', cached, "Pos", positive, "Neg", negative)
             self.stats_path = logpath + "stats.json"
-            self.save_labeled(logpath + "stats.json")
+            self.save_labeled(logpath + "stats.json", path=logpath + datetime.utcnow().strftime("%Y-%m-%d-%H:%M:%S.%f")[:-3] + "_labels.pkl")
 
 class OracleModel(Oracle):
     def make_is_relevant_checker(self):

@@ -736,6 +736,7 @@ class Dataset:
                 label_paths,
             )
         )
+        self.datastores[-1].cache = data["labels"]
 
         # self.problem_infos.append(problem_info)
         # self.problem_labels.append(data['labels'])

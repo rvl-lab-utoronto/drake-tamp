@@ -81,8 +81,8 @@ if __name__ == "__main__":
     base_datapath = get_base_datapath()
     with open(args.datafile, "r") as f:
         data = json.load(f)
-    train_files = [os.path.join(base_datapath, d) for d in data["train"]]
-    val_files = [os.path.join(base_datapath, d) for d in data["validation"]]
+    train_files = [os.path.join(base_datapath, d) if not d.startswith('/') else d for d in data["train"]]
+    val_files = [os.path.join(base_datapath, d) if not d.startswith('/') else d for d in data["validation"]]
     print(f"Number of training files: {len(train_files)}")
     print(f"Number of validation files: {len(val_files)}")
 
@@ -145,6 +145,7 @@ if __name__ == "__main__":
         input_fn,
         model_info_class,
         preprocess_all=args.preprocess_all,
+        clear_memory=False
     )
     valset.from_pkl_files(*val_files)
     valset.prepare()
