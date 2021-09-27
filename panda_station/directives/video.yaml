@@ -1,0 +1,127 @@
+directives:
+
+    # ground plane
+    - add_frame:
+        name: world_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy {deg: [0.0, 0.0, 0.0]}
+            translation: [0, 0, 0]
+
+    - add_model:
+        name: ground_plane
+        file: package://kitchen/sdf/ground_plane.sdf
+
+    - add_weld:
+        parent: world_origin
+        child: ground_plane::base_link
+
+    # +x table
+    - add_frame:
+        name: red_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [0.6, 0, 0]
+
+    - add_model:
+        name: red_table
+        file: package://blocks_world/sdf/red_table.sdf
+
+    - add_weld:
+        parent: red_table_origin
+        child: red_table::base_link
+
+    # +y table
+    - add_frame:
+        name: green_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 90.0]}
+            translation: [0, 0.6, 0]
+
+    - add_model:
+        name: green_table
+        file: package://blocks_world/sdf/green_table.sdf
+
+    - add_weld:
+        parent: green_table_origin
+        child: green_table::base_link
+
+    # -x table
+    - add_frame:
+        name: blue_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 0.0]}
+            translation: [-0.6, 0, 0]
+
+    - add_model:
+        name: blue_table
+        file: package://blocks_world/sdf/blue_table.sdf
+
+    - add_weld:
+        parent: blue_table_origin
+        child: blue_table::base_link
+
+    # -y table
+    - add_frame:
+        name: purple_table_origin
+        X_PF:
+            base_frame: world
+            rotation: !Rpy { deg: [0.0, 0.0, 90.0]}
+            translation: [0, -0.6, 0]
+
+    - add_model:
+        name: purple_table
+        file: package://blocks_world/sdf/indigo_table.sdf
+
+    - add_weld:
+        parent: purple_table_origin
+        child: purple_table::base_link
+
+    # hand1
+    - add_frame:
+        name: hand1_origin
+        X_PF:
+            base_frame: purple_table_origin
+            rotation: !Rpy { deg: [0.0, 0.0, 0]}
+            translation: [0, 0, 0.325]
+
+    - add_model:
+        name: hand1
+        file: package://video/sdf/hand_and_block_1.sdf
+
+    - add_weld:
+        parent: hand1_origin
+        child: hand1::base_link
+
+    - add_frame:
+        name: hand2_origin
+        X_PF:
+            base_frame: red_table_origin
+            rotation: !Rpy { deg: [0.0, 0.0, 30]}
+            translation: [0.1, -0.1, 0.325]
+
+    - add_model:
+        name: hand2
+        file: package://video/sdf/hand_and_block_2.sdf
+
+    - add_weld:
+        parent: hand2_origin
+        child: hand2::base_link
+
+    - add_frame:
+        name: hand3_origin
+        X_PF:
+            base_frame: red_table_origin
+            rotation: !Rpy { deg: [0.0, 0.0, 80]}
+            translation: [-0.15, 0.2, 0.325]
+
+    - add_model:
+        name: hand3
+        file: package://video/sdf/hand_and_block_3.sdf
+
+    - add_weld:
+        parent: hand3_origin
+        child: hand3::base_link

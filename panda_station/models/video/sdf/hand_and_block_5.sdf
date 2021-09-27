@@ -1,0 +1,417 @@
+<sdf version="1.7">
+  <model name="test_hand_and_block">
+      <link name="panda_hand">
+          <inertial>
+              <mass>0.73</mass>
+              <pose>0 0.0015244 0.0275912 0 0 0</pose>
+              <inertia>
+                  <ixx>0.00278560230025</ixx>
+                  <ixy>0.0</ixy>
+                  <ixz>0.0</ixz>
+                  <iyy>0.000400033405336</iyy>
+                  <iyz>0.0</iyz>
+                  <izz>0.00256378041832</izz>
+              </inertia>
+          </inertial>
+          <self_collide>0</self_collide>
+          <kinematic>0</kinematic>
+          <visual name="visual">
+              <pose>0 0 0.15 -1.57079632679 0 0</pose>
+              <geometry>
+                  <mesh>
+                      <scale>1 1 1</scale>
+                      <uri>../meshes/hand.obj</uri>
+                  </mesh>
+              </geometry>
+              <material>
+                  <diffuse>0 0.5555555555555556 0 1</diffuse>
+              </material>
+          </visual>
+          <collision name="collision">
+              <pose>0 0 0.033 0 0 0</pose>
+              <laser_retro>0</laser_retro>
+              <max_contacts>10</max_contacts>
+              <geometry>
+                  <box>
+                      <size>0.062 0.20 0.066</size>
+                  </box>
+              </geometry>
+              <surface>
+                  <friction>
+                      <ode>
+                          <mu>1</mu>
+                          <mu2>1</mu2>
+                          <fdir1>0 0 0</fdir1>
+                          <slip1>0</slip1>
+                          <slip2>0</slip2>
+                      </ode>
+                      <torsional>
+                          <coefficient>1</coefficient>
+                          <patch_radius>0</patch_radius>
+                          <surface_radius>0</surface_radius>
+                          <use_patch_radius>1</use_patch_radius>
+                          <ode>
+                              <slip>0</slip>
+                          </ode>
+                      </torsional>
+                  </friction>
+                  <bounce>
+                      <restitution_coefficient>0</restitution_coefficient>
+                      <threshold>1e+06</threshold>
+                  </bounce>
+                  <contact>
+                      <collide_without_contact>0</collide_without_contact>
+                      <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
+                      <collide_bitmask>1</collide_bitmask>
+                      <ode>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          <max_vel>0.01</max_vel>
+                          <min_depth>0</min_depth>
+                      </ode>
+                      <bullet>
+                          <split_impulse>1</split_impulse>
+                          <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          </bullet>
+                  </contact>
+              </surface>
+          </collision>
+      </link>
+      <link name="panda_leftfinger">
+          <pose>0 0.04 0.09 0 0 0</pose>
+          <inertial>
+              <mass>0.1</mass>
+              <pose>0 0.0145644 0.0227941 0 0 0</pose>
+              <inertia>
+                  <ixx>3.01220925051e-05</ixx>
+                  <ixy>0.0</ixy>
+                  <ixz>0.0</ixz>
+                  <iyy>2.95873808038e-05</iyy>
+                  <iyz>0.0</iyz>
+                  <izz>6.95125211657e-06</izz>
+              </inertia>
+          </inertial>
+          <self_collide>0</self_collide>
+          <kinematic>0</kinematic>
+          <visual name="visual">
+              <pose>0 0 0 -1.57 0 3.1415</pose>
+              <geometry>
+                  <mesh>
+                      <scale>1 1 1</scale>
+                      <uri>../meshes/finger.obj</uri>
+                  </mesh>
+              </geometry>
+              <material>
+                  <diffuse>0 0.5555555555555556 0 1</diffuse>
+              </material>
+          </visual>
+          <collision name="tip_collision">
+              <pose>0 0.007 0.045 0 0 0</pose>
+              <laser_retro>0</laser_retro>
+              <max_contacts>10</max_contacts>
+              <geometry>
+                  <box>
+                      <size>0.017 0.014 0.017</size>
+                  </box>
+              </geometry>
+              <surface>
+                  <friction>
+                      <ode>
+                          <mu>1</mu>
+                          <mu2>1</mu2>
+                          <fdir1>0 0 0</fdir1>
+                          <slip1>0</slip1>
+                          <slip2>0</slip2>
+                      </ode>
+                      <torsional>
+                          <coefficient>1</coefficient>
+                          <patch_radius>0</patch_radius>
+                          <surface_radius>0</surface_radius>
+                          <use_patch_radius>1</use_patch_radius>
+                          <ode>
+                              <slip>0</slip>
+                          </ode>
+                      </torsional>
+                  </friction>
+                  <bounce>
+                      <restitution_coefficient>0</restitution_coefficient>
+                      <threshold>1e+06</threshold>
+                  </bounce>
+                  <contact>
+                      <collide_without_contact>0</collide_without_contact>
+                      <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
+                      <collide_bitmask>1</collide_bitmask>
+                      <ode>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          <max_vel>0.01</max_vel>
+                          <min_depth>0</min_depth>
+                      </ode>
+                      <bullet>
+                          <split_impulse>1</split_impulse>
+                          <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          </bullet>
+                  </contact>
+              </surface>
+          </collision>
+          <collision name="big_collision">
+              <pose>0 0.015 0.018 0 0 0</pose>
+              <laser_retro>0</laser_retro>
+              <max_contacts>10</max_contacts>
+              <geometry>
+                  <box>
+                      <size>0.017 0.014 0.036</size>
+                  </box>
+              </geometry>
+              <surface>
+                  <friction>
+                      <ode>
+                          <mu>1</mu>
+                          <mu2>1</mu2>
+                          <fdir1>0 0 0</fdir1>
+                          <slip1>0</slip1>
+                          <slip2>0</slip2>
+                      </ode>
+                      <torsional>
+                          <coefficient>1</coefficient>
+                          <patch_radius>0</patch_radius>
+                          <surface_radius>0</surface_radius>
+                          <use_patch_radius>1</use_patch_radius>
+                          <ode>
+                              <slip>0</slip>
+                          </ode>
+                      </torsional>
+                  </friction>
+                  <bounce>
+                      <restitution_coefficient>0</restitution_coefficient>
+                      <threshold>1e+06</threshold>
+                  </bounce>
+                  <contact>
+                      <collide_without_contact>0</collide_without_contact>
+                      <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
+                      <collide_bitmask>1</collide_bitmask>
+                      <ode>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          <max_vel>0.01</max_vel>
+                          <min_depth>0</min_depth>
+                      </ode>
+                      <bullet>
+                          <split_impulse>1</split_impulse>
+                          <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          </bullet>
+                  </contact>
+              </surface>
+          </collision>
+      </link>
+      <link name="panda_rightfinger">
+          <pose>0 -0.04 0.09 0 0 0</pose>
+          <inertial>
+              <mass>0.1</mass>
+              <pose>0 0.0145644 0.0227941 0 0 0</pose>
+              <inertia>
+                  <ixx>3.01220925051e-05</ixx>
+                  <ixy>0.0</ixy>
+                  <ixz>0.0</ixz>
+                  <iyy>2.95873808038e-05</iyy>
+                  <iyz>0.0</iyz>
+                  <izz>6.95125211657e-06</izz>
+              </inertia>
+          </inertial>
+          <self_collide>0</self_collide>
+          <kinematic>0</kinematic>
+          <visual name="visual">
+              <pose>0 0 0 -1.57079632679 0 0</pose>
+              <geometry>
+                  <mesh>
+                      <scale>1 1 1</scale>
+                      <uri>../meshes/finger.obj</uri>
+                  </mesh>
+              </geometry>
+              <material>
+                  <diffuse>0 0.5555555555555556 0 1</diffuse>
+              </material>
+          </visual>
+          <collision name="tip_collision">
+              <pose>0 -0.007 0.045 0 0 0</pose>
+              <laser_retro>0</laser_retro>
+              <max_contacts>10</max_contacts>
+              <geometry>
+                  <box>
+                      <size>0.017 0.014 0.017</size>
+                  </box>
+              </geometry>
+              <surface>
+                  <friction>
+                      <ode>
+                          <mu>1</mu>
+                          <mu2>1</mu2>
+                          <fdir1>0 0 0</fdir1>
+                          <slip1>0</slip1>
+                          <slip2>0</slip2>
+                      </ode>
+                      <torsional>
+                          <coefficient>1</coefficient>
+                          <patch_radius>0</patch_radius>
+                          <surface_radius>0</surface_radius>
+                          <use_patch_radius>1</use_patch_radius>
+                          <ode>
+                              <slip>0</slip>
+                          </ode>
+                      </torsional>
+                  </friction>
+                  <bounce>
+                      <restitution_coefficient>0</restitution_coefficient>
+                      <threshold>1e+06</threshold>
+                  </bounce>
+                  <contact>
+                      <collide_without_contact>0</collide_without_contact>
+                      <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
+                      <collide_bitmask>1</collide_bitmask>
+                      <ode>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          <max_vel>0.01</max_vel>
+                          <min_depth>0</min_depth>
+                      </ode>
+                      <bullet>
+                          <split_impulse>1</split_impulse>
+                          <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          </bullet>
+                  </contact>
+              </surface>
+          </collision>
+          <collision name="big_collision">
+              <pose>0 -0.015 0.018 0 0 0</pose>
+              <laser_retro>0</laser_retro>
+              <max_contacts>10</max_contacts>
+              <geometry>
+                  <box>
+                      <size>0.017 0.014 0.036</size>
+                  </box>
+              </geometry>
+              <surface>
+                  <friction>
+                      <ode>
+                          <mu>1</mu>
+                          <mu2>1</mu2>
+                          <fdir1>0 0 0</fdir1>
+                          <slip1>0</slip1>
+                          <slip2>0</slip2>
+                      </ode>
+                      <torsional>
+                          <coefficient>1</coefficient>
+                          <patch_radius>0</patch_radius>
+                          <surface_radius>0</surface_radius>
+                          <use_patch_radius>1</use_patch_radius>
+                          <ode>
+                              <slip>0</slip>
+                          </ode>
+                      </torsional>
+                  </friction>
+                  <bounce>
+                      <restitution_coefficient>0</restitution_coefficient>
+                      <threshold>1e+06</threshold>
+                  </bounce>
+                  <contact>
+                      <collide_without_contact>0</collide_without_contact>
+                      <collide_without_contact_bitmask>1</collide_without_contact_bitmask>
+                      <collide_bitmask>1</collide_bitmask>
+                      <ode>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          <max_vel>0.01</max_vel>
+                          <min_depth>0</min_depth>
+                      </ode>
+                      <bullet>
+                          <split_impulse>1</split_impulse>
+                          <split_impulse_penetration_threshold>-0.01</split_impulse_penetration_threshold>
+                          <soft_cfm>0</soft_cfm>
+                          <soft_erp>0.2</soft_erp>
+                          <kp>1e+13</kp>
+                          <kd>1</kd>
+                          </bullet>
+                  </contact>
+              </surface>
+          </collision>
+      </link>
+      <joint name="left_finger_sliding_joint" type="fixed">
+          <parent>panda_hand</parent>
+          <child>panda_leftfinger</child>
+      </joint>
+      <joint name="right_finger_sliding_joint" type="fixed">
+          <parent>panda_hand</parent>
+          <child>panda_rightfinger</child>
+      </joint>
+
+
+      <joint name="block_hand_joint" type="fixed">
+          <parent>base_link</parent>
+          <child>panda_hand</child>
+      </joint>
+
+    
+    <link name="base_link">
+      <inertial>
+        <mass>0.05</mass>
+        <inertia>
+          <ixx>1.6875e-06</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.6875e-06</iyy>
+          <iyz>0</iyz>
+          <izz>1.6875e-06</izz>
+        </inertia>
+        <pose>0 0 0.01 0 0 0</pose>
+      </inertial>
+      <pose>0 0 0 0 0 0</pose>
+      <visual name="visual">
+        <pose>0 0 0.0225 0 0 0</pose>
+        <geometry>
+            <box>
+                <size>0.045 0.045 0.045</size>
+            </box>
+        </geometry>
+        <material>
+          <diffuse>0.9459202204439342 0.22215182649169551 0.0018560703177314952 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <pose>0 0 0.0225 0 0 0</pose>
+        <geometry>
+            <box>
+              <size>0.044 0.044 0.044</size>
+            </box>
+        </geometry>
+      </collision>
+      
+      
+    </link>
+  </model>
+</sdf>

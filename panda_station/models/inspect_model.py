@@ -2,13 +2,13 @@
 
 import argparse
 from pydrake.all import (
-    DiagramBuilder, AddMultibodyPlantSceneGraph, Parser, ConnectMeshcatVisualizer
+    DiagramBuilder, AddMultibodyPlantSceneGraph, Parser, ConnectMeshcatVisualizer, Role
 )
     
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-z", "--zmq_url", type=str, default="tcp://127.0.0.1:6000")
-parser.add_argument("-m", "--model_path", type=str, default="./basement/sdf/wooden_table.sdf")
+parser.add_argument("-z", "--zmq_url", type=str, default="tcp://127.0.0.1:6001")
+parser.add_argument("-m", "--model_path", type=str, default="./video/sdf/test_hand_and_block.sdf")
 
 args = parser.parse_args()
 zmq_url = args.zmq_url
@@ -19,8 +19,9 @@ plant, scene_graph = AddMultibodyPlantSceneGraph(builder, time_step=1e-4)
 Parser(plant, scene_graph).AddModelFromFile(model_path)
 plant.Finalize()
 
-meshcat = ConnectMeshcatVisualizer(builder, scene_graph, zmq_url=zmq_url)
+meshcat = ConnectMeshcatVisualizer(builder, scene_graph, zmq_url=zmq_url)#, role = Role.kProximity)
 diagram = builder.Build()
-context = diagram.CreateDefaultContext()
 
 meshcat.load()
+diagram_context = diagram.CreateDefaultContext()
+diagram.Publish(diagram_context)
