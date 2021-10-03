@@ -46,7 +46,7 @@ def make_argument_parser():
         "--algorithm",
         type=str,
         default="adaptive",
-        choices=["informedV2", "adaptive"],
+        choices=["informedV2", "adaptive", "ploi"],
         help = "Which algorithm do you want to run the trial with?"
     )
     parser.add_argument(
@@ -65,7 +65,8 @@ def make_argument_parser():
             "model",
             "cachingmodel",
             "multiheadmodel",
-            "complexityoracle"
+            "complexityoracle",
+            "ploi"
         ],
     )
     parser.add_argument(

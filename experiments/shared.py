@@ -25,6 +25,8 @@ def construct_oracle(mode, pddl_problem, problem_info, model_poses, **kwargs):
         oracle_class = ora.OracleDAggerModel
     elif mode == "normal":
         return None
+    elif mode == "ploi":
+        oracle_class = ora.PLOI
     else:
         raise ValueError(f"Unrecognized mode {mode}")
     oracle = oracle_class(

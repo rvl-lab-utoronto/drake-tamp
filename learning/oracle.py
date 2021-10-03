@@ -11,7 +11,7 @@ from torch_geometric.data.data import Data
 
 from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierV2Info
 from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
+from learning.gnn.models import GraphNetwork, HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
 from torch_geometric.data.batch import Batch
@@ -812,3 +812,27 @@ class MultiHeadModel(Oracle):
             self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
             self.running_average = (self.running_average*(self.N-1) + score) / self.N
         return score/(l  + count  - 1)
+
+class PLOI(Oracle):
+    def __init__(self, *args, **kwargs):
+        model_path = kwargs.pop('model_path')
+        super().__init__(*args, **kwargs)
+        self.model_path = model_path
+        self.model = None
+    
+    def set_model_info(self, domain, externals):
+        super().set_model_info(domain, externals)
+        self.load_model()
+
+    def load_model(self):
+        problem_graph_node_feature_size = 3 + 1
+        problem_graph_edge_feature_size = self.model_info.num_predicates + 1
+
+        model = GraphNetwork(problem_graph_node_feature_size, problem_graph_edge_feature_size, 8, 1)
+        model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
+
+        self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
+        problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
+        preds = model(Batch.from_data_list([problem_graph_input]))
+        preds = torch.sigmoid(preds)
+        self.preds = dict(zip(map(Object.from_name, problem_graph_input.nodes), preds.flatten().detach().numpy()))

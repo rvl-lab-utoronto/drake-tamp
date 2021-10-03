@@ -326,11 +326,11 @@ class NodeModel(nn.Module):
 
 
 class GraphNetwork(nn.Module):
-    def __init__(self, node_feature_size, edge_feature_size, hidden_size, dropout=0.0):
+    def __init__(self, node_feature_size, edge_feature_size, hidden_size, out_size=None, dropout=0.0):
         super(GraphNetwork, self).__init__()
         self.meta_layer_1 = self.build_meta_layer(node_feature_size, edge_feature_size, hidden_size, hidden_size, dropout=dropout)
         self.meta_layer_2 = self.build_meta_layer(hidden_size, hidden_size, hidden_size, hidden_size, dropout=dropout)
-        self.meta_layer_3 = self.build_meta_layer(hidden_size, hidden_size, hidden_size, hidden_size, dropout=dropout)
+        self.meta_layer_3 = self.build_meta_layer(hidden_size, hidden_size, hidden_size, hidden_size if out_size is None else out_size, dropout=dropout)
 
     def build_meta_layer(self, node_feature_size, edge_feature_size, hidden_size, n_targets, dropout=0.0):
         return MetaLayer(
@@ -340,9 +340,9 @@ class GraphNetwork(nn.Module):
 
     def forward(self, data, return_edge_attr = False, attr='x'):
         x, edge_idx, edge_attr = getattr(data, attr), data.edge_index, data.edge_attr
-        x, edge_attr, _ = self.meta_layer_1(x, edge_idx, edge_attr)
-        x, edge_attr, _ = self.meta_layer_2(x, edge_idx, edge_attr)
-        x, edge_attr, _ = self.meta_layer_3(x, edge_idx, edge_attr)
+        x, edge_attr, _ = self.meta_layer_1(x, edge_idx, edge_attr, batch = data.batch)
+        x, edge_attr, _ = self.meta_layer_2(x, edge_idx, edge_attr, batch = data.batch)
+        x, edge_attr, _ = self.meta_layer_3(x, edge_idx, edge_attr, batch = data.batch)
         if return_edge_attr:
             return x, edge_attr
         return x
