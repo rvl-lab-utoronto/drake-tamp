@@ -8,36 +8,6 @@ import os
 import pickle
 import json
 import torch
-train_directory = os.path.expanduser('~/drake-tamp/jobs/collect-non_monotonic-train/oracle')
-train_files = glob(f"{train_directory}/*/*labels.pkl")
-# %%
-X = []
-for f in train_files:
-    with open(f, 'rb') as fb:
-        f_data = pickle.load(fb)
-    with open(os.path.join(os.path.dirname(f), 'stats.json'), 'r') as fb:
-        stats_data = json.load(fb)
-    del f_data['labels']
-    f_data['problem_info'].problem_graph = construct_problem_graph(f_data['problem_info'])
-    x = construct_problem_graph_input(f_data['problem_info'], f_data['model_info'])
-    y = []
-    for d in x.nodes:
-        if any(d in fact for fact in stats_data['last_preimage']):
-            y.append(1.)
-        else:
-            y.append(0.)
-    x.y = torch.tensor(y)
-    X.append(x)
-
-
-# %%
-problem_graph_node_feature_size = 3 + 1
-problem_graph_edge_feature_size = f_data['model_info'].num_predicates + 1
-
-model = GraphNetwork(problem_graph_node_feature_size, problem_graph_edge_feature_size, 8, 1)
-
-datasets = dict(train=DataLoader(X, batch_size=1), val=DataLoader(X, batch_size=1))
-# %%
 # %%
 from torch_geometric.data import DataLoader, Batch
 import time
@@ -122,11 +92,55 @@ def evaluate_dataset(model, criterion, dataset):
         losses.append(loss)
     return None, None, losses
 # %%
-pos_weight = 5
-lr = 0.0001
-criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight * torch.ones([1]))
-optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-train_model_graphnetwork(model, datasets, criterion=criterion, optimizer=optimizer, epochs=300)
+def load_data(data_files):
+    X = []
+    counts = dict(neg=0, pos=0)
+    for f in data_files:
+        with open(f, 'rb') as fb:
+            f_data = pickle.load(fb)
+        with open(os.path.join(os.path.dirname(f), 'stats.json'), 'r') as fb:
+            stats_data = json.load(fb)
+        del f_data['labels']
+        f_data['problem_info'].problem_graph = construct_problem_graph(f_data['problem_info'])
+        x = construct_problem_graph_input(f_data['problem_info'], f_data['model_info'])
+        y = []
+        for d in x.nodes:
+            if any(d in fact for fact in stats_data['last_preimage']):
+                y.append(1.)
+                counts['pos'] += 1
+            else:
+                y.append(0.)
+                counts['neg'] += 1
+        x.y = torch.tensor(y)
+        X.append(x)
+    print(counts)
+    return X
 # %%
-model(Batch.from_data_list([X[0]]))
-# %%
+if __name__ == '__main__':
+    import sys
+    data_json, model_home = sys.argv[1:]
+    if not os.path.exists(model_home):
+        os.makedirs(model_home, exist_ok=True)
+    with open(data_json, 'r') as f:
+        data_paths = json.load(f)
+
+    train_files = data_paths['train']
+    val_files = data_paths['validation']
+    # %%
+    with open(train_files[0], 'rb') as fb:
+        f_data = pickle.load(fb)
+        num_predicates = f_data['model_info'].num_predicates
+    problem_graph_node_feature_size = 3 + 1
+    problem_graph_edge_feature_size = num_predicates + 1
+
+    model = GraphNetwork(problem_graph_node_feature_size, problem_graph_edge_feature_size, 8, 1)
+
+    datasets = dict(train=DataLoader(load_data(train_files), batch_size=1), val=DataLoader(load_data(val_files), batch_size=1))
+
+
+    # %%
+    pos_weight = 1/20
+    lr = 0.001
+    criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight * torch.ones([1]))
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    train_model_graphnetwork(model, datasets, criterion=criterion, optimizer=optimizer, epochs=300, save_folder=model_home)
