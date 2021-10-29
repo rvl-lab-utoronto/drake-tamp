@@ -1,6 +1,9 @@
 
+#%%
 from pddlstream.language.conversion import fact_from_evaluation, objects_from_evaluations
 import sys
+
+from pddlstream.language.stream import Stream
 
 sys.path.insert(0, '/home/mohammed/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/')
 import pddl
@@ -218,11 +221,22 @@ class ActionStreamSearch:
         for action in self.actions:
             ops = find_applicable_brute_force(action, state.state | state.unsatisfied, self.streams_by_predicate, state.object_stream_map)
             for op in ops:
-                op_state = self.action_successor(state, op)
-                op_state = instantiate_depth_first(op_state, self.externals)
-                yield (op, op_state)
-    
+                new_world_state = apply(op, state.state)
+                missing_positive = {atom for atom in op.precondition.parts if not atom.negated} - set(state.state)
+                # this does the partial order plan
+                try:
+                    partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, streams_by_predicate)
+                    # this extracts the important bits from it (i.e. description of the state)
+                    new_world_state, object_stream_map, missing = extract_from_partial_plan(new_world_state, partial_plan)
+                    op_state = SearchState(new_world_state, object_stream_map, missing)
+                    yield (op, op_state)
+                except Unsatisfiable:
+                    continue
 
+                
+    
+class Unsatisfiable(Exception):
+    pass
 def identify_groups(facts, stream):
 
     # given a set of facts, and a stream capable of producing facts
@@ -285,6 +299,18 @@ def get_assignment(group, stream):
                 assignment.update(partial)
     return assignment
 
+def instantiate_stream_from_assignment(stream, assignment, new_vars=False):
+    assignment = assignment.copy()
+    if new_vars:
+        for param in stream.inputs + stream.outputs:
+            assignment.setdefault(param, Identifiers.next())
+
+    inputs = tuple(assignment.get(arg) for arg in stream.inputs)
+    outputs = tuple(assignment.get(arg) for arg in stream.outputs)
+    domain = {Atom(dom[0], [assignment.get(arg) for arg in dom[1:]]) for dom in stream.domain}
+    certified = {Atom(cert[0], [assignment.get(arg) for arg in cert[1:]]) for cert in stream.certified}
+
+    return (inputs, outputs, domain, certified)
 def instantiate(state, group, stream):
     assignment = get_assignment(group, stream)
     if not assignment:
@@ -345,9 +371,12 @@ def instantiate_depth_first(state, streams):
 def try_bfs(search):
     q = [search.init]
     closed = []
+    node_count = 0
     while q:
         state = q.pop(0)
+        node_count += 1
         if search.test_goal(state):
+            print(f'Explored {node_count}')
             return state.get_path()
         state.children = []
         for (op, child) in search.successors(state):
@@ -358,8 +387,143 @@ def try_bfs(search):
                 continue 
             q.append(child)
         closed.append(state)
-            
 
+import itertools
+
+from dataclasses import dataclass, field
+# I want to think about partial order planning
+@dataclass
+class PartialPlan:
+    agenda: set
+    actions: set
+    bindings: dict
+    order: list
+    links: list
+    def copy(self):
+        return PartialPlan(self.agenda.copy(), self.actions.copy(), self.bindings.copy(), self.order.copy(), self.links.copy())
+
+id_provider = itertools.count()
+@dataclass
+class StreamAction:
+    stream: Stream = None
+    inputs: tuple = field(default_factory=tuple)
+    outputs: tuple = field(default_factory=tuple)
+    id: int = field(default_factory=lambda: next(id_provider))
+    pre: set = field(default_factory=set)
+    eff: set = field(default_factory=set)
+
+    def __hash__(self):
+        return self.id
+
+@dataclass
+class Resolver:
+    action: StreamAction = None
+    link: tuple = None
+    binding: dict = None
+    order: tuple = None
+
+def equal_barring_substitution(atom1, atom2, bindings):
+    if atom1.predicate != atom2.predicate:
+        return None
+    sub = bindings.copy()
+    for a1, a2 in zip(atom1.args, atom2.args):
+        if sub.setdefault(a1, a2) != a2:
+            return None
+    return sub
+
+def get_resolvers(partial_plan, agenda_item, streams_by_predicate):
+    (incomplete_action, missing_precond) = agenda_item
+    for action in partial_plan.actions:
+        if missing_precond in action.eff:
+            yield Resolver(link=(action, missing_precond, incomplete_action), order=(action, incomplete_action))
+            continue
+
+        # # check bindings
+        # for eff in action.eff:
+        #     # if equal barring substitution:
+        #     sub = equal_barring_substitution(missing_precond, eff, partial_plan.bindings)
+        #     if sub:
+        #         if missing_precond.predicate in streams_by_predicate:
+        #             # print(missing_precond, eff, action.stream)
+        #             continue
+        #         else:
+        #             print(missing_precond, eff, action.stream)
+
+        #         yield Resolver(binding=sub, link=(action, missing_precond, incomplete_action), order=(action, incomplete_action))
+
+    
+
+    for stream in streams_by_predicate.get(missing_precond.predicate, []):
+        assignment = get_assignment((missing_precond, ), stream)
+
+        (inputs, outputs, pre, eff) = instantiate_stream_from_assignment(stream, assignment, new_vars=True)
+
+        binding = {o: o for o in outputs}
+
+        action = StreamAction(stream, inputs, outputs, pre=pre, eff=eff)
+        # TODO: continue if any of the atoms in eff are already produced by an action in the plan
+        # In fact, it may be easier... that we continue if any of outputs are in any achieved facts?
+        if any(o in partial_plan.bindings for o in outputs):
+            continue
+        action.new_input_variables = any(assignment.get(p) is None for p in stream.inputs)
+
+        yield Resolver(action, link=(action, missing_precond, incomplete_action), order=(action, incomplete_action), binding=binding)
+
+def successor(plan, resolver):
+    plan = plan.copy()
+    if resolver.action:
+        plan.actions.add(resolver.action)
+        plan.agenda |= {(resolver.action, f) for f in resolver.action.pre} 
+    if resolver.link:
+        plan.links.append(resolver.link)
+        plan.agenda = plan.agenda - {(resolver.link[2], resolver.link[1])}
+    if resolver.order:
+        plan.order.append(resolver.order)
+    if resolver.binding:
+        plan.bindings.update(resolver.binding)
+    
+    return plan
+
+def certify(state, object_stream_map, missing, streams_by_predicate):
+
+    init_action = StreamAction(eff=state)
+    goal_action = StreamAction(pre=missing)
+    p0 = PartialPlan(agenda={(goal_action, sub) for sub in missing}, actions={init_action, goal_action}, bindings={o:o for o in object_stream_map}, order=[], links=[])
+
+
+    while p0.agenda:
+        for agenda_item in p0.agenda:
+            resolvers = list(get_resolvers(p0, agenda_item, streams_by_predicate))
+            if not resolvers:
+                raise Unsatisfiable('Deadend')
+            if len(resolvers) > 1:
+                # assumes that there is at least one fact that will uniquely identify the stream, doesnt it?
+                # e.g if stream A certifies (p ?x ?y) and (q ?y ?z)
+                # but stream B certifies (p ?x ?y) and (r ?y ?z)
+                # and stream C certifies (q ?x ?y) and (r ?y ?z)
+                # if we have two agenda items { (p ?x1 ?y1) and (q ?y1 ?z1)} each of the agenda items
+                # will have 2 resolvers, so we wont identify stream A as being the right move
+                continue
+            [resolver] = resolvers
+            if resolver.action and resolver.action.new_input_variables:
+                continue
+            p0 = successor(p0, resolver)
+            break
+        else:
+            break
+    return p0
+
+def extract_from_partial_plan(new_world_state, partial_plan):
+    object_stream_map = {o:None for o in partial_plan.bindings}
+    for act in partial_plan.actions:
+        if act.stream is None:
+            continue
+        new_world_state |= act.eff
+        for out in act.outputs:
+            object_stream_map[out] = act
+    missing = {m for (stream_action, m) in partial_plan.agenda}
+    return new_world_state, object_stream_map, missing    
+#%%
 if __name__ == '__main__':
     from experiments.blocks_world.run import *
     from pddlstream.algorithms.algorithm import parse_problem
@@ -417,3 +581,43 @@ if __name__ == '__main__':
     # s2 = search.action_successor(state, action)
     # state = instantiate_depth_first(s2, externals)
     # print(state)
+
+# %%
+    # I want to think about regression planning.
+    subgoal = search.init.children[2][1].unsatisfied
+    # which "actions" are relevant??
+    for stream in externals:
+        if any(c[0] == fact.predicate for c in stream.certified for fact in subgoal):
+            substitution = get_assignment(subgoal, stream)
+            # if the inputs are not fully specified, we'd have to create
+            # new objects
+
+            # at least one of the objects is guaranteed to be specified
+            # it doesnt matter if all are not specified
+            
+
+# %%
+
+            
+    # init_action = PropositionalAction('init', conditions.Truth(),  [(conditions.Truth(), atom, None, None) for atom in search.init.state], 0, None, None)
+    # goal_action = PropositionalAction('goal', Conjunction(search.goal), [], 0, None, None)
+    init_action = StreamAction(eff=search.init.state)
+    goal_action = StreamAction(pre={sub for sub in subgoal})
+    p0 = PartialPlan(agenda={(goal_action, sub) for sub in subgoal}, actions={init_action, goal_action}, bindings={o:o for o in objects_from_state(search.init.state)}, order=[], links=[])
+
+
+    while p0.agenda:
+        for agenda_item in p0.agenda:
+            resolvers = list(get_resolvers(p0, agenda_item))
+            if not resolvers:
+                raise RuntimeError('Deadend')
+            if len(resolvers) > 1:
+                continue
+            [resolver] = resolvers
+            p0 = successor(p0, resolver)
+            break
+        else:
+            break
+
+    print(p0.bindings)
+    
