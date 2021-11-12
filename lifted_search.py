@@ -28,9 +28,9 @@ def combinations(candidates):
     keys, domains = zip(*candidates.items())
     for combo in itertools.product(*domains):
         yield dict(zip(keys, combo))
-
+# @profile
 def bind_action(action, assignment):
-    for par in action.parameters[:action.num_external_parameters]:
+    for par in action.parameters:
         if par.name not in assignment:
             assignment[par.name] = Identifiers.next()
 
@@ -59,7 +59,7 @@ def bind_action(action, assignment):
     name = "(%s %s)" % (action.name, " ".join(arg_list))
     cost = 1
 
-    if not all(param in assignment for param in action.parameters):
+    if not all(param.name in assignment for param in action.parameters):
         params = [TypedObject(name=assignment.get(par.name), type_name=par.type_name) for par in action.parameters]
 
         arg_list = [assignment.get(par.name, par.name)
@@ -69,7 +69,7 @@ def bind_action(action, assignment):
         eff = [Effect([], cond, atom) for (cond, atom, _, _) in effects]
         return Action(name, params, len(params), pre, eff, cost)
     return PropositionalAction(name, Conjunction(precondition_parts), effects, cost, action, assignment)
-    
+@profile
 def find_applicable_brute_force(action, state, allow_missing, object_stream_map={}, filter_precond=True):
     """Given an action schema and a state, return the list of partially grounded
     operators possible in the given state"""
@@ -86,22 +86,77 @@ def find_applicable_brute_force(action, state, allow_missing, object_stream_map=
             for arg, candidate in zip(atom.args, ground_atom.args):
                 candidates.setdefault(arg, set()).add(candidate)
     if not candidates:
+        assert False, "why am i here"
         yield bind_action(action, {})
         return
     # find all the possible versions
     for assignment in combinations(candidates):
-        partial_op = bind_action(action, assignment)
+        feasible = True
+        for par in action.parameters:
+            if par.name not in assignment:
+                assignment[par.name] = Identifiers.next()
+
+        assert isinstance(action.precondition, Conjunction)
+        precondition_parts = []
+        for atom in action.precondition.parts:
+            args = [assignment.get(arg, arg) for arg in atom.args]
+            atom = Atom(atom.predicate, args) if not atom.negated else NegatedAtom(atom.predicate, args)
+            precondition_parts.append(atom)
+            # grounded positive precondition not in state
+            if (not atom.negated and atom not in state):
+                if(atom.predicate not in allow_missing):
+                    feasible = False
+                    break
+                if all(arg in object_stream_map for arg in atom.args):
+                    feasible = False
+                    break
+
+
+    
+
+            if atom.negated and atom.negate() in state:
+                feasible = False
+                break
+        if not feasible:
+            continue
+        effects = []
+        for effect in action.effects:
+            atom = effect.literal
+            args = [assignment.get(arg, arg) for arg in atom.args]
+            if atom.negated:
+                atom = NegatedAtom(atom.predicate, args)
+            else:
+                atom = Atom(atom.predicate, args)
+            condition = effect.condition # TODO: assign the parameters in this
+            if effect.parameters or not isinstance(effect.condition, conditions.Truth):
+                raise NotImplementedError
+            effects.append((condition, atom, effect, assignment.copy()))
+
+        arg_list = [assignment.get(par.name, par.name)
+                    for par in action.parameters[:action.num_external_parameters]]
+        name = "(%s %s)" % (action.name, " ".join(arg_list))
+        cost = 1
+
+
+        partial_op = PropositionalAction(name, Conjunction(precondition_parts), effects, cost, action, assignment)
+    
+        
+        # are any of the preconditions missing?
+        # if any of the preconditions correspond to non-certifiable AAAND they include missing args
+        # then there's no way this will work
 
         if filter_precond:
             missing_positive = {atom for atom in partial_op.precondition.parts if not atom.negated} - set(state)
 
             # grounded positive precondition not in state
             if any(atom.predicate not in allow_missing or all(arg in object_stream_map for arg in atom.args) for atom in missing_positive):
+                assert False
                 continue
             
             # negative precondition is positive in state
             negative = {atom for atom in partial_op.precondition.parts if atom.negated} 
             if any(atom.negate() in state for atom in negative):
+                assert False
                 continue
         yield partial_op
 
@@ -131,6 +186,7 @@ def partially_ground(action, state, fluents):
 
 def apply(action, state):
     """Given an action, and a state, compute the successor state"""
+    return (state | {eff[1] for eff in action.add_effects}) - {eff[1] for eff in action.del_effects}
     state = set(state)
     for effect in action.effects:
         if effect.parameters or not isinstance(effect.condition, conditions.Truth):
@@ -371,12 +427,15 @@ def instantiate_depth_first(state, streams):
 def try_bfs(search):
     q = [search.init]
     closed = []
-    node_count = 0
+    expand_count = 0
+    evaluate_count = 0
     while q:
         state = q.pop(0)
-        node_count += 1
+        expand_count += 1
         if search.test_goal(state):
-            print(f'Explored {node_count}')
+            print(f'Explored {expand_count}. Evaluated {evaluate_count}')
+            # print(state.get_path(), end='\n\n')
+            # continue
             return state.get_path()
         state.children = []
         for (op, child) in search.successors(state):
@@ -385,6 +444,7 @@ def try_bfs(search):
             state.children.append((op, child))
             if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
                 continue 
+            evaluate_count += 1
             q.append(child)
         closed.append(state)
 
@@ -418,9 +478,8 @@ class StreamAction:
 @dataclass
 class Resolver:
     action: StreamAction = None
-    link: tuple = None
+    links: list = field(default_factory=[])
     binding: dict = None
-    order: tuple = None
 
 def equal_barring_substitution(atom1, atom2, bindings):
     if atom1.predicate != atom2.predicate:
@@ -435,7 +494,8 @@ def get_resolvers(partial_plan, agenda_item, streams_by_predicate):
     (incomplete_action, missing_precond) = agenda_item
     for action in partial_plan.actions:
         if missing_precond in action.eff:
-            yield Resolver(link=(action, missing_precond, incomplete_action), order=(action, incomplete_action))
+            assert False, "Didnt expect to get here, considering im doing the same work below"
+            yield Resolver(links=[(action, missing_precond, incomplete_action)])
             continue
 
         # # check bindings
@@ -449,7 +509,7 @@ def get_resolvers(partial_plan, agenda_item, streams_by_predicate):
         #         else:
         #             print(missing_precond, eff, action.stream)
 
-        #         yield Resolver(binding=sub, link=(action, missing_precond, incomplete_action), order=(action, incomplete_action))
+        #         yield Resolver(binding=sub, link=(action, missing_precond, incomplete_action))
 
     
 
@@ -465,20 +525,49 @@ def get_resolvers(partial_plan, agenda_item, streams_by_predicate):
         # In fact, it may be easier... that we continue if any of outputs are in any achieved facts?
         if any(o in partial_plan.bindings for o in outputs):
             continue
-        action.new_input_variables = any(assignment.get(p) is None for p in stream.inputs)
+        if any(assignment.get(p) is None for p in stream.inputs):
+            action.new_input_variables = True
+            links = [(action, missing_precond, incomplete_action)]
+        else:
+            action.new_input_variables = False
 
-        yield Resolver(action, link=(action, missing_precond, incomplete_action), order=(action, incomplete_action), binding=binding)
+            # could figure out all the links from this action to existing agenda items.
+            # assumption: no other future action could certify the facts that this action certifies.
+
+            # is it possible that:
+            #  this action resolves a1 and a2
+            #  a1 has many resolvers, so we dont do anything
+            #  a2 has only one resolver, so we apply it, and resolve a1 along the way
+            #  but now, because we resolved a1, we have made an irrevocable choice even though there might have been another way
+            
+            # I dont think this is a problem because the fact that one action will resolve a1 and a2 means that any other choice
+            # for resolving a1 would have failed to resolve a2. Because there's only one resolver of a2. So had we resolved a1 by
+            # some other means, then the only resolver of a2 would have to reproduce a1, but that's not allowed.
+            links = []
+            for (incomplete_action, missing_precond) in partial_plan.agenda:
+                if missing_precond in eff:
+                    links.append((action, missing_precond, incomplete_action))
+
+
+            # could figure out all the links from existing actions to the preconditions of this action.
+            # assumption: no facts are every provided by more than one existing action.
+            for missing_precond in pre:
+                for existing_action in partial_plan.actions:
+                    if missing_precond in existing_action.eff:
+                        links.append((existing_action, missing_precond, action))
+
+        yield Resolver(action, links=links, binding=binding)
 
 def successor(plan, resolver):
     plan = plan.copy()
     if resolver.action:
         plan.actions.add(resolver.action)
         plan.agenda |= {(resolver.action, f) for f in resolver.action.pre} 
-    if resolver.link:
-        plan.links.append(resolver.link)
-        plan.agenda = plan.agenda - {(resolver.link[2], resolver.link[1])}
-    if resolver.order:
-        plan.order.append(resolver.order)
+    if resolver.links:
+        for link in resolver.links:
+            plan.links.append(link)
+            plan.agenda = plan.agenda - {(link[2], link[1])}
+
     if resolver.binding:
         plan.bindings.update(resolver.binding)
     
@@ -528,7 +617,7 @@ if __name__ == '__main__':
     from experiments.blocks_world.run import *
     from pddlstream.algorithms.algorithm import parse_problem
     url = 'tcp://127.0.0.1:6000'
-    problem_file = 'experiments/blocks_world/data_generation/random/train/2_0_1_77.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/random/test/3_1_1_18.yaml'
 
     (
         sim,
@@ -565,59 +654,68 @@ if __name__ == '__main__':
 
 
     search = ActionStreamSearch(init, goal, externals, domain.actions)
-    print(try_bfs(search))
-    # for op, _ in search.successors(search.init):
-    #     print(op)
+    # import cProfile, pstats, io
+    # pr = cProfile.Profile()
+    # pr.enable() 
+    actions = try_bfs(search)
+    # pr.disable()
+    # s = io.StringIO()
+    # ps = pstats.Stats(pr, stream=s)
+    # ps.print_stats()
+    # ps.dump_stats('lifted-bfs.profile')   
+    print(actions)
+#     # for op, _ in search.successors(search.init):
+#     #     print(op)
 
-    # state = search.init
-    # stream = externals[0]
-    # groups = identify_groups(state.unsatisfied, stream)
-    # print(groups)
+#     # state = search.init
+#     # stream = externals[0]
+#     # groups = identify_groups(state.unsatisfied, stream)
+#     # print(groups)
 
-    # s1 = search.action_successor(search.init, moves[0])
-    # state = instantiate_depth_first(s1, externals)
+#     # s1 = search.action_successor(search.init, moves[0])
+#     # state = instantiate_depth_first(s1, externals)
 
-    # [action]  = list(find_applicable_brute_force(pick, state.state, streams_by_predicate))
-    # s2 = search.action_successor(state, action)
-    # state = instantiate_depth_first(s2, externals)
-    # print(state)
+#     # [action]  = list(find_applicable_brute_force(pick, state.state, streams_by_predicate))
+#     # s2 = search.action_successor(state, action)
+#     # state = instantiate_depth_first(s2, externals)
+#     # print(state)
 
-# %%
-    # I want to think about regression planning.
-    subgoal = search.init.children[2][1].unsatisfied
-    # which "actions" are relevant??
-    for stream in externals:
-        if any(c[0] == fact.predicate for c in stream.certified for fact in subgoal):
-            substitution = get_assignment(subgoal, stream)
-            # if the inputs are not fully specified, we'd have to create
-            # new objects
+# # %%
+#     # I want to think about regression planning.
+#     subgoal = search.init.children[2][1].unsatisfied
+#     # which "actions" are relevant??
+#     for stream in externals:
+#         if any(c[0] == fact.predicate for c in stream.certified for fact in subgoal):
+#             substitution = get_assignment(subgoal, stream)
+#             # if the inputs are not fully specified, we'd have to create
+#             # new objects
 
-            # at least one of the objects is guaranteed to be specified
-            # it doesnt matter if all are not specified
+#             # at least one of the objects is guaranteed to be specified
+#             # it doesnt matter if all are not specified
             
 
-# %%
+# # %%
 
             
-    # init_action = PropositionalAction('init', conditions.Truth(),  [(conditions.Truth(), atom, None, None) for atom in search.init.state], 0, None, None)
-    # goal_action = PropositionalAction('goal', Conjunction(search.goal), [], 0, None, None)
-    init_action = StreamAction(eff=search.init.state)
-    goal_action = StreamAction(pre={sub for sub in subgoal})
-    p0 = PartialPlan(agenda={(goal_action, sub) for sub in subgoal}, actions={init_action, goal_action}, bindings={o:o for o in objects_from_state(search.init.state)}, order=[], links=[])
+#     # init_action = PropositionalAction('init', conditions.Truth(),  [(conditions.Truth(), atom, None, None) for atom in search.init.state], 0, None, None)
+#     # goal_action = PropositionalAction('goal', Conjunction(search.goal), [], 0, None, None)
+#     init_action = StreamAction(eff=search.init.state)
+#     goal_action = StreamAction(pre={sub for sub in subgoal})
+#     p0 = PartialPlan(agenda={(goal_action, sub) for sub in subgoal}, actions={init_action, goal_action}, bindings={o:o for o in objects_from_state(search.init.state)}, order=[], links=[])
 
 
-    while p0.agenda:
-        for agenda_item in p0.agenda:
-            resolvers = list(get_resolvers(p0, agenda_item))
-            if not resolvers:
-                raise RuntimeError('Deadend')
-            if len(resolvers) > 1:
-                continue
-            [resolver] = resolvers
-            p0 = successor(p0, resolver)
-            break
-        else:
-            break
+#     while p0.agenda:
+#         for agenda_item in p0.agenda:
+#             resolvers = list(get_resolvers(p0, agenda_item))
+#             if not resolvers:
+#                 raise RuntimeError('Deadend')
+#             if len(resolvers) > 1:
+#                 continue
+#             [resolver] = resolvers
+#             p0 = successor(p0, resolver)
+#             break
+#         else:
+#             break
 
-    print(p0.bindings)
+#     print(p0.bindings)
     
