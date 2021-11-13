@@ -4,6 +4,7 @@ from pddlstream.language.conversion import fact_from_evaluation, objects_from_ev
 import sys
 
 from pddlstream.language.stream import Stream
+from pddlstream.language.object import Object
 
 sys.path.insert(0, '/home/mohammed/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/')
 import pddl
@@ -69,7 +70,7 @@ def bind_action(action, assignment):
         eff = [Effect([], cond, atom) for (cond, atom, _, _) in effects]
         return Action(name, params, len(params), pre, eff, cost)
     return PropositionalAction(name, Conjunction(precondition_parts), effects, cost, action, assignment)
-@profile
+
 def find_applicable_brute_force(action, state, allow_missing, object_stream_map={}, filter_precond=True):
     """Given an action schema and a state, return the list of partially grounded
     operators possible in the given state"""
@@ -281,7 +282,7 @@ class ActionStreamSearch:
                 missing_positive = {atom for atom in op.precondition.parts if not atom.negated} - set(state.state)
                 # this does the partial order plan
                 try:
-                    partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, streams_by_predicate)
+                    partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, self.streams_by_predicate)
                     # this extracts the important bits from it (i.e. description of the state)
                     new_world_state, object_stream_map, missing = extract_from_partial_plan(new_world_state, partial_plan)
                     op_state = SearchState(new_world_state, object_stream_map, missing)
@@ -436,7 +437,7 @@ def try_bfs(search):
             print(f'Explored {expand_count}. Evaluated {evaluate_count}')
             # print(state.get_path(), end='\n\n')
             # continue
-            return state.get_path()
+            return state
         state.children = []
         for (op, child) in search.successors(state):
             child.action = op
@@ -612,12 +613,90 @@ def extract_from_partial_plan(new_world_state, partial_plan):
             object_stream_map[out] = act
     missing = {m for (stream_action, m) in partial_plan.agenda}
     return new_world_state, object_stream_map, missing    
-#%%
+
+def extract_stream_plan(state):
+    """Given a search state, return the list of object stream maps needed by each action
+    along the path to state. The list contains one dictionary per action."""
+
+    stream_plan = []
+    while state is not None:
+        objects_created = {k:v for k,v in state.object_stream_map.items() if v is not None}
+        stream_plan.insert(0, objects_created)
+        state = state.parent
+    return stream_plan
+
+def extract_stream_ordering(state):
+    """Given a search state, return a list of stream actions in order that they should be
+    computed. The order is determined by the order in which the objects are needed for the
+    action plan, modulo a topological sort."""
+
+    stream_plan = extract_stream_plan(state)
+    all_object_map = {k: v for d in stream_plan for k, v in d.items()}
+
+    computed_objects = set()
+    stream_ordering = []
+    for object_map in stream_plan:
+        local_ordering = []
+        for object_name in object_map:
+            stack = [object_name]
+
+            while stack:
+                current_object_name = stack.pop(0)
+                if current_object_name in computed_objects:
+                    continue
+                stream_action = all_object_map.get(current_object_name)
+                if stream_action is None:
+                    continue
+
+                local_ordering.insert(0, stream_action)
+                for object_name in stream_action.outputs:
+                    computed_objects.add(object_name)
+
+                for parent_object in stream_action.inputs:
+                    stack.insert(0, parent_object)
+        stream_ordering.extend(local_ordering)
+
+    return stream_ordering
+
+@dataclass
+class Binding:
+    index: int
+    stream_plan: list
+    mapping: dict
+
+def sample_depth_first(stream_plan, max_steps=10000):
+    """Demo sampling a stream plan using a backtracking depth first approach.
+    Returns a mapping if one exists, or None if infeasible or timeout. """
+    queue = [Binding(0, stream_plan, {})]
+    steps = 0
+    while queue and steps < max_steps:
+        binding = queue.pop(0)
+        steps += 1
+
+        stream_action = binding.stream_plan[binding.index]
+
+        input_objects = [binding.mapping.get(var_name) or Object.from_name(var_name) for var_name in stream_action.inputs]
+        stream_instance = stream_action.stream.get_instance(input_objects)
+        [new_stream_result], new_facts = stream_instance.next_results(verbose=True)
+        output_objects = new_stream_result.output_objects
+
+        new_mapping = binding.mapping.copy()
+        new_mapping.update(dict(zip(stream_action.outputs, output_objects)))
+        new_binding = Binding(binding.index + 1, binding.stream_plan, new_mapping)
+
+        if len(new_binding.stream_plan) == new_binding.index:
+            return new_binding.mapping
+
+        queue.append(new_binding)
+        queue.append(binding)
+    return None # infeasible or reached step limit
+    
+
 if __name__ == '__main__':
     from experiments.blocks_world.run import *
     from pddlstream.algorithms.algorithm import parse_problem
     url = 'tcp://127.0.0.1:6000'
-    problem_file = 'experiments/blocks_world/data_generation/random/test/3_1_1_18.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_14.yaml'
 
     (
         sim,
@@ -646,76 +725,10 @@ if __name__ == '__main__':
     print('\n\nGoal:', goal)
     [pick, move, place, stack, unstack] = domain.actions
 
-    # todo: move this somewhere like a class member
-    streams_by_predicate = {}
-    for stream in externals:
-        for fact in stream.certified:
-            streams_by_predicate.setdefault(fact[0], set()).add(stream)
-
-
     search = ActionStreamSearch(init, goal, externals, domain.actions)
-    # import cProfile, pstats, io
-    # pr = cProfile.Profile()
-    # pr.enable() 
-    actions = try_bfs(search)
-    # pr.disable()
-    # s = io.StringIO()
-    # ps = pstats.Stats(pr, stream=s)
-    # ps.print_stats()
-    # ps.dump_stats('lifted-bfs.profile')   
-    print(actions)
-#     # for op, _ in search.successors(search.init):
-#     #     print(op)
-
-#     # state = search.init
-#     # stream = externals[0]
-#     # groups = identify_groups(state.unsatisfied, stream)
-#     # print(groups)
-
-#     # s1 = search.action_successor(search.init, moves[0])
-#     # state = instantiate_depth_first(s1, externals)
-
-#     # [action]  = list(find_applicable_brute_force(pick, state.state, streams_by_predicate))
-#     # s2 = search.action_successor(state, action)
-#     # state = instantiate_depth_first(s2, externals)
-#     # print(state)
-
-# # %%
-#     # I want to think about regression planning.
-#     subgoal = search.init.children[2][1].unsatisfied
-#     # which "actions" are relevant??
-#     for stream in externals:
-#         if any(c[0] == fact.predicate for c in stream.certified for fact in subgoal):
-#             substitution = get_assignment(subgoal, stream)
-#             # if the inputs are not fully specified, we'd have to create
-#             # new objects
-
-#             # at least one of the objects is guaranteed to be specified
-#             # it doesnt matter if all are not specified
-            
-
-# # %%
-
-            
-#     # init_action = PropositionalAction('init', conditions.Truth(),  [(conditions.Truth(), atom, None, None) for atom in search.init.state], 0, None, None)
-#     # goal_action = PropositionalAction('goal', Conjunction(search.goal), [], 0, None, None)
-#     init_action = StreamAction(eff=search.init.state)
-#     goal_action = StreamAction(pre={sub for sub in subgoal})
-#     p0 = PartialPlan(agenda={(goal_action, sub) for sub in subgoal}, actions={init_action, goal_action}, bindings={o:o for o in objects_from_state(search.init.state)}, order=[], links=[])
+    goal_state = try_bfs(search)
+    actions = goal_state.get_path()
+    stream_ordering = extract_stream_ordering(goal_state)            
+    object_mapping = sample_depth_first(stream_ordering)
 
 
-#     while p0.agenda:
-#         for agenda_item in p0.agenda:
-#             resolvers = list(get_resolvers(p0, agenda_item))
-#             if not resolvers:
-#                 raise RuntimeError('Deadend')
-#             if len(resolvers) > 1:
-#                 continue
-#             [resolver] = resolvers
-#             p0 = successor(p0, resolver)
-#             break
-#         else:
-#             break
-
-#     print(p0.bindings)
-    
