@@ -13,7 +13,7 @@ directive: directives/one_arm_blocks_world.yaml
 goal:
 - and
 - - on-table
-  - block1
+  - block2
   - - blue_table
     - base_link
 - - on-table
@@ -21,14 +21,14 @@ goal:
   - - purple_table
     - base_link
 - - on-table
-  - block2
+  - block1
   - - purple_table
     - base_link
 - - atworldpose
   - blocker0
   - &id001
-    - -0.2037766802644992
-    - 0.5091950610075169
+    - 0.5499324887206847
+    - 0.1298665617368871
     - 0.325
     - 0.0
     - 0.0
@@ -36,8 +36,8 @@ goal:
 - - atworldpose
   - blocker1
   - &id002
-    - -0.3377048595581519
-    - 0.5755469010302169
+    - 0.4899469240720064
+    - -0.08517909059699758
     - 0.325
     - 0.0
     - 0.0
@@ -45,8 +45,8 @@ goal:
 - - atworldpose
   - blocker2
   - &id003
-    - 0.4326240236801547
-    - 0.3413910019384844
+    - 0.5715440443792327
+    - 0.2570689430971611
     - 0.325
     - 0.0
     - 0.0
@@ -59,34 +59,34 @@ main_links:
 objects:
   block0:
     X_WO:
-    - -0.2037766802644992
-    - 0.5591950610075168
+    - 0.5999324887206846
+    - 0.1298665617368871
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - -0.3377048595581519
-    - 0.6255469010302168
+    - 0.5399469240720064
+    - -0.08517909059699758
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block1.sdf
   block2:
     X_WO:
-    - 0.4826240236801547
-    - 0.3413910019384844
+    - 0.6215440443792326
+    - 0.2570689430971611
     - 0.325
     - 0.0
     - 0.0
@@ -100,14 +100,14 @@ objects:
     X_WO: *id001
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
   blocker1:
     X_WO: *id002
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
   blocker2:

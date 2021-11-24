@@ -13,22 +13,22 @@ directive: directives/one_arm_blocks_world.yaml
 goal:
 - and
 - - on-table
-  - block1
-  - - purple_table
+  - block2
+  - - blue_table
     - base_link
 - - on-table
   - block0
-  - - blue_table
+  - - purple_table
     - base_link
 - - on-table
-  - block2
-  - - blue_table
+  - block1
+  - - purple_table
     - base_link
 - - atworldpose
   - blocker0
   - &id001
-    - 0.22019403582850217
-    - 0.41089296359399025
+    - -0.16086217684937168
+    - 0.5979083252471424
     - 0.325
     - 0.0
     - 0.0
@@ -36,8 +36,8 @@ goal:
 - - atworldpose
   - blocker1
   - &id002
-    - 0.015447324256478212
-    - 0.5347312430736026
+    - -0.007836788555070973
+    - 0.4297870665521846
     - 0.325
     - 0.0
     - 0.0
@@ -45,8 +45,8 @@ goal:
 - - atworldpose
   - blocker2
   - &id003
-    - 0.08614638351714965
-    - 0.4228267562494647
+    - 0.5457583164200727
+    - -0.0011285829367264633
     - 0.325
     - 0.0
     - 0.0
@@ -59,8 +59,8 @@ main_links:
 objects:
   block0:
     X_WO:
-    - 0.22019403582850217
-    - 0.4608929635939903
+    - -0.16086217684937168
+    - 0.6479083252471424
     - 0.325
     - 0.0
     - 0.0
@@ -72,8 +72,8 @@ objects:
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - 0.015447324256478212
-    - 0.5847312430736026
+    - -0.007836788555070973
+    - 0.47978706655218467
     - 0.325
     - 0.0
     - 0.0
@@ -85,15 +85,15 @@ objects:
     path: models/blocks_world/sdf/block1.sdf
   block2:
     X_WO:
-    - 0.08614638351714965
-    - 0.47282675624946474
+    - 0.5957583164200726
+    - -0.0011285829367264633
     - 0.325
     - 0.0
     - 0.0
     - 0.0
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/block2.sdf
   blocker0:
@@ -114,7 +114,7 @@ objects:
     X_WO: *id003
     main_link: base_link
     on-table:
-    - green_table
+    - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
 planning_directive: directives/one_arm_blocks_world.yaml
