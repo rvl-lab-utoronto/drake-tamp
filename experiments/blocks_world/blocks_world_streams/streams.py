@@ -20,6 +20,7 @@ NUM_Q = 7  # DOF of panda arm
 GRASP_WIDTH = 0.08  # distance between fingers at max extension
 GRASP_HEIGHT = 0.0535  # distance from hand to tips of fingers
 FINGER_WIDTH = 0.017
+FINGER_HEIGHT = 0.02
 # distance along z axis from hand frame origin to fingers
 HAND_HEIGHT = 0.1
 COL_MARGIN = 0.0  # acceptable margin of error for collisions
@@ -47,7 +48,8 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    h = HAND_HEIGHT + length - FINGER_WIDTH/2
+    print(length)
+    h = HAND_HEIGHT + (length) - FINGER_HEIGHT - FINGER_HEIGHT
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
 
