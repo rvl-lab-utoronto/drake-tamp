@@ -1,5 +1,6 @@
 
 #%%
+from functools import partial
 from pddlstream.language.conversion import fact_from_evaluation, objects_from_evaluations
 import sys
 
@@ -284,7 +285,7 @@ class ActionStreamSearch:
                 try:
                     partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, self.streams_by_predicate)
                     # this extracts the important bits from it (i.e. description of the state)
-                    new_world_state, object_stream_map, missing = extract_from_partial_plan(new_world_state, partial_plan)
+                    new_world_state, object_stream_map, missing = extract_from_partial_plan(state, new_world_state, partial_plan)
                     op_state = SearchState(new_world_state, object_stream_map, missing)
                     yield (op, op_state)
                 except Unsatisfiable:
@@ -469,6 +470,7 @@ class StreamAction:
     stream: Stream = None
     inputs: tuple = field(default_factory=tuple)
     outputs: tuple = field(default_factory=tuple)
+    fluent_facts: tuple = field(default_factory=tuple)
     id: int = field(default_factory=lambda: next(id_provider))
     pre: set = field(default_factory=set)
     eff: set = field(default_factory=set)
@@ -521,7 +523,14 @@ def get_resolvers(partial_plan, agenda_item, streams_by_predicate):
 
         binding = {o: o for o in outputs}
 
-        action = StreamAction(stream, inputs, outputs, pre=pre, eff=eff)
+        # handle fluents
+        if stream.is_fluent:
+            fluent_facts = compute_fluent_facts(partial_plan, stream)
+        else:
+            fluent_facts = tuple()
+        if stream.is_test:
+            outputs = (Identifiers.next(),) # just to include it in object stream map.
+        action = StreamAction(stream, inputs, outputs, fluent_facts, pre=pre, eff=eff)
         # TODO: continue if any of the atoms in eff are already produced by an action in the plan
         # In fact, it may be easier... that we continue if any of outputs are in any achieved facts?
         if any(o in partial_plan.bindings for o in outputs):
@@ -557,7 +566,21 @@ def get_resolvers(partial_plan, agenda_item, streams_by_predicate):
                     if missing_precond in existing_action.eff:
                         links.append((existing_action, missing_precond, action))
 
+            for missing_precond in fluent_facts:
+                for existing_action in partial_plan.actions:
+                    if missing_precond in existing_action.eff:
+                        assert existing_action.id == -1 # has to be part of the state!
+                        links.append((existing_action, missing_precond, action))
+
         yield Resolver(action, links=links, binding=binding)
+
+def compute_fluent_facts(partial_plan, external):
+    state = [action.eff for action in partial_plan.actions if action.id == -1][0]
+    fluent = set()
+    for f in state:
+        if f.predicate in external.fluents:
+            fluent.add(f)
+    return tuple(fluent)
 
 def successor(plan, resolver):
     plan = plan.copy()
@@ -576,8 +599,8 @@ def successor(plan, resolver):
 
 def certify(state, object_stream_map, missing, streams_by_predicate):
 
-    init_action = StreamAction(eff=state)
-    goal_action = StreamAction(pre=missing)
+    init_action = StreamAction(id=-1, eff=state)
+    goal_action = StreamAction(id=-2, pre=missing)
     p0 = PartialPlan(agenda={(goal_action, sub) for sub in missing}, actions={init_action, goal_action}, bindings={o:o for o in object_stream_map}, order=[], links=[])
 
 
@@ -603,12 +626,13 @@ def certify(state, object_stream_map, missing, streams_by_predicate):
             break
     return p0
 
-def extract_from_partial_plan(new_world_state, partial_plan):
+def extract_from_partial_plan(old_world_state, new_world_state, partial_plan):
     object_stream_map = {o:None for o in partial_plan.bindings}
     for act in partial_plan.actions:
         if act.stream is None:
             continue
-        new_world_state |= act.eff
+        if not act.stream.is_test:
+            new_world_state |= act.eff
         for out in act.outputs:
             object_stream_map[out] = act
     missing = {m for (stream_action, m) in partial_plan.agenda}
@@ -676,8 +700,14 @@ def sample_depth_first(stream_plan, max_steps=10000):
         stream_action = binding.stream_plan[binding.index]
 
         input_objects = [binding.mapping.get(var_name) or Object.from_name(var_name) for var_name in stream_action.inputs]
-        stream_instance = stream_action.stream.get_instance(input_objects)
-        [new_stream_result], new_facts = stream_instance.next_results(verbose=True)
+        fluent_facts = [(f.predicate, ) + tuple(binding.mapping.get(var_name) or Object.from_name(var_name) for var_name in f.args) for f in stream_action.fluent_facts]
+        stream_instance = stream_action.stream.get_instance(input_objects, fluent_facts=fluent_facts)
+        if stream_instance.enumerated:
+            continue
+        results, new_facts = stream_instance.next_results(verbose=True)
+        if not results:
+            continue
+        [new_stream_result] = results
         output_objects = new_stream_result.output_objects
 
         new_mapping = binding.mapping.copy()
@@ -693,10 +723,10 @@ def sample_depth_first(stream_plan, max_steps=10000):
     
 
 if __name__ == '__main__':
-    from experiments.blocks_world.run import *
+    from experiments.blocks_world_noaxioms.run import *
     from pddlstream.algorithms.algorithm import parse_problem
     url = 'tcp://127.0.0.1:6000'
-    problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_14.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
 
     (
         sim,
