@@ -3,11 +3,14 @@
 from functools import partial
 from pddlstream.language.conversion import fact_from_evaluation, objects_from_evaluations
 import sys
+from collections import defaultdict
+import math
 
 from pddlstream.language.stream import Stream
 from pddlstream.language.object import Object
 
 sys.path.insert(0, '/home/mohammed/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/')
+sys.path.insert(0, '/home/atharv/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/')
 import pddl
 from pddl.conditions import Atom, Conjunction, NegatedAtom
 from pddl.actions import PropositionalAction, Action
@@ -214,6 +217,10 @@ class SearchState:
         self.children = []
         self.parent = None
         self.action = None
+        self.start_distance = 0
+        self.rhs = 0
+        self.num_attempts = 1
+        self.num_successes = 1
 
     def __eq__(self, other):
         # compare based on fluent predicates and computation graph in corresponding objects
@@ -223,6 +230,14 @@ class SearchState:
         return str((self.state, self.object_stream_map, self.unsatisfied))
 
     def get_path(self):
+        path = []
+        node = self
+        while node is not None:
+            path.insert(0, (node.parent, node.action, node))
+            node = node.parent
+        return path
+
+    def get_actions(self):
         actions = []
         node = self
         while node is not None:
@@ -649,17 +664,16 @@ def extract_stream_plan(state):
         state = state.parent
     return stream_plan
 
-def extract_stream_ordering(state):
-    """Given a search state, return a list of stream actions in order that they should be
+def extract_stream_ordering(stream_plan):
+    """Given a stream_plan, return a list of stream actions in order that they should be
     computed. The order is determined by the order in which the objects are needed for the
     action plan, modulo a topological sort."""
 
-    stream_plan = extract_stream_plan(state)
-    all_object_map = {k: v for d in stream_plan for k, v in d.items()}
+    all_object_map = {k: v for _, d in stream_plan for k, v in d.items()}
 
     computed_objects = set()
     stream_ordering = []
-    for object_map in stream_plan:
+    for edge, object_map in stream_plan:
         local_ordering = []
         for object_name in object_map:
             stack = [object_name]
@@ -672,7 +686,7 @@ def extract_stream_ordering(state):
                 if stream_action is None:
                     continue
 
-                local_ordering.insert(0, stream_action)
+                local_ordering.insert(0, (stream_action, edge))
                 for object_name in stream_action.outputs:
                     computed_objects.add(object_name)
 
@@ -720,13 +734,189 @@ def sample_depth_first(stream_plan, max_steps=10000):
         queue.append(new_binding)
         queue.append(binding)
     return None # infeasible or reached step limit
+
+
+
+
+def sample_depth_first_with_costs(stream_ordering, max_steps=10000, verbose=False):
+    """Demo sampling a stream plan using a backtracking depth first approach.
+    Returns a mapping if one exists, or None if infeasible or timeout. """
+    queue = PriorityQueue([Binding(0, [a for a, e in stream_ordering], {})])
+    stream_edge_map = {a:e for a, e in stream_ordering}
+    edge_stats = defaultdict(lambda: defaultdict(lambda: 0))
+    steps = 0
+    while queue and steps < max_steps:
+        binding = queue.pop()
+        steps += 1
+
+        stream_action = binding.stream_plan[binding.index]
+  
+        input_objects = [binding.mapping.get(var_name) or Object.from_name(var_name) for var_name in stream_action.inputs]
+        fluent_facts = [(f.predicate, ) + tuple(binding.mapping.get(var_name) or Object.from_name(var_name) for var_name in f.args) for f in stream_action.fluent_facts]
+        stream_instance = stream_action.stream.get_instance(input_objects, fluent_facts=fluent_facts)
+
+        if stream_instance.enumerated:
+            continue
+
+        result = stream_instance.next_results(verbose=verbose)
+
+        edge = stream_edge_map[stream_action]
+        edge[2].num_attempts += 1
+
+        if len(result[0]) == 0:
+            print(f"Invalid result for {stream_action}: {result}")
+            queue.push(binding, (stream_instance.num_calls, len(stream_ordering) - binding.index))
+            continue
+
+        edge[2].num_successes += 1
+        
+        [new_stream_result], new_facts = result
+        output_objects = new_stream_result.output_objects
+
+        new_mapping = binding.mapping.copy()
+        new_mapping.update(dict(zip(stream_action.outputs, output_objects)))
+        new_binding = Binding(binding.index + 1, binding.stream_plan, new_mapping)
+
+        if len(new_binding.stream_plan) == new_binding.index:
+            return new_binding.mapping
+
+        queue.push(new_binding, (0, len(stream_ordering) - new_binding.index))
+        queue.push(binding, (stream_instance.num_calls, len(stream_ordering) - binding.index))
+    return None # infeasible or reached step limit
+
+
+def extract_stream_plan_from_path(path):
+    stream_plan = []
+    for edge in path:
+        stream_map = {k:v for k,v in edge[2].object_stream_map.items() if v is not None}
+        stream_plan.append((edge, stream_map))
+    return stream_plan
+
+import heapq
+
+class PriorityQueue:
+    def __init__(self, init=[]):
+        self.heap = []
+        self.counter = itertools.count()
+        for item in init:
+            self.push(item, 0)
+
+    def push(self, item, priority):
+        heapq.heappush(self.heap, (priority, next(self.counter), item))
     
+    def pop(self):
+        return heapq.heappop(self.heap)[-1]
+
+    def peep(self):
+        return self.heap[0][-1]
+    
+    def __len__(self):
+        return len(self.heap)
+
+def try_a_star(search, cost, heuristic, max_step=10000):
+    start_time = datetime.now()
+    q = PriorityQueue([search.init])
+    closed = []
+    expand_count = 0
+    evaluate_count = 0
+    
+    while q and expand_count < max_step:
+        state = q.pop()
+        expand_count += 1
+
+        if search.test_goal(state):
+            av_branching_f = evaluate_count / expand_count
+            approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
+            print(f'Explored {expand_count}. Evaluated {evaluate_count}')
+            print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+            print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
+            return state
+        
+        state.children = []
+        for op, child in search.successors(state):
+            child.action = op
+            child.parent = state
+            state.children.append((op, child))
+            if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
+                continue 
+            evaluate_count += 1
+            child.start_distance = state.start_distance + cost(state, op, child)
+            q.push(child, child.start_distance + heuristic(child))
+
+        closed.append(state)
+
+def repeated_a_star(search, max_steps=1000):
+
+    cost = lambda state, op, child: child.num_successes / child.num_attempts
+    heuristic = lambda state: 0
+
+    for _ in range(max_steps):
+        goal_state = try_a_star(search, cost, heuristic)
+        if goal_state is None:
+            print("Could not find feasable action plan!")
+            return None
+        path = goal_state.get_path()
+        stream_plan = extract_stream_plan_from_path(path)
+        stream_ordering = extract_stream_ordering(stream_plan)
+        object_mapping = sample_depth_first_with_costs(stream_ordering)
+        if object_mapping is not None:
+            return goal_state.get_actions(), object_mapping, goal_state
+        print("Could not find object_mapping, retrying with updated costs")
+
+
+def try_lpa_star(search, cost, heuristic, max_step=100000):
+    # TODO: (1) allow for multiple parents to search state; (2) implement remove() on ProrityQueue
+    q = PriorityQueue([search.init])
+    closed = []
+    expand_count = 0
+    evaluate_count = 0
+    
+    while q and expand_count < max_step:
+        state = q.pop()
+        expand_count += 1
+
+        if search.test_goal(state):
+            av_branching_f = evaluate_count / expand_count
+            approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
+            print(f'Explored {expand_count}. Evaluated {evaluate_count}')
+            print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+            return state
+        
+        if state.start_distance > state.rhs:
+            state.start_distance = state.rhs
+
+
+        state.children = []
+        for op, child in search.successors(state):
+            child.action = op
+            child.parent = state
+            state.children.append((op, child))
+            if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
+                continue 
+            evaluate_count += 1
+            child.start_distance = state.start_distance + cost(state, op, child)
+            q.push(child, child.start_distance + heuristic(child))
+
+        closed.append(state)
+
 
 if __name__ == '__main__':
     from experiments.blocks_world_noaxioms.run import *
     from pddlstream.algorithms.algorithm import parse_problem
-    url = 'tcp://127.0.0.1:6000'
+    import argparse
+
+    url = None
+    # url = 'tcp://127.0.0.1:6000'
+
+    # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
+    # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
     problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
+    args = parser.parse_args()
+    problem_file = args.task
 
     (
         sim,
@@ -756,9 +946,19 @@ if __name__ == '__main__':
     [pick, move, place, stack, unstack] = domain.actions
 
     search = ActionStreamSearch(init, goal, externals, domain.actions)
-    goal_state = try_bfs(search)
-    actions = goal_state.get_path()
-    stream_ordering = extract_stream_ordering(goal_state)            
-    object_mapping = sample_depth_first(stream_ordering)
 
+    # goal_state = try_bfs(search)
+    # action_skeleton = goal_state.get_actions()
+    # stream_plan = extract_stream_plan_from_path(goal_state.get_path())
+    # stream_ordering = extract_stream_ordering(stream_plan)            
+    # object_mapping = sample_depth_first_with_costs(stream_ordering)
+    # actions_str = "\n".join([str(a) for a in action_skeleton])
+    # print(f"Action Skeleton:\n{actions_str}")
+    # print(f"\nObject mapping: {object_mapping}\n") 
 
+    result = repeated_a_star(search)
+    if result is not None:
+        action_skeleton, object_mapping, _ = result
+        actions_str = "\n".join([str(a) for a in action_skeleton])
+        print(f"Action Skeleton:\n{actions_str}")
+        print(f"\nObject mapping: {object_mapping}\n") 
