@@ -17,14 +17,14 @@ random.seed(int(time.time()))
 import matplotlib
 import yaml
 
-matplotlib.use("Agg")
+# matplotlib.use("Agg")
 from experiments.shared import construct_oracle
 import os
 from re import I
 import argparse
 from datetime import datetime
 import pydrake.all
-from pydrake.all import RigidTransform
+from pydrake.all import RigidTransform, RotationMatrix
 from pydrake.all import Role
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
@@ -137,6 +137,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         for j, obj in enumerate(fact):
             if isinstance(obj, list):
                 goal[i][j] = transforms[fact[j-1]]
+                # transform = RigidTransform(RotationMatrix(np.eye(3)), np.array(obj[:3]))
+                # goal[i][j] = RigidTransformWrapper(transform, name=f"X_W{fact[j-1]}")
         goal[i] = tuple(goal[i])
 
     for name, pose in start_poses.items():

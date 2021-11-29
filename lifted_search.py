@@ -1,19 +1,31 @@
+from collections import defaultdict
 from typing import DefaultDict
-from pddlstream.language.conversion import fact_from_evaluation, objects_from_evaluations
+from pddlstream.algorithms.algorithm import check_problem, parse_constants, parse_stream_pddl
+from pddlstream.algorithms.common import evaluations_from_init
+from pddlstream.algorithms.constraints import add_plan_constraints
+from pddlstream.algorithms.downward import get_identical_atoms, get_problem, has_costs, parse_goal, set_unit_costs
+from pddlstream.language.constants import EQ
+from pddlstream.language.conversion import fact_from_evaluation, obj_from_value_expression, objects_from_evaluations
 import sys
+import itertools
+import copy
+from datetime import datetime
+from pddlstream.language.exogenous import compile_to_exogenous
 
 from pddlstream.language.stream import Stream
 from pddlstream.language.object import Object
+from pddlstream.language.temporal import SimplifiedDomain, parse_domain
 
 sys.path.insert(0, '/home/mohammed/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/')
+sys.path.insert(0, '/home/atharv/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/')
 import pddl
-from pddl.conditions import Atom, Conjunction, NegatedAtom
+from pddl.conditions import Atom, Conjunction, NegatedAtom, Disjunction, UniversalCondition, ExistentialCondition
+from pddl_parser.parsing_functions import check_for_duplicates
 from pddl.actions import PropositionalAction, Action
 from pddl.effects import Effect
 import pddl.conditions as conditions
 
 from pddl.pddl_types import TypedObject
-import pddl.conditions as conditions
 
 class Identifiers:
     idx = 0
@@ -74,51 +86,157 @@ def find_applicable_brute_force(action, state, allow_missing, object_stream_map=
     """Given an action schema and a state, return the list of partially grounded
     operators possible in the given state"""
 
+    def build_candidates(condition):
+        candidates = {}
+        def _build_candidates(c):
+            if isinstance(c, Atom) or isinstance(c, NegatedAtom):
+                if c.predicate not in allow_missing:
+                    for ground_atom in state:
+                        if ground_atom.predicate == c.predicate:
+                            for arg, candidate in zip(c.args, ground_atom.args):
+                                candidates.setdefault(arg, set()).add(candidate)
+            else:
+                for part in c.parts:
+                    _build_candidates(part)
+        _build_candidates(condition)
+        return candidates
+
+
     # Find all possible assignments of the state.objects to action.parameters
     # such that [action.preconditions - {atom | atom in certified}] <= state
-    candidates = {}
-    for atom in action.precondition.parts:
-        if atom.predicate in allow_missing:
-            continue
-        for ground_atom in state:
-            if ground_atom.predicate != atom.predicate:
-                continue
-            for arg, candidate in zip(atom.args, ground_atom.args):
-                candidates.setdefault(arg, set()).add(candidate)
+    # candidates = {}
+    # for atom in action.precondition.parts:
+    #     if atom.predicate in allow_missing:
+    #         continue
+    #     for ground_atom in state:
+    #         if ground_atom.predicate != atom.predicate:
+    #             continue
+    #         for arg, candidate in zip(atom.args, ground_atom.args):
+    #             candidates.setdefault(arg, set()).add(candidate)
+
+    candidates = build_candidates(action.precondition)
+
+    filtered_candidates = candidates.copy()
+    def filter_candidates(_p):
+        if isinstance(_p, UniversalCondition) or isinstance(_p, ExistentialCondition):
+            for p in _p.parameters:
+                if p.name in filtered_candidates:
+                    del filtered_candidates[p.name]
+            for part in _p.parts:
+                filter_candidates(part)
+        if isinstance(_p, Atom):
+            return
+        else:
+            for part in _p.parts:
+                filter_candidates(part)
+    filter_candidates(action.precondition)
+            
     if not candidates:
         assert False, "why am i here"
         yield bind_action(action, {})
         return
+    
+    def ground_recurse(condition, a):
+    
+        def _ground_recurse(c, g, _a):
+            """ Procedure for generating partially grounded operators while handling
+                conjuctions, disjunctions and quantifier.
+            """
+            if isinstance(c, Conjunction):
+                for part in c.parts: 
+                    res, g = _ground_recurse(part, g, _a)
+                    if not res:
+                        return False, g
+                return True, g
+            elif isinstance(c, Disjunction):
+                for part in c.parts: 
+                    res, _g = _ground_recurse(part, g, _a)
+                    if res:
+                        return True, _g
+                return False, g
+            elif isinstance(c, UniversalCondition):
+                param_list = [candidates.get(param.name, {}) for param in c.parameters]
+                for params in itertools.product(*param_list):
+                    for idx, param in enumerate(c.parameters):
+                        _a[param.name] = params[idx]
+                    res, g = _ground_recurse(c.parts[0], g, _a)
+                    if not res:
+                        return False, g
+                return True, g
+            elif isinstance(c, ExistentialCondition):
+                param_list = [candidates.get(param.name, {}) for param in c.parameters]
+                for params in itertools.product(*param_list):
+                    for idx, param in enumerate(c.parameters):
+                        _a[param.name] = params[idx]
+                    res, _g = _ground_recurse(c.parts[0], g, _a)
+                    if res:
+                        return True, _g
+                return False, g
+            elif isinstance(c, Atom) or isinstance(c, NegatedAtom):
+                args = [_a.get(arg, arg) for arg in c.args]
+                atom = Atom(c.predicate, args) if not c.negated else NegatedAtom(c.predicate, args)
+
+                if not atom.negated:
+                    if atom not in state and (
+                        atom.negate() in state or
+                        atom.predicate not in allow_missing 
+                    ):
+                        return False, g
+                else:
+                    if atom not in state and (
+                        atom.negate() in state or
+                        atom.predicate in allow_missing 
+                    ):
+                        return False, g
+
+                # # grounded positive precondition not in state
+                # if not atom.negated and atom not in state:
+                #     if atom.predicate not in allow_missing:
+                #         return False, g
+                #     if all(arg in object_stream_map for arg in atom.args):
+                #         return False, g
+                # if atom.negated and atom.negate() in state:
+                #     return False, g
+ 
+                g.append(atom)
+                return True, g
+
+            else:
+                raise NotImplementedError
+    
+        return _ground_recurse(condition, [], a)
+   
+   
     # find all the possible versions
-    for assignment in combinations(candidates):
-        feasible = True
+    for assignment in combinations(filtered_candidates):
         for par in action.parameters:
             if par.name not in assignment:
                 assignment[par.name] = Identifiers.next()
 
-        assert isinstance(action.precondition, Conjunction)
-        precondition_parts = []
-        for atom in action.precondition.parts:
-            args = [assignment.get(arg, arg) for arg in atom.args]
-            atom = Atom(atom.predicate, args) if not atom.negated else NegatedAtom(atom.predicate, args)
-            precondition_parts.append(atom)
-            # grounded positive precondition not in state
-            if (not atom.negated and atom not in state):
-                if(atom.predicate not in allow_missing):
-                    feasible = False
-                    break
-                if all(arg in object_stream_map for arg in atom.args):
-                    feasible = False
-                    break
+        # assert isinstance(action.precondition, Conjunction)
+        # precondition_parts = []
+        # for atom in action.precondition.parts:
+        #     args = [assignment.get(arg, arg) for arg in atom.args]
+        #     atom = Atom(atom.predicate, args) if not atom.negated else NegatedAtom(atom.predicate, args)
+        #     precondition_parts.append(atom)
+        #     # grounded positive precondition not in state
+        #     if (not atom.negated and atom not in state):
+        #         if(atom.predicate not in allow_missing):
+        #             feasible = False
+        #             break
+        #         if all(arg in object_stream_map for arg in atom.args):
+        #             feasible = False
+        #             break
+
+        #     if atom.negated and atom.negate() in state:
+        #         feasible = False
+        #         break
 
 
-    
-
-            if atom.negated and atom.negate() in state:
-                feasible = False
-                break
+        feasible, precondition_parts = ground_recurse(action.precondition, assignment)
         if not feasible:
             continue
+
         effects = []
         for effect in action.effects:
             atom = effect.literal
@@ -204,9 +322,10 @@ def objects_from_state(state):
 
 
 class SearchState:
-    def __init__(self, state, object_stream_map, unsatisfied):
+    def __init__(self, state, object_stream_map, independant_streams, unsatisfied):
         self.state = state.copy()
         self.object_stream_map = object_stream_map.copy()
+        self.independant_streams = independant_streams.copy()
         self.unsatisfied = unsatisfied
         self.unsatisfiable = False
         self.children = []
@@ -243,7 +362,7 @@ class SearchState:
 class ActionStreamSearch:
     def __init__(self, init, goal, externals, actions):
         self.init_objects = {o for o in objects_from_state(init)}
-        self.init = SearchState(init, {o:None for o in self.init_objects}, set())
+        self.init = SearchState(init, {o:None for o in self.init_objects}, set(), set())
         self.goal = goal
         self.externals = externals
         self.actions = actions
@@ -287,6 +406,8 @@ class ActionStreamSearch:
     
     def successors(self, state):
         for action in self.actions:
+            # for action.precondition.parts:
+                
             ops = find_applicable_brute_force(action, state.state | state.unsatisfied, self.streams_by_predicate, state.object_stream_map)
             for op in ops:
                 new_world_state = apply(op, state.state)
@@ -295,8 +416,8 @@ class ActionStreamSearch:
                 try:
                     partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, self.streams_by_predicate)
                     # this extracts the important bits from it (i.e. description of the state)
-                    new_world_state, object_stream_map, missing = extract_from_partial_plan(new_world_state, partial_plan)
-                    op_state = SearchState(new_world_state, object_stream_map, missing)
+                    new_world_state, object_stream_map, independant_streams, missing = extract_from_partial_plan(new_world_state, partial_plan)
+                    op_state = SearchState(new_world_state, object_stream_map, independant_streams, missing)
                     yield (op, op_state)
                 except Unsatisfiable:
                     continue
@@ -616,14 +737,17 @@ def certify(state, object_stream_map, missing, streams_by_predicate):
 
 def extract_from_partial_plan(new_world_state, partial_plan):
     object_stream_map = {o:None for o in partial_plan.bindings}
+    independant_streams = set()
     for act in partial_plan.actions:
         if act.stream is None:
             continue
         new_world_state |= act.eff
         for out in act.outputs:
             object_stream_map[out] = act
+        if len(act.outputs) == 0:
+            independant_streams.add(act)
     missing = {m for (stream_action, m) in partial_plan.agenda}
-    return new_world_state, object_stream_map, missing    
+    return new_world_state, object_stream_map, independant_streams, missing    
 
 def extract_stream_plan(state):
     """Given a search state, return the list of object stream maps needed by each action
@@ -641,12 +765,12 @@ def extract_stream_ordering(stream_plan):
     computed. The order is determined by the order in which the objects are needed for the
     action plan, modulo a topological sort."""
 
-    all_object_map = {k: v for _, d in stream_plan for k, v in d.items()}
+    all_object_map = {k: v for _, d, _ in stream_plan for k, v in d.items()}
 
     computed_objects = set()
     stream_ordering = []
-    for edge, object_map in stream_plan:
-        local_ordering = []
+    for edge, object_map, independant_streams in stream_plan:
+        local_ordering = [(stream_action, edge) for stream_action in independant_streams]
         for object_name in object_map:
             stack = [object_name]
 
@@ -707,7 +831,7 @@ def extract_stream_plan_from_path(path):
     stream_plan = []
     for edge in path:
         stream_map = {k:v for k,v in edge[2].object_stream_map.items() if v is not None}
-        stream_plan.append((edge, stream_map))
+        stream_plan.append((edge, stream_map, edge[2].independant_streams))
     return stream_plan
 
 import heapq
@@ -733,7 +857,8 @@ class PriorityQueue:
 
 import math
 
-def try_a_star(search, cost, heuristic, max_step=100000):
+def try_a_star(search, cost, heuristic, max_step=10000):
+    start_time = datetime.now()
     q = PriorityQueue([search.init])
     closed = []
     expand_count = 0
@@ -748,6 +873,7 @@ def try_a_star(search, cost, heuristic, max_step=100000):
             approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
             print(f'Explored {expand_count}. Evaluated {evaluate_count}')
             print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+            print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
             return state
         
         state.children = []
@@ -780,7 +906,7 @@ def sample_depth_first_with_costs(stream_ordering, max_steps=10000, verbose=Fals
         stream_instance = stream_action.stream.get_instance(input_objects)
     
         if stream_instance.enumerated:
-            print("Stream instance fully enumerated!. Reseting.")
+            print(f"Stream instance {stream_action} fully enumerated!. Reseting.")
             stream_instance.reset()
 
         result = stream_instance.next_results(verbose=verbose)
@@ -789,7 +915,7 @@ def sample_depth_first_with_costs(stream_ordering, max_steps=10000, verbose=Fals
         edge[2].num_attempts += 1
 
         if len(result[0]) == 0:
-            print(f"Invalid result: {result}")
+            print(f"Invalid result for {stream_action}: {result}")
             queue.push(binding, (stream_instance.num_calls, len(stream_ordering) - binding.index))
             continue
 
@@ -865,26 +991,124 @@ def try_lpa_star(search, cost, heuristic, max_step=100000):
         closed.append(state)
 
 
-from pddlstream.algorithms.downward import Domain
 
-def patch_actions_with_collision_checks(domain, init):
-    blocks_info = []
-    for fact1 in init:
-        if fact1.predicate == "block":
-            for fact2 in init:
-                if fact2.predicate == "atworldpose" and fact2.args[0] == fact1.args[0]:
-                    blocks_info.append(fact2.args)
-
-    new_actions = []
-    for action in domain.actions:
-        if action.name in ["pick", "place", "stack", "unstack"]:
-            new_preconditions = Conjunction(action.precondition.parts + tuple([Atom("colfree-block", ['?arm', '?q', block, pose]) for block, pose in blocks_info]) + tuple([Atom("atworldpose", [block, pose]) for block, pose in blocks_info]))
-            new_action = Action(action.name, action.parameters, action.num_external_parameters, new_preconditions, action.effects, action.cost)
-            new_actions.append(new_action)
-        else:
-            new_actions.append(action)
-    return new_actions
+def replace_axioms(domain):
     
+    axioms_dict = {axiom.name: axiom for axiom in domain.axioms}
+
+    def replace_args(c, replacements):
+        def _replace_args(c):
+            if isinstance(c, Atom) or isinstance(c, NegatedAtom):
+                return Atom(c.predicate, [replacements.get(arg) for arg in c.args])
+            else:
+                _c = copy.deepcopy(c)
+
+                if isinstance(c, UniversalCondition) or isinstance(c, ExistentialCondition):
+                    _c.parameters = [replacements.get(p) for p in c.parameters]
+
+                _c.parts = [_replace_args(p) for p in c.parts]
+
+                return _c
+                
+        return _replace_args(c)
+
+    def _replace_axioms(c):
+        if isinstance(c, Atom) or isinstance(c, NegatedAtom):
+            if c.predicate in axioms_dict:
+                axiom = axioms_dict[c.predicate]
+                replacements = defaultdict(lambda a: f"{a}__{c.predicate}")
+                for p, a in zip(axiom.parameters, c.args):
+                    replacements[p.name] = a
+                return replace_args(axiom.condition, replacements)
+            return c
+        else:
+            _c = copy.deepcopy(c)
+            _c.parts = [_replace_axioms(p) for p in c.parts]
+            return _c
+
+    return [Action(a.name, a.parameters, a.num_external_parameters, _replace_axioms(a.precondition), a.effects, a.cost) for a in domain.actions]
+
+
+def modified_task_from_domain_problem(domain, problem, add_identical=True):
+    task_name, task_domain_name, task_requirements, objects, init, goal, use_metric, problem_pddl = problem
+
+    assert domain.name == task_domain_name
+    requirements = pddl.Requirements(sorted(set(domain.requirements.requirements +
+                                                task_requirements.requirements)))
+    objects = domain.constants + objects
+    check_for_duplicates([o.name for o in objects],
+        errmsg="error: duplicate object %r",
+        finalmsg="please check :constants and :objects definitions")
+    init.extend(pddl.Atom(EQ, (obj.name, obj.name)) for obj in objects)
+    if add_identical:
+        init.extend(get_identical_atoms(objects))
+    #print('{} objects and {} atoms'.format(len(objects), len(init)))
+
+    task = pddl.Task(domain.name, task_name, requirements, domain.types, objects,
+                     domain.predicates, domain.functions, init, goal,
+                     domain.actions, domain.axioms, use_metric)
+
+    return task
+
+
+def normalize_domain_goal(domain, goal_exp):
+    evaluations = []
+    problem = get_problem(evaluations, goal_exp, domain, unit_costs=False)
+    task = modified_task_from_domain_problem(domain, problem)
+    return task
+
+
+
+def modified_parse_problem(
+    problem,
+    stream_info={},
+    constraints=None,
+    unit_costs=False,
+    unit_efforts=False,
+    use_unique=False,
+):
+    # TODO: just return the problem if already written programmatically
+    reset_globals() # Prevents use of satisfaction.py
+    domain_pddl, constant_map, stream_pddl, stream_map, init, goal = problem
+
+    domain = parse_domain(domain_pddl)  # TODO: normalize here
+    # domain = domain_pddl
+    if len(domain.types) != 1:
+        raise NotImplementedError("Types are not currently supported")
+    if unit_costs:
+        set_unit_costs(domain)
+    if not has_costs(domain):
+        # TODO: set effort_weight to 1 if no costs
+        print("Warning! All actions have no cost. Recommend setting unit_costs=True")
+    obj_from_constant = parse_constants(
+        domain, constant_map
+    )  # Keep before parse_stream_pddl
+
+    streams = parse_stream_pddl(
+        stream_pddl,
+        stream_map,
+        stream_info=stream_info,
+        unit_costs=unit_costs,
+        unit_efforts=unit_efforts,
+        use_unique=use_unique,
+    )
+    check_problem(domain, streams, obj_from_constant)
+
+    evaluations = evaluations_from_init(init)
+    goal_exp = obj_from_value_expression(goal)
+
+    if isinstance(domain, SimplifiedDomain):
+        # assert isinstance(domain, str) # raw PDDL is returned
+        _ = {name: Object(value, name=name) for name, value in constant_map.items()}
+        return evaluations, goal_exp, domain, streams
+
+    goal_exp = add_plan_constraints(constraints, domain, evaluations, goal_exp)
+    parse_goal(goal_exp, domain)  # Just to check that it parses
+    normalize_domain_goal(domain, goal_exp)  # TODO: does not normalize goal_exp
+
+    compile_to_exogenous(evaluations, domain, streams)
+    return evaluations, goal_exp, domain, streams
+
 
 if __name__ == '__main__':
     from experiments.blocks_world.run import *
@@ -893,10 +1117,11 @@ if __name__ == '__main__':
     import argparse
 
     url = None
-    problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
-    # problem_file = 'experiments/blocks_world/data_generation/random/train/2_1_1_37.yaml'
-    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
-
+    
+    # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
+    # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
@@ -931,7 +1156,7 @@ if __name__ == '__main__':
     # [pick, move, place, stack, unstack] = domain.actions
 
     # actions = domain.actions
-    actions = patch_actions_with_collision_checks(domain, init)
+    actions = replace_axioms(domain)
 
     search = ActionStreamSearch(init, goal, externals, actions)
     # goal_state = try_bfs(search)
