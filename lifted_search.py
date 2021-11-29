@@ -221,6 +221,7 @@ class SearchState:
         self.rhs = 0
         self.num_attempts = 1
         self.num_successes = 1
+        self.expanded = False
 
     def __eq__(self, other):
         # compare based on fluent predicates and computation graph in corresponding objects
@@ -291,20 +292,27 @@ class ActionStreamSearch:
         return SearchState(new_state, state.object_stream_map, missing_positive | state.unsatisfied)
     
     def successors(self, state):
-        for action in self.actions:
-            ops = find_applicable_brute_force(action, state.state | state.unsatisfied, self.streams_by_predicate, state.object_stream_map)
-            for op in ops:
-                new_world_state = apply(op, state.state)
-                missing_positive = {atom for atom in op.precondition.parts if not atom.negated} - set(state.state)
-                # this does the partial order plan
-                try:
-                    partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, self.streams_by_predicate)
-                    # this extracts the important bits from it (i.e. description of the state)
-                    new_world_state, object_stream_map, missing = extract_from_partial_plan(state, new_world_state, partial_plan)
-                    op_state = SearchState(new_world_state, object_stream_map, missing)
-                    yield (op, op_state)
-                except Unsatisfiable:
-                    continue
+        if state.expanded:
+            for child in state.children:
+                yield child
+        else:
+            state.children = []
+            for action in self.actions:
+                ops = find_applicable_brute_force(action, state.state | state.unsatisfied, self.streams_by_predicate, state.object_stream_map)
+                for op in ops:
+                    new_world_state = apply(op, state.state)
+                    missing_positive = {atom for atom in op.precondition.parts if not atom.negated} - set(state.state)
+                    # this does the partial order plan
+                    try:
+                        partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, self.streams_by_predicate)
+                        # this extracts the important bits from it (i.e. description of the state)
+                        new_world_state, object_stream_map, missing = extract_from_partial_plan(state, new_world_state, partial_plan)
+                        op_state = SearchState(new_world_state, object_stream_map, missing)
+                        state.children.append((op, op_state))
+                        yield (op, op_state)
+                    except Unsatisfiable:
+                        continue
+            state.expanded = True
 
                 
     
@@ -738,7 +746,7 @@ def sample_depth_first(stream_plan, max_steps=10000):
 
 
 
-def sample_depth_first_with_costs(stream_ordering, max_steps=10000, verbose=False):
+def sample_depth_first_with_costs(stream_ordering, max_steps=100, verbose=False):
     """Demo sampling a stream plan using a backtracking depth first approach.
     Returns a mapping if one exists, or None if infeasible or timeout. """
     queue = PriorityQueue([Binding(0, [a for a, e in stream_ordering], {})])
@@ -832,13 +840,11 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
             return state
         
-        state.children = []
         for op, child in search.successors(state):
             child.action = op
             child.parent = state
-            state.children.append((op, child))
             if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
-                continue 
+                continue
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
             q.push(child, child.start_distance + heuristic(child))
@@ -847,7 +853,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
 def repeated_a_star(search, max_steps=1000):
 
-    cost = lambda state, op, child: child.num_successes / child.num_attempts
+    cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     heuristic = lambda state: 0
 
     for _ in range(max_steps):
@@ -856,6 +862,11 @@ def repeated_a_star(search, max_steps=1000):
             print("Could not find feasable action plan!")
             return None
         path = goal_state.get_path()
+
+        action_skeleton = goal_state.get_actions()
+        actions_str = "\n".join([str(a) for a in action_skeleton])
+        print(f"Action Skeleton:\n{actions_str}")
+        
         stream_plan = extract_stream_plan_from_path(path)
         stream_ordering = extract_stream_ordering(stream_plan)
         object_mapping = sample_depth_first_with_costs(stream_ordering)
