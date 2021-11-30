@@ -746,7 +746,7 @@ def sample_depth_first(stream_plan, max_steps=10000):
 
 
 
-def sample_depth_first_with_costs(stream_ordering, max_steps=100, verbose=False):
+def sample_depth_first_with_costs(stream_ordering, max_steps=500, verbose=False):
     """Demo sampling a stream plan using a backtracking depth first approach.
     Returns a mapping if one exists, or None if infeasible or timeout. """
     queue = PriorityQueue([Binding(0, [a for a, e in stream_ordering], {})])
@@ -758,7 +758,12 @@ def sample_depth_first_with_costs(stream_ordering, max_steps=100, verbose=False)
         steps += 1
 
         stream_action = binding.stream_plan[binding.index]
+        edge = stream_edge_map[stream_action]
   
+        # if any([not (i in binding.mapping or i in Object._obj_from_name) for i in stream_action.inputs]):
+        #     edge[2].num_attempts += np.inf
+        #     continue
+
         input_objects = [binding.mapping.get(var_name) or Object.from_name(var_name) for var_name in stream_action.inputs]
         fluent_facts = [(f.predicate, ) + tuple(binding.mapping.get(var_name) or Object.from_name(var_name) for var_name in f.args) for f in stream_action.fluent_facts]
         stream_instance = stream_action.stream.get_instance(input_objects, fluent_facts=fluent_facts)
@@ -768,7 +773,6 @@ def sample_depth_first_with_costs(stream_ordering, max_steps=100, verbose=False)
 
         result = stream_instance.next_results(verbose=verbose)
 
-        edge = stream_edge_map[stream_action]
         edge[2].num_attempts += 1
 
         if len(result[0]) == 0:
@@ -821,24 +825,42 @@ class PriorityQueue:
     def __len__(self):
         return len(self.heap)
 
-def try_a_star(search, cost, heuristic, max_step=10000):
+def patch_unconstrained(path):
+    all_object_map = {k: v for edge in path for k, v in edge[2].object_stream_map.items() if v is not None}
+    unconstrained = []
+    for state, op, child in path:
+        if op is not None:
+            for arg in op.var_mapping.values():
+                if (arg not in Object._obj_from_name) and (arg not in all_object_map):
+                    unconstrained.append(arg)
+
+    if len(unconstrained) > 0:
+        for state, op, child in reversed(path):
+            if op is not None:
+                for arg in op.var_mapping.values():
+                    if arg in unconstrained:
+                        child.num_attempts = np.inf
+                        unconstrained.remove(arg)
+        return True
+    
+    return False
+    
+
+def try_a_star(search, cost, heuristic, max_step=50000):
     start_time = datetime.now()
     q = PriorityQueue([search.init])
     closed = []
     expand_count = 0
     evaluate_count = 0
+    found = False
     
     while q and expand_count < max_step:
         state = q.pop()
         expand_count += 1
 
         if search.test_goal(state):
-            av_branching_f = evaluate_count / expand_count
-            approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
-            print(f'Explored {expand_count}. Evaluated {evaluate_count}')
-            print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-            print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
-            return state
+            found = True
+            break
         
         for op, child in search.successors(state):
             child.action = op
@@ -851,12 +873,25 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
         closed.append(state)
 
+    av_branching_f = evaluate_count / expand_count
+    approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
+    print(f'Explored {expand_count}. Evaluated {evaluate_count}')
+    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
+
+    if found:
+        return state
+    else:
+        return None
+
+
 def repeated_a_star(search, max_steps=1000):
 
-    cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
+    cost = lambda state, op, child: 1 / ((child.num_successes / child.num_attempts) + 1e-6)
     heuristic = lambda state: 0
 
     for _ in range(max_steps):
+        print("Attempting A* search")
         goal_state = try_a_star(search, cost, heuristic)
         if goal_state is None:
             print("Could not find feasable action plan!")
@@ -867,6 +902,10 @@ def repeated_a_star(search, max_steps=1000):
         actions_str = "\n".join([str(a) for a in action_skeleton])
         print(f"Action Skeleton:\n{actions_str}")
         
+        if patch_unconstrained(path):
+            print("Found unconstrained variables in action skeleton. Retrying with updated costs")
+            continue
+
         stream_plan = extract_stream_plan_from_path(path)
         stream_ordering = extract_stream_ordering(stream_plan)
         object_mapping = sample_depth_first_with_costs(stream_ordering)
@@ -922,7 +961,8 @@ if __name__ == '__main__':
     # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
