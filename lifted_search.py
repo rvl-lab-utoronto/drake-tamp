@@ -361,10 +361,11 @@ class ActionStreamSearch:
                     missing_positive = {atom for atom in op.precondition.parts if not atom.negated} - set(state.state)
                     # this does the partial order plan
                     try:
-                        partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, self.streams_by_predicate)
+                        missing = missing_positive | state.unsatisfied
+                        partial_plan = certify(state.state, state.object_stream_map, missing, self.streams_by_predicate)
                         # this extracts the important bits from it (i.e. description of the state)
-                        new_world_state, object_stream_map, missing = extract_from_partial_plan(state, new_world_state, partial_plan)
-                        op_state = SearchState(new_world_state, object_stream_map, missing, parent=state)
+                        new_world_state, object_stream_map, new_missing = extract_from_partial_plan(state, missing, new_world_state, partial_plan)
+                        op_state = SearchState(new_world_state, object_stream_map, new_missing, parent=state)
                         state.children.append((op, op_state))
                         yield (op, op_state)
                     except Unsatisfiable:
@@ -707,16 +708,40 @@ def certify(state, object_stream_map, missing, streams_by_predicate):
             break
     return p0
 
-def extract_from_partial_plan(old_world_state, new_world_state, partial_plan):
-    object_stream_map = {o:None for o in partial_plan.bindings}
+def extract_from_partial_plan(old_world_state, old_missing, new_world_state, partial_plan):
+    """Extract the successor state from the old world state and the partial plan.
+    That involves updating the object stream map, the set of facts that are yet to be certified,
+    and the new logical state based on the stream actions in the partial plan.
+
+    Edit: As of today (Dec 1) objects are not added to the object stream map until their CG is
+    fully determined.
+    """
+    new_objects = set()
+    for act in partial_plan.actions:
+        if act.stream is not None:
+            for out in act.outputs:
+                new_objects.add(out)
+
+    object_stream_map = {o:None for o in old_world_state.object_stream_map}
+    missing = old_missing.copy()
     for act in partial_plan.actions:
         if act.stream is None:
             continue
-        if not act.stream.is_test:
+        # object's CG is determined if all inputs are produced now, or previously
+        if any(parent_obj not in new_objects and parent_obj not in old_world_state.object_stream_map for parent_obj in act.inputs):
+            continue
+        if not act.stream.is_fluent:
             new_world_state |= act.eff
+        
         for out in act.outputs:
             object_stream_map[out] = act
-    missing = {m for (stream_action, m) in partial_plan.agenda}
+        for e in act.eff:
+            if e in missing:
+                missing.remove(e)
+            else:
+                # print('Not missing!', e)
+                pass
+
     return new_world_state, object_stream_map, missing    
 
 def extract_stream_plan(state):
