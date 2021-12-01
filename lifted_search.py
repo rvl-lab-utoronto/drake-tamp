@@ -1,11 +1,14 @@
 
 #%%
 from functools import partial
+from typing import Any
 from pddlstream.language.conversion import fact_from_evaluation, objects_from_evaluations
 import sys
 from collections import defaultdict
 import math
+import itertools
 
+from dataclasses import dataclass, field
 from pddlstream.language.stream import Stream
 from pddlstream.language.object import Object
 
@@ -208,14 +211,26 @@ def objects_from_state(state):
     return { arg for atom in state for arg in atom.args }
 
 
+@dataclass
+class DictionaryWithFallback:
+    own_keys: dict
+    fallback: Any # another DictionaryWithFallback or None
+
+    def __getitem__(self, key):
+        if key in self.own_keys:
+            return self.own_keys[key]
+        elif self.fallback is not None:
+            return self.fallback[key]
+        return None
+
 class SearchState:
-    def __init__(self, state, object_stream_map, unsatisfied):
+    def __init__(self, state, object_stream_map, unsatisfied, parent=None):
         self.state = state.copy()
         self.object_stream_map = object_stream_map.copy()
         self.unsatisfied = unsatisfied
         self.unsatisfiable = False
         self.children = []
-        self.parent = None
+        self.parent = parent
         self.action = None
         self.start_distance = 0
         self.rhs = 0
@@ -223,12 +238,54 @@ class SearchState:
         self.num_successes = 1
         self.expanded = False
 
+        self.__full_stream_map = None
+
     def __eq__(self, other):
         # compare based on fluent predicates and computation graph in corresponding objects
         return False
 
     def __repr__(self):
         return str((self.state, self.object_stream_map, self.unsatisfied))
+
+    @property
+    def full_stream_map(self):
+        if self.__full_stream_map is None:
+            self.__full_stream_map = DictionaryWithFallback({k:v for k,v in self.object_stream_map.items() if v is not None}, self.parent.full_stream_map if self.parent is not None else None)
+        return self.__full_stream_map
+            
+    def get_object_computation_graph_key(self, obj):
+        counter = itertools.count()
+        stack = [obj]
+        edges = set()
+        anon = {}
+        # computed_objects = set()
+        while stack:
+            obj = stack.pop(0)
+            # if obj in computed_objects:
+            #     continue
+            stream_action = self.full_stream_map[obj]
+            
+            # computed_objects.add(obj)
+            if stream_action is None:
+                # edges.insert(0, (obj, None))
+                edges.add((None, None, None, obj))
+                continue
+            # else:
+                # if obj not in anon:
+                #     anon[obj] = f'?{next(counter)}'
+                # edges.insert(0, (obj, stream_action.stream.name, stream_action.outputs.index(obj)))
+            input_objs = stream_action.inputs  + tuple(sorted(list(objects_from_state(stream_action.fluent_facts))))
+            # TODO add fluent objects also to this tuple
+            for parent_obj in input_objs:
+                stack.insert(0, parent_obj)
+                if obj not in anon:
+                    anon[obj] = f'?{next(counter)}'
+                if parent_obj not in anon and self.full_stream_map[parent_obj] is not None:
+                    anon[parent_obj] = f'?{next(counter)}'
+                edges.add((anon.get(parent_obj, parent_obj), stream_action.stream.name, stream_action.outputs.index(obj), anon[obj]))
+                # edges.append((obj, parent_obj, stream_action.stream.name, stream_action.outputs.index(obj), ))
+            
+        return frozenset(edges)
 
     def get_path(self):
         path = []
@@ -307,7 +364,7 @@ class ActionStreamSearch:
                         partial_plan = certify(state.state, state.object_stream_map, missing_positive | state.unsatisfied, self.streams_by_predicate)
                         # this extracts the important bits from it (i.e. description of the state)
                         new_world_state, object_stream_map, missing = extract_from_partial_plan(state, new_world_state, partial_plan)
-                        op_state = SearchState(new_world_state, object_stream_map, missing)
+                        op_state = SearchState(new_world_state, object_stream_map, missing, parent=state)
                         state.children.append((op, op_state))
                         yield (op, op_state)
                     except Unsatisfiable:
@@ -473,9 +530,7 @@ def try_bfs(search):
             q.append(child)
         closed.append(state)
 
-import itertools
 
-from dataclasses import dataclass, field
 # I want to think about partial order planning
 @dataclass
 class PartialPlan:
@@ -500,6 +555,9 @@ class StreamAction:
 
     def __hash__(self):
         return self.id
+    
+    def __repr__(self):
+        return f'{self.stream.name}({self.inputs})->({self.outputs})'
 
 @dataclass
 class Resolver:
@@ -746,9 +804,11 @@ def sample_depth_first(stream_plan, max_steps=10000):
 
 
 
-def sample_depth_first_with_costs(stream_ordering, max_steps=100, verbose=False):
+def sample_depth_first_with_costs(stream_ordering, final_state, stats={}, max_steps=None, verbose=False):
     """Demo sampling a stream plan using a backtracking depth first approach.
     Returns a mapping if one exists, or None if infeasible or timeout. """
+    if max_steps is None:
+        max_steps = len(stream_ordering)*2
     queue = PriorityQueue([Binding(0, [a for a, e in stream_ordering], {})])
     stream_edge_map = {a:e for a, e in stream_ordering}
     edge_stats = defaultdict(lambda: defaultdict(lambda: 0))
@@ -769,15 +829,19 @@ def sample_depth_first_with_costs(stream_ordering, max_steps=100, verbose=False)
         result = stream_instance.next_results(verbose=verbose)
 
         edge = stream_edge_map[stream_action]
-        edge[2].num_attempts += 1
+        output_cg_keys = [final_state.get_object_computation_graph_key(obj) for obj in stream_action.outputs]
+        for cg_key in output_cg_keys:
+            cg_stats = stats.setdefault(cg_key, {'num_attempts': 1, 'num_successes': 1})
+            cg_stats['num_attempts'] += 1
 
         if len(result[0]) == 0:
             print(f"Invalid result for {stream_action}: {result}")
-            queue.push(binding, (stream_instance.num_calls, len(stream_ordering) - binding.index))
+            # queue.push(binding, (stream_instance.num_calls, len(stream_ordering) - binding.index))
             continue
 
-        edge[2].num_successes += 1
-        
+        for cg_key in output_cg_keys:
+            cg_stats = stats[cg_key]
+            cg_stats['num_successes'] += 1        
         [new_stream_result], new_facts = result
         output_objects = new_stream_result.output_objects
 
@@ -838,6 +902,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             print(f'Explored {expand_count}. Evaluated {evaluate_count}')
             print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
             print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
+            print(f"Solution cost: {state.start_distance}")
             return state
         
         for op, child in search.successors(state):
@@ -853,9 +918,30 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
 def repeated_a_star(search, max_steps=1000):
 
-    cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
-    heuristic = lambda state: 0
+    # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
+    def cost(state, op, child, verbose=False):
+        included = set()
+        c = 0
+        for obj in child.object_stream_map:
+            stream_action = child.object_stream_map[obj]
+            if stream_action is not None:
+                if stream_action in included:
+                    continue
+                cg_key = child.get_object_computation_graph_key(obj)
+                if cg_key in stats:
+                    s = stats[cg_key]
+                    comp_cost = ((s['num_successes'] / (s['num_attempts']**1))**-1)
+                    c += comp_cost
 
+                else:
+                    comp_cost = 1
+                    c += comp_cost
+                if verbose:
+                    print(stream_action, comp_cost)
+                included.add(stream_action)
+        return max(1, c)
+    heuristic = lambda state: 0
+    stats = {}
     for _ in range(max_steps):
         goal_state = try_a_star(search, cost, heuristic)
         if goal_state is None:
@@ -869,7 +955,7 @@ def repeated_a_star(search, max_steps=1000):
         
         stream_plan = extract_stream_plan_from_path(path)
         stream_ordering = extract_stream_ordering(stream_plan)
-        object_mapping = sample_depth_first_with_costs(stream_ordering)
+        object_mapping = sample_depth_first_with_costs(stream_ordering, goal_state, stats)
         if object_mapping is not None:
             return goal_state.get_actions(), object_mapping, goal_state
         print("Could not find object_mapping, retrying with updated costs")
