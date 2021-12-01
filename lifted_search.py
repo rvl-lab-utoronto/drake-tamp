@@ -755,36 +755,6 @@ def extract_stream_plan(state):
         state = state.parent
     return stream_plan
 
-def topological_sort(stream_actions, computed):
-    incoming_edges = {}
-    ready = set()
-    for stream_action in stream_actions:
-        missing = set(stream_action.inputs) - computed
-        if missing:
-
-            print(missing)
-            incoming_edges[stream_action] = missing
-        else:
-            ready.add(stream_action)
-
-    result = []
-    while ready:
-        stream_action = ready.pop()
-        result.append(stream_action)
-        for out in stream_action.outputs:
-            computed.add(out)
-        for candidate in list(incoming_edges):
-            missing = incoming_edges[candidate] - computed
-            if missing:
-                incoming_edges[candidate] = missing
-            else:
-                del incoming_edges[candidate]
-                ready.add(candidate)
-
-    assert not incoming_edges, "Something went wrong. Either the CG has a cycle, or depends on missing (or future) step."
-    return result
-            
-
 def extract_stream_ordering(stream_plan):
     """Given a stream_plan, return a list of stream actions in order that they should be
     computed. The order is determined by the order in which the objects are needed for the
@@ -792,10 +762,38 @@ def extract_stream_ordering(stream_plan):
     
     Edit: Assumes each object_map depends only on itself and predecessors."""
     computed_objects = set(stream_plan[0][0][2].object_stream_map)
+
+    def topological_sort(stream_actions):
+        incoming_edges = {}
+        ready = set()
+        for stream_action in stream_actions:
+            missing = set(stream_action.inputs) - computed_objects
+            if missing:
+                incoming_edges[stream_action] = missing
+            else:
+                ready.add(stream_action)
+
+        result = []
+        while ready:
+            stream_action = ready.pop()
+            result.append(stream_action)
+            for out in stream_action.outputs:
+                computed_objects.add(out)
+            for candidate in list(incoming_edges):
+                missing = incoming_edges[candidate] - computed_objects
+                if missing:
+                    incoming_edges[candidate] = missing
+                else:
+                    del incoming_edges[candidate]
+                    ready.add(candidate)
+
+        assert not incoming_edges, "Something went wrong. Either the CG has a cycle, or depends on missing (or future) step."
+        return result
+
     stream_ordering = []
     for edge, object_map in stream_plan:
         stream_actions = {action for action in object_map.values()}
-        local_ordering = topological_sort(stream_actions, computed_objects)
+        local_ordering = topological_sort(stream_actions)
         stream_ordering.extend(local_ordering)
     return stream_ordering
 
