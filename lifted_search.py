@@ -755,36 +755,48 @@ def extract_stream_plan(state):
         state = state.parent
     return stream_plan
 
+def topological_sort(stream_actions, computed):
+    incoming_edges = {}
+    ready = set()
+    for stream_action in stream_actions:
+        missing = set(stream_action.inputs) - computed
+        if missing:
+
+            print(missing)
+            incoming_edges[stream_action] = missing
+        else:
+            ready.add(stream_action)
+
+    result = []
+    while ready:
+        stream_action = ready.pop()
+        result.append(stream_action)
+        for out in stream_action.outputs:
+            computed.add(out)
+        for candidate in list(incoming_edges):
+            missing = incoming_edges[candidate] - computed
+            if missing:
+                incoming_edges[candidate] = missing
+            else:
+                del incoming_edges[candidate]
+                ready.add(candidate)
+
+    assert not incoming_edges, "Something went wrong. Either the CG has a cycle, or depends on missing (or future) step."
+    return result
+            
+
 def extract_stream_ordering(stream_plan):
     """Given a stream_plan, return a list of stream actions in order that they should be
     computed. The order is determined by the order in which the objects are needed for the
-    action plan, modulo a topological sort."""
-
-    all_object_map = {k: v for _, d in stream_plan for k, v in d.items()}
-
-    computed_objects = set()
+    action plan, modulo a topological sort.
+    
+    Edit: Assumes each object_map depends only on itself and predecessors."""
+    computed_objects = set(stream_plan[0][0][2].object_stream_map)
     stream_ordering = []
     for edge, object_map in stream_plan:
-        local_ordering = []
-        for object_name in object_map:
-            stack = [object_name]
-
-            while stack:
-                current_object_name = stack.pop(0)
-                if current_object_name in computed_objects:
-                    continue
-                stream_action = all_object_map.get(current_object_name)
-                if stream_action is None:
-                    continue
-
-                local_ordering.insert(0, (stream_action, edge))
-                for object_name in stream_action.outputs:
-                    computed_objects.add(object_name)
-
-                for parent_object in stream_action.inputs:
-                    stack.insert(0, parent_object)
+        stream_actions = {action for action in object_map.values()}
+        local_ordering = topological_sort(stream_actions, computed_objects)
         stream_ordering.extend(local_ordering)
-
     return stream_ordering
 
 @dataclass
@@ -833,10 +845,8 @@ def sample_depth_first_with_costs(stream_ordering, final_state, stats={}, max_st
     """Demo sampling a stream plan using a backtracking depth first approach.
     Returns a mapping if one exists, or None if infeasible or timeout. """
     if max_steps is None:
-        max_steps = len(stream_ordering)*2
-    queue = PriorityQueue([Binding(0, [a for a, e in stream_ordering], {})])
-    stream_edge_map = {a:e for a, e in stream_ordering}
-    edge_stats = defaultdict(lambda: defaultdict(lambda: 0))
+        max_steps = len(stream_ordering)*3
+    queue = PriorityQueue([Binding(0, stream_ordering, {})])
     steps = 0
     while queue and steps < max_steps:
         binding = queue.pop()
@@ -853,10 +863,9 @@ def sample_depth_first_with_costs(stream_ordering, final_state, stats={}, max_st
 
         result = stream_instance.next_results(verbose=verbose)
 
-        edge = stream_edge_map[stream_action]
         output_cg_keys = [final_state.get_object_computation_graph_key(obj) for obj in stream_action.outputs]
         for cg_key in output_cg_keys:
-            cg_stats = stats.setdefault(cg_key, {'num_attempts': 1, 'num_successes': 1})
+            cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
             cg_stats['num_attempts'] += 1
 
         if len(result[0]) == 0:
@@ -955,7 +964,7 @@ def repeated_a_star(search, max_steps=1000):
                 cg_key = child.get_object_computation_graph_key(obj)
                 if cg_key in stats:
                     s = stats[cg_key]
-                    comp_cost = ((s['num_successes'] / (s['num_attempts']**1))**-1)
+                    comp_cost = ((s['num_successes'] + 1) / (s['num_attempts'] + 1))**-1
                     c += comp_cost
 
                 else:
