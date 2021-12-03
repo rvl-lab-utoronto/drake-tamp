@@ -217,8 +217,8 @@ class SearchState:
         self.children = []
         self.parent = None
         self.action = None
-        self.start_distance = 0
-        self.rhs = 0
+        self.start_distance = np.inf
+        self.rhs = np.inf
         self.num_attempts = 1
         self.num_successes = 1
         self.expanded = False
@@ -308,6 +308,12 @@ class ActionStreamSearch:
                         # this extracts the important bits from it (i.e. description of the state)
                         new_world_state, object_stream_map, missing = extract_from_partial_plan(state, new_world_state, partial_plan)
                         op_state = SearchState(new_world_state, object_stream_map, missing)
+
+                        if op_state.unsatisfiable:
+                            continue
+
+                        op_state.action = op
+                        op_state.parent = state
                         state.children.append((op, op_state))
                         yield (op, op_state)
                     except Unsatisfiable:
@@ -746,7 +752,7 @@ def sample_depth_first(stream_plan, max_steps=10000):
 
 
 
-def sample_depth_first_with_costs(stream_ordering, max_steps=500, verbose=False):
+def sample_depth_first_with_costs(stream_ordering, max_steps=100, verbose=False):
     """Demo sampling a stream plan using a backtracking depth first approach.
     Returns a mapping if one exists, or None if infeasible or timeout. """
     queue = PriorityQueue([Binding(0, [a for a, e in stream_ordering], {})])
@@ -777,7 +783,6 @@ def sample_depth_first_with_costs(stream_ordering, max_steps=500, verbose=False)
 
         if len(result[0]) == 0:
             print(f"Invalid result for {stream_action}: {result}")
-            queue.push(binding, (stream_instance.num_calls, len(stream_ordering) - binding.index))
             continue
 
         edge[2].num_successes += 1
@@ -822,6 +827,14 @@ class PriorityQueue:
     def peep(self):
         return self.heap[0][-1]
     
+    def remove(self, item):
+        for index, (p, c, i) in enumerate(self.heap):
+            if i == item:
+                del self.heap[index]
+                heapq.heapify(self.heap)
+                return True
+        return False
+
     def __len__(self):
         return len(self.heap)
 
@@ -863,9 +876,7 @@ def try_a_star(search, cost, heuristic, max_step=50000):
             break
         
         for op, child in search.successors(state):
-            child.action = op
-            child.parent = state
-            if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
+            if any(search.test_equal(child, node) for node in closed):
                 continue
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
@@ -914,40 +925,51 @@ def repeated_a_star(search, max_steps=1000):
         print("Could not find object_mapping, retrying with updated costs")
 
 
+
+
 def try_lpa_star(search, cost, heuristic, max_step=100000):
-    # TODO: (1) allow for multiple parents to search state; (2) implement remove() on ProrityQueue
-    q = PriorityQueue([search.init])
-    closed = []
+    start_time = datetime.now()
+    q = PriorityQueue()
+    search.init.rhs = 0
+    q.push(search.init, (heuristic(search.init), 0))
+    seen = [search.init]
     expand_count = 0
     evaluate_count = 0
     
-    while q and expand_count < max_step:
+    def compute_key(node):
+        return (min(node.start_distance, node.rhs) + heuristic(node), min(node.start_distance, node.rhs))
+
+    def update_node(node, search):
+        if node != search.init:
+            node.rhs = min([pred.start_distance + cost(pred, node) for pred in node.parents])
+        if node in q:
+            q.remove(node)
+        if node.start_distance != node.rhs:
+            q.push(node, compute_key(node))
+
+    while q.top_key() < compute_key(search.init) or search.goal.rhs != search.goal.start_distance:
+
         state = q.pop()
         expand_count += 1
 
-        if search.test_goal(state):
-            av_branching_f = evaluate_count / expand_count
-            approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
-            print(f'Explored {expand_count}. Evaluated {evaluate_count}')
-            print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-            return state
-        
         if state.start_distance > state.rhs:
             state.start_distance = state.rhs
+            for child in search.successors(state):
+                evaluate_count += 1
+                update_node(child, search)
 
+        else:
+            state.start_distance = np.inf
+            for child in search.successors(state):
+                evaluate_count += 1
+                update_node(child)
+            update_node(state)
 
-        state.children = []
-        for op, child in search.successors(state):
-            child.action = op
-            child.parent = state
-            state.children.append((op, child))
-            if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
-                continue 
-            evaluate_count += 1
-            child.start_distance = state.start_distance + cost(state, op, child)
-            q.push(child, child.start_distance + heuristic(child))
-
-        closed.append(state)
+    av_branching_f = evaluate_count / expand_count
+    approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
+    print(f'Explored {expand_count}. Evaluated {evaluate_count}')
+    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
 
 
 if __name__ == '__main__':
