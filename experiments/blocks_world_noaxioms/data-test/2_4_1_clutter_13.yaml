@@ -1,0 +1,123 @@
+arms:
+  panda:
+    X_WB:
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    - 0
+    hand_name: hand
+    panda_name: panda
+directive: directives/one_arm_blocks_world.yaml
+goal:
+- and
+- - on-table
+  - block1
+  - - green_table
+    - base_link
+- - on-table
+  - block0
+  - - red_table
+    - base_link
+main_links:
+  blue_table: base_link
+  green_table: base_link
+  purple_table: base_link
+  red_table: base_link
+objects:
+  block0:
+    X_WO:
+    - 0.34152084696383533
+    - 0.5257371921501248
+    - 0.325
+    - 0.0
+    - 0.0
+    - 2.453328666784078
+    main_link: base_link
+    on-table:
+    - green_table
+    - base_link
+    path: models/blocks_world/sdf/block0.sdf
+  block1:
+    X_WO:
+    - -0.645264528589076
+    - -0.2563293713408218
+    - 0.325
+    - 0.0
+    - 0.0
+    - 3.43916305475523
+    main_link: base_link
+    on-table:
+    - blue_table
+    - base_link
+    path: models/blocks_world/sdf/block1.sdf
+  blocker0:
+    X_WO:
+    - -0.4977856862537058
+    - -0.21142248557541377
+    - 0.325
+    - 0.0
+    - 0.0
+    - 1.339300414680865
+    main_link: base_link
+    on-table:
+    - blue_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker1:
+    X_WO:
+    - -0.11787544878447515
+    - 0.48981655213130926
+    - 0.325
+    - 0.0
+    - 0.0
+    - 1.6436633088229806
+    main_link: base_link
+    on-table:
+    - green_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker2:
+    X_WO:
+    - 0.3424899771537204
+    - 0.5939738730952439
+    - 0.325
+    - 0.0
+    - 0.0
+    - 1.929363576299747
+    main_link: base_link
+    on-table:
+    - green_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+  blocker3:
+    X_WO:
+    - 0.4464167462893026
+    - 0.07588508215687184
+    - 0.325
+    - 0.0
+    - 0.0
+    - 4.071046062321119
+    main_link: base_link
+    on-table:
+    - red_table
+    - base_link
+    path: models/blocks_world/sdf/blocker_block.sdf
+planning_directive: directives/one_arm_blocks_world.yaml
+run_attr:
+  buffer_radius: 0
+  max_goal_stack: 1
+  max_start_stack: 1
+  num_blockers: 4
+  num_blocks: 2
+  type: clutter
+surfaces:
+  blue_table:
+  - base_link
+  green_table:
+  - base_link
+  purple_table:
+  - base_link
+  red_table:
+  - base_link

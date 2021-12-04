@@ -258,22 +258,13 @@ class SearchState:
         stack = [obj]
         edges = set()
         anon = {}
-        # computed_objects = set()
         while stack:
             obj = stack.pop(0)
-            # if obj in computed_objects:
-            #     continue
-            stream_action = self.full_stream_map[obj]
-            
-            # computed_objects.add(obj)
+            stream_action = self.full_stream_map[obj]   
             if stream_action is None:
-                # edges.insert(0, (obj, None))
                 edges.add((None, None, None, obj))
                 continue
-            # else:
-                # if obj not in anon:
-                #     anon[obj] = f'?{next(counter)}'
-                # edges.insert(0, (obj, stream_action.stream.name, stream_action.outputs.index(obj)))
+
             input_objs = stream_action.inputs  + tuple(sorted(list(objects_from_state(stream_action.fluent_facts))))
             # TODO add fluent objects also to this tuple
             for parent_obj in input_objs:
@@ -283,7 +274,6 @@ class SearchState:
                 if parent_obj not in anon and self.full_stream_map[parent_obj] is not None:
                     anon[parent_obj] = f'?{next(counter)}'
                 edges.add((anon.get(parent_obj, parent_obj), stream_action.stream.name, stream_action.outputs.index(obj), anon[obj]))
-                # edges.append((obj, parent_obj, stream_action.stream.name, stream_action.outputs.index(obj), ))
             
         return frozenset(edges)
 
@@ -558,7 +548,7 @@ class StreamAction:
         return self.id
     
     def __repr__(self):
-        return f'{self.stream.name}({self.inputs})->({self.outputs})'
+        return f'{self.stream.name}({self.inputs})->({self.outputs}), fluents={self.fluent_facts}'
 
 @dataclass
 class Resolver:
@@ -755,6 +745,22 @@ def extract_stream_plan(state):
         state = state.parent
     return stream_plan
 
+def get_stream_action_edges(stream_actions):
+    input_obj_to_streams = {}
+    for action in stream_actions:
+        for obj in action.inputs:
+            input_obj_to_streams.setdefault(obj, set()).add(action)
+    
+    edges = []
+    for action in stream_actions:
+        children = set()
+        for obj in action.outputs:
+            children = children | input_obj_to_streams[obj]
+        for child in children:
+            edges.append((action, child))
+
+    return edges
+
 def extract_stream_ordering(stream_plan):
     """Given a stream_plan, return a list of stream actions in order that they should be
     computed. The order is determined by the order in which the objects are needed for the
@@ -930,7 +936,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
         if search.test_goal(state):
             av_branching_f = evaluate_count / expand_count
-            approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
+            approx_depth = math.log(evaluate_count) / (1e-6 + math.log(av_branching_f))
             print(f'Explored {expand_count}. Evaluated {evaluate_count}')
             print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
             print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
@@ -944,7 +950,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
                 continue
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
-            q.push(child, child.start_distance + heuristic(child))
+            q.push(child, child.start_distance + heuristic(child, search.goal))
 
         closed.append(state)
 
@@ -972,7 +978,14 @@ def repeated_a_star(search, max_steps=1000):
                     print(stream_action, comp_cost)
                 included.add(stream_action)
         return max(1, c)
-    heuristic = lambda state: 0
+    def heuristic(state, goal):
+        if state.action is not None and 'move' in state.action.name:
+            state = state.parent
+            if state.action is not None and 'move' in state.action.name:
+                return np.inf
+        return len(goal - state.state)*4
+        return 0
+
     stats = {}
     for _ in range(max_steps):
         goal_state = try_a_star(search, cost, heuristic)
@@ -980,6 +993,13 @@ def repeated_a_star(search, max_steps=1000):
             print("Could not find feasable action plan!")
             return None
         path = goal_state.get_path()
+        c = 0
+        for idx, i in enumerate(path):
+            print(idx, i[1])
+            a = cost(*i, verbose=True)
+            print('action cost:', a)
+            print('cum cost:', a+c)
+            c += a
 
         action_skeleton = goal_state.get_actions()
         actions_str = "\n".join([str(a) for a in action_skeleton])
@@ -991,6 +1011,7 @@ def repeated_a_star(search, max_steps=1000):
         if object_mapping is not None:
             return goal_state.get_actions(), object_mapping, goal_state
         print("Could not find object_mapping, retrying with updated costs")
+        print(len(stats))
 
 
 def try_lpa_star(search, cost, heuristic, max_step=100000):
@@ -1039,8 +1060,9 @@ if __name__ == '__main__':
 
     # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
-    # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/random/train/3_4_2_79.yaml'
     problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_55.yaml'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
@@ -1084,10 +1106,26 @@ if __name__ == '__main__':
     # actions_str = "\n".join([str(a) for a in action_skeleton])
     # print(f"Action Skeleton:\n{actions_str}")
     # print(f"\nObject mapping: {object_mapping}\n") 
+    profile = None
+    if profile:
+        import cProfile, pstats, io
+        pr = cProfile.Profile()
+        pr.enable()
+    start_time = time.time()
+    try:
+        result = repeated_a_star(search)
+        if result is not None:
+            action_skeleton, object_mapping, _ = result
+            actions_str = "\n".join([str(a) for a in action_skeleton])
+            print(f"Action Skeleton:\n{actions_str}")
+            print(f"\nObject mapping: {object_mapping}\n") 
+    except KeyboardInterrupt:
+        print('KeyboardInterrupt while searching.')
+    print(f'Total time: {time.time() - start_time}')
+    if profile:
+            pr.disable()
+            s = io.StringIO()
+            ps = pstats.Stats(pr, stream=s)
+            ps.print_stats()
+            ps.dump_stats(profile)   
 
-    result = repeated_a_star(search)
-    if result is not None:
-        action_skeleton, object_mapping, _ = result
-        actions_str = "\n".join([str(a) for a in action_skeleton])
-        print(f"Action Skeleton:\n{actions_str}")
-        print(f"\nObject mapping: {object_mapping}\n") 
