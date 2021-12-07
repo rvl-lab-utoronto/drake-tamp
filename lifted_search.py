@@ -1023,39 +1023,50 @@ def repeated_a_star(search, max_steps=1000):
 
 
 def try_lpa_star(search, cost, heuristic, max_step=100000):
-    # TODO: (1) allow for multiple parents to search state; (2) implement remove() on ProrityQueue
-    q = PriorityQueue([search.init])
-    closed = []
+    start_time = datetime.now()
+    q = PriorityQueue()
+    search.init.rhs = 0
+    q.push(search.init, (heuristic(search.init), 0))
+    seen = [search.init]
     expand_count = 0
     evaluate_count = 0
     
-    while q and expand_count < max_step:
+    def compute_key(node):
+        return (min(node.start_distance, node.rhs) + heuristic(node), min(node.start_distance, node.rhs))
+
+    def update_node(node, search):
+        if node != search.init:
+            node.rhs = min([pred.start_distance + cost(pred, node) for pred in node.parents])
+        if node in q:
+            q.remove(node)
+        if node.start_distance != node.rhs:
+            q.push(node, compute_key(node))
+
+    while q.top_key() < compute_key(search.init) or search.goal.rhs != search.goal.start_distance:
+
         state = q.pop()
         expand_count += 1
 
-        if search.test_goal(state):
-            av_branching_f = evaluate_count / expand_count
-            approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
-            print(f'Explored {expand_count}. Evaluated {evaluate_count}')
-            print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-            return state
-        
         if state.start_distance > state.rhs:
             state.start_distance = state.rhs
+            for child in search.successors(state):
+                evaluate_count += 1
+                update_node(child, search)
+
+        else:
+            state.start_distance = np.inf
+            for child in search.successors(state):
+                evaluate_count += 1
+                update_node(child)
+            update_node(state)
+
+    av_branching_f = evaluate_count / expand_count
+    approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
+    print(f'Explored {expand_count}. Evaluated {evaluate_count}')
+    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
 
 
-        state.children = []
-        for op, child in search.successors(state):
-            child.action = op
-            child.parent = state
-            state.children.append((op, child))
-            if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
-                continue 
-            evaluate_count += 1
-            child.start_distance = state.start_distance + cost(state, op, child)
-            q.push(child, child.start_distance + heuristic(child))
-
-        closed.append(state)
 
 
 if __name__ == '__main__':
