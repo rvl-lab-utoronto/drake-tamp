@@ -924,7 +924,7 @@ class PriorityQueue:
         return len(self.heap)
 
 def try_a_star(search, cost, heuristic, max_step=10000):
-    start_time = datetime.now()
+    start_time = time.time()
     q = PriorityQueue([search.init])
     closed = []
     expand_count = 0
@@ -935,18 +935,18 @@ def try_a_star(search, cost, heuristic, max_step=10000):
         expand_count += 1
 
         if search.test_goal(state):
-            av_branching_f = evaluate_count / expand_count
-            approx_depth = math.log(evaluate_count) / (1e-6 + math.log(av_branching_f))
+            av_branching_f = (evaluate_count + 1) / expand_count
+            approx_depth = math.log(evaluate_count + 1) / (1e-4 + math.log(av_branching_f))
             print(f'Explored {expand_count}. Evaluated {evaluate_count}')
             print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-            print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
+            print(f"Time taken: {(time.time() - start_time):.4f} seconds")
             print(f"Solution cost: {state.start_distance}")
             return state
         
         for op, child in search.successors(state):
             child.action = op
             child.parent = state
-            if child.unsatisfiable or any(search.test_equal(child, node) for node in closed):
+            if child.unsatisfiable: #or any(search.test_equal(child, node) for node in closed):
                 continue
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
@@ -954,7 +954,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
         closed.append(state)
 
-def repeated_a_star(search, max_steps=1000):
+def repeated_a_star(search, max_steps=1000, stats={}):
 
     # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     def cost(state, op, child, verbose=False):
@@ -985,13 +985,12 @@ def repeated_a_star(search, max_steps=1000):
                 return np.inf
         return len(goal - state.state)*4
         return 0
-
-    stats = {}
+    object_mapping = {}
     for _ in range(max_steps):
         goal_state = try_a_star(search, cost, heuristic)
         if goal_state is None:
             print("Could not find feasable action plan!")
-            return None
+            break
         path = goal_state.get_path()
         c = 0
         for idx, i in enumerate(path):
@@ -1007,12 +1006,14 @@ def repeated_a_star(search, max_steps=1000):
         
         stream_plan = extract_stream_plan_from_path(path)
         stream_ordering = extract_stream_ordering(stream_plan)
+        if not stream_ordering:
+            break
         object_mapping = sample_depth_first_with_costs(stream_ordering, goal_state, stats)
         if object_mapping is not None:
-            return goal_state.get_actions(), object_mapping, goal_state
+            break
         print("Could not find object_mapping, retrying with updated costs")
-        print(len(stats))
-
+    if goal_state is not None:
+        return goal_state.get_actions(), object_mapping, goal_state
 
 def try_lpa_star(search, cost, heuristic, max_step=100000):
     # TODO: (1) allow for multiple parents to search state; (2) implement remove() on ProrityQueue
@@ -1066,6 +1067,9 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
+    parser.add_argument('-s', '--save-cgstats-path', help='Path to save a json of CG stats.', default=None, type=str)
+    parser.add_argument('-p', '--profile', help='Path to save a profile.', default=None, type=str)
+
     args = parser.parse_args()
     problem_file = args.task
 
@@ -1106,26 +1110,30 @@ if __name__ == '__main__':
     # actions_str = "\n".join([str(a) for a in action_skeleton])
     # print(f"Action Skeleton:\n{actions_str}")
     # print(f"\nObject mapping: {object_mapping}\n") 
-    profile = None
-    if profile:
+
+    if args.profile:
         import cProfile, pstats, io
         pr = cProfile.Profile()
         pr.enable()
     start_time = time.time()
     try:
-        result = repeated_a_star(search)
+        stats = {}
+        result = repeated_a_star(search, stats=stats)
         if result is not None:
             action_skeleton, object_mapping, _ = result
             actions_str = "\n".join([str(a) for a in action_skeleton])
             print(f"Action Skeleton:\n{actions_str}")
             print(f"\nObject mapping: {object_mapping}\n") 
+        if args.save_cgstats_path:
+            with open(args.save_cgstats_path, 'w') as f:
+                json.dump(list((tuple(cg), v) for (cg,v) in stats.items()), f)
     except KeyboardInterrupt:
         print('KeyboardInterrupt while searching.')
-    print(f'Total time: {time.time() - start_time}')
-    if profile:
+    print(f'Total time: {(time.time() - start_time):.4f}')
+    if args.profile:
             pr.disable()
             s = io.StringIO()
             ps = pstats.Stats(pr, stream=s)
             ps.print_stats()
-            ps.dump_stats(profile)   
+            ps.dump_stats(args.profile)   
 
