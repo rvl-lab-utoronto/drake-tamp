@@ -243,7 +243,7 @@ class SearchState:
     def __eq__(self, other):
         # compare based on fluent predicates and computation graph in corresponding objects
         return False
-
+    
     def __repr__(self):
         return str((self.state, self.object_stream_map, self.unsatisfied))
 
@@ -303,6 +303,16 @@ class SearchState:
             node = node.parent
         return actions
 
+
+def check_cg_equivalence(cg1, cg2):
+    if cg1 == cg2:
+        return True
+    if len(cg1) == 1 and len(cg2) == 1 and list(cg1)[0][:-1] == list(cg2)[0][:-1]:
+        return True
+
+    return False
+    
+
 class ActionStreamSearch:
     def __init__(self, init, goal, externals, actions):
         self.init_objects = {o for o in objects_from_state(init)}
@@ -321,7 +331,6 @@ class ActionStreamSearch:
                 self.fluent_predicates.add(effect.literal.predicate)
 
     def test_equal(self, s1, s2):
-        return False
         f1 = sorted(f for f in s1.state if f.predicate in self.fluent_predicates)
         f2 = sorted(f for f in s2.state if f.predicate in self.fluent_predicates)
 
@@ -333,11 +342,16 @@ class ActionStreamSearch:
             if a == b:
                 continue
             for o1, o2 in zip(a.args, b.args):
-                if o1 != o2 and not (o1.startswith('?') and o2.startswith('?')):
+                if o1 != o2:
+                    if o1.startswith('?') and o2.startswith('?'):
+                        cg1 = s1.get_object_computation_graph_key(o1)
+                        cg2 = s2.get_object_computation_graph_key(o2)
+                        if check_cg_equivalence(cg1, cg2):
+                            continue
                     return False
                 if sub.setdefault(o1, o2) != o2:
                     return False
-        # TODO: are the stream created objects the same down to a substitution of their computation graph
+
         return True
     
     def test_goal(self, state):
@@ -923,20 +937,16 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     closed = []
     expand_count = 0
     evaluate_count = 0
+    found = False
     
     while q and expand_count < max_step:
         state = q.pop()
         expand_count += 1
 
         if search.test_goal(state):
-            av_branching_f = evaluate_count / expand_count
-            approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
-            print(f'Explored {expand_count}. Evaluated {evaluate_count}')
-            print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-            print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
-            print(f"Solution cost: {state.start_distance}")
-            return state
-        
+            found = True
+            break
+
         for op, child in search.successors(state):
             child.action = op
             child.parent = state
@@ -947,6 +957,18 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             q.push(child, child.start_distance + heuristic(child))
 
         closed.append(state)
+
+    av_branching_f = evaluate_count / expand_count
+    approx_depth = math.log(evaluate_count) / math.log(av_branching_f)
+    print(f'Explored {expand_count}. Evaluated {evaluate_count}')
+    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
+    print(f"Solution cost: {state.start_distance}")
+
+    if found:
+        return state
+    else:
+        return None
 
 def repeated_a_star(search, max_steps=1000):
 
@@ -972,7 +994,14 @@ def repeated_a_star(search, max_steps=1000):
                     print(stream_action, comp_cost)
                 included.add(stream_action)
         return max(1, c)
-    heuristic = lambda state: 0
+
+    def heuristic(state):
+        actions = state.get_actions()
+        if len(actions) >= 2:
+            if actions[-1].name == 'move' and actions[-2].name == 'move':
+                return np.inf
+        return 0
+
     stats = {}
     for _ in range(max_steps):
         goal_state = try_a_star(search, cost, heuristic)
@@ -1040,7 +1069,8 @@ if __name__ == '__main__':
     # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
