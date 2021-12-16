@@ -956,7 +956,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
         for op, child in search.successors(state):
             child.action = op
             child.parent = state
-            if child.unsatisfiable: #or any(search.test_equal(child, node) for node in closed):
+            if child.unsatisfiable or any([search.test_equal(child, node) for node in closed]):
                 continue
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
@@ -968,7 +968,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
     print(f'Explored {expand_count}. Evaluated {evaluate_count}')
     print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-    print(f"Time taken: {(time.time() - start_time).seconds} seconds")
+    print(f"Time taken: {(time.time() - start_time)} seconds")
     print(f"Solution cost: {state.start_distance}")
 
     if found:
@@ -1004,8 +1004,10 @@ def repeated_a_star(search, max_steps=1000, stats={}):
     def heuristic(state):
         actions = state.get_actions()
         if len(actions) >= 2:
-            if actions[-1].name == 'move' and actions[-2].name == 'move':
-                return np.inf
+            if actions[-1] is not None and 'move' in actions[-1].name:
+                if actions[-2] is not None and 'move' in actions[-2].name:
+                    return np.inf
+        return len(goal - state.state)*4
         return 0
 
     stats = {}
@@ -1083,8 +1085,6 @@ def try_lpa_star(search, cost, heuristic, max_step=100000):
     print(f"Time taken: {(datetime.now() - start_time).seconds} seconds")
 
 
-
-
 if __name__ == '__main__':
     from experiments.blocks_world_noaxioms.run import *
     from pddlstream.algorithms.algorithm import parse_problem
@@ -1096,8 +1096,9 @@ if __name__ == '__main__':
     # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_55.yaml'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
