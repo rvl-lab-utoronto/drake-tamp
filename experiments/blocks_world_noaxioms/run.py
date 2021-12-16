@@ -17,7 +17,7 @@ random.seed(int(time.time()))
 import matplotlib
 import yaml
 
-matplotlib.use("Agg")
+# matplotlib.use("Agg")
 from experiments.shared import construct_oracle
 import os
 from re import I
