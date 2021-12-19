@@ -86,11 +86,20 @@ def find_applicable_brute_force(action, state, allow_missing, object_stream_map=
     # such that [action.preconditions - {atom | atom in certified}] <= state
     candidates = {}
     for atom in action.precondition.parts:
-        if atom.predicate in allow_missing:
-            continue
+
         for ground_atom in state:
             if ground_atom.predicate != atom.predicate:
                 continue
+            
+            if ground_atom.predicate in allow_missing:
+                if any([arg[0] == '?' for arg in ground_atom.args]):
+                    continue
+                
+                for stream in allow_missing[ground_atom.predicate]:
+                    for output in stream.outputs:
+                        if not (output in candidates and any([a[0] == '?' for a in candidates[output]])):
+                            candidates.setdefault(output, set()).add(Identifiers.next())
+
             for arg, candidate in zip(atom.args, ground_atom.args):
                 candidates.setdefault(arg, set()).add(candidate)
     if not candidates:
@@ -118,9 +127,6 @@ def find_applicable_brute_force(action, state, allow_missing, object_stream_map=
                 if all(arg in object_stream_map for arg in atom.args):
                     feasible = False
                     break
-
-
-    
 
             if atom.negated and atom.negate() in state:
                 feasible = False
@@ -1097,8 +1103,8 @@ if __name__ == '__main__':
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
-    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_55.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_55.yaml'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
