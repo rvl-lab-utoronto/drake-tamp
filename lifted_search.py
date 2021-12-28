@@ -218,25 +218,28 @@ def objects_from_state(state):
 
 
 @dataclass
-class DictionaryWithFallback:
+class DictionaryWithFallbacks:
     own_keys: dict
-    fallback: Any # another DictionaryWithFallback or None
+    fallbacks: Any # list of DictionaryWithFallback or None
 
     def __getitem__(self, key):
         if key in self.own_keys:
             return self.own_keys[key]
-        elif self.fallback is not None:
-            return self.fallback[key]
+        elif self.fallbacks is not None:
+            for fb in self.fallbacks:
+                ret = fb[key]
+                if ret is not None:
+                    return ret
         return None
 
 class SearchState:
-    def __init__(self, state, object_stream_map, unsatisfied, parent=None):
+    def __init__(self, state, object_stream_map, unsatisfied, parents=[]):
         self.state = state.copy()
         self.object_stream_map = object_stream_map.copy()
         self.unsatisfied = unsatisfied
         self.unsatisfiable = False
         self.children = []
-        self.parent = parent
+        self.parents = parents
         self.action = None
         self.start_distance = 0
         self.rhs = 0
@@ -256,7 +259,10 @@ class SearchState:
     @property
     def full_stream_map(self):
         if self.__full_stream_map is None:
-            self.__full_stream_map = DictionaryWithFallback({k:v for k,v in self.object_stream_map.items() if v is not None}, self.parent.full_stream_map if self.parent is not None else None)
+            self.__full_stream_map = DictionaryWithFallbacks(
+                {k:v for k,v in self.object_stream_map.items() if v is not None}, 
+                [parent.full_stream_map for _, parent in self.parents] if len(self.parents) > 0 else None,
+            )
         return self.__full_stream_map
             
     def get_object_computation_graph_key(self, obj):
@@ -283,21 +289,21 @@ class SearchState:
             
         return frozenset(edges)
 
-    def get_path(self):
+    def get_shortest_path_to_start(self):
         path = []
         node = self
         while node is not None:
-            path.insert(0, (node.parent, node.action, node))
-            node = node.parent
-        return path
-
-    def get_actions(self):
-        actions = []
-        node = self
-        while node is not None:
-            actions.insert(0, node.action)
-            node = node.parent
-        return actions
+            msd = np.inf
+            mp = None
+            a = None
+            for action, parent in node.parents:
+                if parent.start_distance < msd:
+                    msd = parent.start_distance
+                    mp = parent
+                    a = action            
+            path.insert(0, (mp, a, node))
+            node = mp
+        return path[1:]
 
 
 def check_cg_equivalence(cg1, cg2):
@@ -343,6 +349,7 @@ class ActionStreamSearch:
                         cg1 = s1.get_object_computation_graph_key(o1)
                         cg2 = s2.get_object_computation_graph_key(o2)
                         if check_cg_equivalence(cg1, cg2):
+                        # if s1.full_stream_map[o1] == s2.full_stream_map[o2]:
                             continue
                     return False
                 if sub.setdefault(o1, o2) != o2:
@@ -363,7 +370,6 @@ class ActionStreamSearch:
             for child in state.children:
                 yield child
         else:
-            state.children = []
             for action in self.actions:
                 ops = find_applicable_brute_force(action, state.state | state.unsatisfied, self.streams_by_predicate, state.object_stream_map)
                 for op in ops:
@@ -375,7 +381,7 @@ class ActionStreamSearch:
                         partial_plan = certify(state.state, state.object_stream_map, missing, self.streams_by_predicate)
                         # this extracts the important bits from it (i.e. description of the state)
                         new_world_state, object_stream_map, new_missing = extract_from_partial_plan(state, missing, new_world_state, partial_plan)
-                        op_state = SearchState(new_world_state, object_stream_map, new_missing, parent=state)
+                        op_state = SearchState(new_world_state, object_stream_map, new_missing, parents=[(op, state)])
                         state.children.append((op, op_state))
                         yield (op, op_state)
                     except Unsatisfiable:
@@ -960,14 +966,30 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             break
 
         for op, child in search.successors(state):
-            child.action = op
-            child.parent = state
-            if child.unsatisfiable or any([search.test_equal(child, node) for node in closed]):
+            # state.children.append((op, child))
+            if child.unsatisfiable: # or any([search.test_equal(child, node) for node in closed]):
                 continue
+
+            is_unique = True
+            for node in closed:
+                if search.test_equal(child, node):
+                    is_unique = False
+                    node.parents.append((op, state))
+                    # state.children.append((op, node))
+                    # if not any([search.test_equal(node, node2) for node2 in state.children]):
+                    #     state.children.append((op, node))
+                    # if not any([search.test_equals(node, node3) for node3 in node.parents]):
+                    #     node.parents.append((op, state))
+
+            if not is_unique:
+                continue
+
+            child.parents.append((op, state))
+
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
             q.push(child, child.start_distance + heuristic(child))
-
+        
         closed.append(state)
 
     av_branching_f = evaluate_count / expand_count
@@ -1008,7 +1030,7 @@ def repeated_a_star(search, max_steps=1000, stats={}):
         return max(1, c)
 
     def heuristic(state):
-        actions = state.get_actions()
+        actions = [a for _, a, _ in state.get_shortest_path_to_start()]
         if len(actions) >= 2:
             if actions[-1] is not None and 'move' in actions[-1].name:
                 if actions[-2] is not None and 'move' in actions[-2].name:
@@ -1022,7 +1044,9 @@ def repeated_a_star(search, max_steps=1000, stats={}):
         if goal_state is None:
             print("Could not find feasable action plan!")
             break
-        path = goal_state.get_path()
+
+        print("Getting path ...")
+        path = goal_state.get_shortest_path_to_start()
         c = 0
         for idx, i in enumerate(path):
             print(idx, i[1])
@@ -1031,7 +1055,8 @@ def repeated_a_star(search, max_steps=1000, stats={}):
             print('cum cost:', a+c)
             c += a
 
-        action_skeleton = goal_state.get_actions()
+
+        action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
         actions_str = "\n".join([str(a) for a in action_skeleton])
         print(f"Action Skeleton:\n{actions_str}")
         
@@ -1043,8 +1068,10 @@ def repeated_a_star(search, max_steps=1000, stats={}):
         if object_mapping is not None:
             break
         print("Could not find object_mapping, retrying with updated costs")
+
     if goal_state is not None:
-        return goal_state.get_actions(), object_mapping, goal_state
+        action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
+        return action_skeleton, object_mapping, goal_state
 
 def try_lpa_star(search, cost, heuristic, max_step=100000):
     start_time = datetime.now()
@@ -1060,7 +1087,7 @@ def try_lpa_star(search, cost, heuristic, max_step=100000):
 
     def update_node(node, search):
         if node != search.init:
-            node.rhs = min([pred.start_distance + cost(pred, node) for pred in node.parents])
+            node.rhs = min([pred.start_distance + cost(pred, node) for _, pred in node.parents])
         if node in q:
             q.remove(node)
         if node.start_distance != node.rhs:
@@ -1102,9 +1129,9 @@ if __name__ == '__main__':
     # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
-    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_55.yaml'
+    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_55.yaml'
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--task', help='Task description file', default=problem_file, type=str)
@@ -1161,7 +1188,7 @@ if __name__ == '__main__':
         stats = {}
         result = repeated_a_star(search, stats=stats)
         if result is not None:
-            action_skeleton, object_mapping, _ = result
+            action_skeleton, object_mapping, goal_state = result
             actions_str = "\n".join([str(a) for a in action_skeleton])
             print(f"Action Skeleton:\n{actions_str}")
             print(f"\nObject mapping: {object_mapping}\n") 
