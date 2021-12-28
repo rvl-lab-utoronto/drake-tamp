@@ -12,6 +12,6 @@ for FILE in $PROBLEMS; do
   RUN=$(basename $FILE)
   LOGDIR=$(realpath ./$RUN)_logs/
   mkdir -p $LOGDIR && cd $LOGDIR
-  timeout --signal 2 --foreground 130s python -O $DIR/lifted_search.py -t $FILE | tee $EXPDIR/$RUN.log
+  timeout --signal 2 --foreground 130s python -O $DIR/lifted_search.py -t $FILE | tee $RUN.log
   cd ..
 done
