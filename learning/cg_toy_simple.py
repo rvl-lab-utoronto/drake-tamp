@@ -403,8 +403,8 @@ if __name__ == '__main__':
     # lossf = torch.nn.GaussianNLLLoss(reduction='mean')
     # def criterion(p,y):
     #     return lossf(p, y, p*(1.-p)/30.)
-    criterion = torch.nn.MSELoss(reduction='mean')
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    criterion = torch.nn.MSELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     for i in range(200):
         train(model, optimizer, criterion, X_train, Y_train, batch_size=1000, epochs=2)
         train_loss, train_acc = eval(model, X_train, Y_train)
@@ -414,7 +414,7 @@ if __name__ == '__main__':
 # %%
 
     model = MLP([16, 16, 16, 2], 2)
-    criterion = torch.nn.BCELoss()
+    criterion = torch.nn.L1Loss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     for i in range(50):
         train(model, optimizer, criterion, X_train, Y_train, batch_size=100, epochs=1)
