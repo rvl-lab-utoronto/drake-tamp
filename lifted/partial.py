@@ -1,0 +1,272 @@
+from dataclasses import dataclass, field
+import itertools
+
+from pddl.conditions import Atom
+from pddlstream.language.stream import Stream
+
+from utils import Identifiers, Unsatisfiable
+
+
+def get_assignment(group, stream):
+    assignment = {}
+    for certified in stream.certified:
+        for fact in group:
+            if certified[0] == fact.predicate:
+                partial = {var: val for (var, val) in zip(certified[1:], fact.args)}
+                if any(
+                    assignment.get(var, partial[var]) != partial[var] for var in partial
+                ):
+                    return None
+                assignment.update(partial)
+    return assignment
+
+
+def instantiate_stream_from_assignment(stream, assignment, new_vars=False):
+    assignment = assignment.copy()
+    if new_vars:
+        for param in stream.inputs + stream.outputs:
+            assignment.setdefault(param, Identifiers.next())
+
+    inputs = tuple(assignment.get(arg) for arg in stream.inputs)
+    outputs = tuple(assignment.get(arg) for arg in stream.outputs)
+    domain = {
+        Atom(dom[0], [assignment.get(arg) for arg in dom[1:]]) for dom in stream.domain
+    }
+    certified = {
+        Atom(cert[0], [assignment.get(arg) for arg in cert[1:]])
+        for cert in stream.certified
+    }
+
+    return (inputs, outputs, domain, certified)
+
+
+# I want to think about partial order planning
+@dataclass
+class PartialPlan:
+    agenda: set
+    actions: set
+    bindings: dict
+    order: list
+    links: list
+
+    def copy(self):
+        return PartialPlan(
+            self.agenda.copy(),
+            self.actions.copy(),
+            self.bindings.copy(),
+            self.order.copy(),
+            self.links.copy(),
+        )
+
+
+id_provider = itertools.count()
+
+
+@dataclass
+class StreamAction:
+    stream: Stream = None
+    inputs: tuple = field(default_factory=tuple)
+    outputs: tuple = field(default_factory=tuple)
+    fluent_facts: tuple = field(default_factory=tuple)
+    id: int = field(default_factory=lambda: next(id_provider))
+    pre: set = field(default_factory=set)
+    eff: set = field(default_factory=set)
+
+    def __hash__(self):
+        return self.id
+
+    def __repr__(self):
+        return f"{self.stream.name}({self.inputs})->({self.outputs}), fluents={self.fluent_facts}"
+
+
+@dataclass
+class Resolver:
+    action: StreamAction = None
+    links: list = field(default_factory=[])
+    binding: dict = None
+
+
+def get_resolvers(partial_plan, agenda_item, streams_by_predicate):
+    (incomplete_action, missing_precond) = agenda_item
+    for action in partial_plan.actions:
+        if missing_precond in action.eff:
+            assert (
+                False
+            ), "Didnt expect to get here, considering im doing the same work below"
+            yield Resolver(links=[(action, missing_precond, incomplete_action)])
+            continue
+
+        # # check bindings
+        # for eff in action.eff:
+        #     # if equal barring substitution:
+        #     sub = equal_barring_substitution(missing_precond, eff, partial_plan.bindings)
+        #     if sub:
+        #         if missing_precond.predicate in streams_by_predicate:
+        #             # print(missing_precond, eff, action.stream)
+        #             continue
+        #         else:
+        #             print(missing_precond, eff, action.stream)
+
+        #         yield Resolver(binding=sub, link=(action, missing_precond, incomplete_action))
+
+    for stream in streams_by_predicate.get(missing_precond.predicate, []):
+        assignment = get_assignment((missing_precond,), stream)
+
+        (inputs, outputs, pre, eff) = instantiate_stream_from_assignment(
+            stream, assignment, new_vars=True
+        )
+
+        binding = {o: o for o in outputs}
+
+        # handle fluents
+        if stream.is_fluent:
+            fluent_facts = compute_fluent_facts(partial_plan, stream)
+        else:
+            fluent_facts = tuple()
+        if stream.is_test:
+            outputs = (Identifiers.next(),)  # just to include it in object stream map.
+        action = StreamAction(stream, inputs, outputs, fluent_facts, pre=pre, eff=eff)
+        # TODO: continue if any of the atoms in eff are already produced by an action in the plan
+        # In fact, it may be easier... that we continue if any of outputs are in any achieved facts?
+        if any(o in partial_plan.bindings for o in outputs):
+            continue
+        if any(assignment.get(p) is None for p in stream.inputs):
+            action.new_input_variables = True
+            links = [(action, missing_precond, incomplete_action)]
+        else:
+            action.new_input_variables = False
+
+            # could figure out all the links from this action to existing agenda items.
+            # assumption: no other future action could certify the facts that this action certifies.
+
+            # is it possible that:
+            #  this action resolves a1 and a2
+            #  a1 has many resolvers, so we dont do anything
+            #  a2 has only one resolver, so we apply it, and resolve a1 along the way
+            #  but now, because we resolved a1, we have made an irrevocable choice even though there might have been another way
+
+            # I dont think this is a problem because the fact that one action will resolve a1 and a2 means that any other choice
+            # for resolving a1 would have failed to resolve a2. Because there's only one resolver of a2. So had we resolved a1 by
+            # some other means, then the only resolver of a2 would have to reproduce a1, but that's not allowed.
+            links = []
+            for (incomplete_action, missing_precond) in partial_plan.agenda:
+                if missing_precond in eff:
+                    links.append((action, missing_precond, incomplete_action))
+
+            # could figure out all the links from existing actions to the preconditions of this action.
+            # assumption: no facts are every provided by more than one existing action.
+            for missing_precond in pre:
+                for existing_action in partial_plan.actions:
+                    if missing_precond in existing_action.eff:
+                        links.append((existing_action, missing_precond, action))
+
+            for missing_precond in fluent_facts:
+                for existing_action in partial_plan.actions:
+                    if missing_precond in existing_action.eff:
+                        assert existing_action.id == -1  # has to be part of the state!
+                        links.append((existing_action, missing_precond, action))
+
+        yield Resolver(action, links=links, binding=binding)
+
+
+def compute_fluent_facts(partial_plan, external):
+    state = [action.eff for action in partial_plan.actions if action.id == -1][0]
+    fluent = set()
+    for f in state:
+        if f.predicate in external.fluents:
+            fluent.add(f)
+    return tuple(fluent)
+
+
+def successor(plan, resolver):
+    plan = plan.copy()
+    if resolver.action:
+        plan.actions.add(resolver.action)
+        plan.agenda |= {(resolver.action, f) for f in resolver.action.pre}
+    if resolver.links:
+        for link in resolver.links:
+            plan.links.append(link)
+            plan.agenda = plan.agenda - {(link[2], link[1])}
+
+    if resolver.binding:
+        plan.bindings.update(resolver.binding)
+
+    return plan
+
+
+def certify(state, object_stream_map, missing, streams_by_predicate):
+
+    init_action = StreamAction(id=-1, eff=state)
+    goal_action = StreamAction(id=-2, pre=missing)
+    p0 = PartialPlan(
+        agenda={(goal_action, sub) for sub in missing},
+        actions={init_action, goal_action},
+        bindings={o: o for o in object_stream_map},
+        order=[],
+        links=[],
+    )
+
+    while p0.agenda:
+        for agenda_item in p0.agenda:
+            resolvers = list(get_resolvers(p0, agenda_item, streams_by_predicate))
+            if not resolvers:
+                raise Unsatisfiable("Deadend")
+            if len(resolvers) > 1:
+                # assumes that there is at least one fact that will uniquely identify the stream, doesnt it?
+                # e.g if stream A certifies (p ?x ?y) and (q ?y ?z)
+                # but stream B certifies (p ?x ?y) and (r ?y ?z)
+                # and stream C certifies (q ?x ?y) and (r ?y ?z)
+                # if we have two agenda items { (p ?x1 ?y1) and (q ?y1 ?z1)} each of the agenda items
+                # will have 2 resolvers, so we wont identify stream A as being the right move
+                continue
+            [resolver] = resolvers
+            if resolver.action and resolver.action.new_input_variables:
+                continue
+            p0 = successor(p0, resolver)
+            break
+        else:
+            break
+    return p0
+
+
+def extract_from_partial_plan(
+    old_world_state, old_missing, new_world_state, partial_plan
+):
+    """Extract the successor state from the old world state and the partial plan.
+    That involves updating the object stream map, the set of facts that are yet to be certified,
+    and the new logical state based on the stream actions in the partial plan.
+
+    Edit: As of today (Dec 1) objects are not added to the object stream map until their CG is
+    fully determined.
+    """
+    new_objects = set()
+    for act in partial_plan.actions:
+        if act.stream is not None:
+            for out in act.outputs:
+                new_objects.add(out)
+
+    object_stream_map = {o: None for o in old_world_state.object_stream_map}
+    missing = old_missing.copy()
+    for act in partial_plan.actions:
+        if act.stream is None:
+            continue
+        # object's CG is determined if all inputs are produced now, or previously
+        if any(
+            parent_obj not in new_objects
+            and parent_obj not in old_world_state.object_stream_map
+            for parent_obj in act.inputs
+        ):
+            continue
+        if not act.stream.is_fluent:
+            new_world_state |= act.eff
+
+        for out in act.outputs:
+            object_stream_map[out] = act
+        for e in act.eff:
+            if e in missing:
+                missing.remove(e)
+            else:
+                # print('Not missing!', e)
+                pass
+
+    return new_world_state, object_stream_map, missing

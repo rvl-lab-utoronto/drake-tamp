@@ -56,7 +56,7 @@ from experiments.blocks_world import blocks_world_streams
 from experiments.blocks_world.data_generation import make_problem
 from pddlstream.language.stream import StreamInfo
 
-VERBOSE = True
+VERBOSE = False
 
 np.set_printoptions(precision=4, suppress=True)
 ARRAY = tuple
