@@ -4,12 +4,12 @@ from functools import partial
 from typing import Any
 from pddlstream.language.conversion import fact_from_evaluation, objects_from_evaluations
 import sys
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import math
 import itertools
 
 from dataclasses import dataclass, field
-from pddlstream.language.stream import Stream
+from pddlstream.language.stream import Stream, StreamResult
 from pddlstream.language.object import Object
 
 sys.path.insert(0, '/home/mohammed/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/')
@@ -22,7 +22,7 @@ import pddl.conditions as conditions
 
 from pddl.pddl_types import TypedObject
 import pddl.conditions as conditions
-
+import time
 class Identifiers:
     idx = 0
     @classmethod
@@ -92,13 +92,15 @@ def find_applicable_brute_force(action, state, allow_missing, object_stream_map=
             if ground_atom.predicate != atom.predicate:
                 continue
             for arg, candidate in zip(atom.args, ground_atom.args):
+                if arg not in {x.name for x in action.parameters}:
+                    continue
                 candidates.setdefault(arg, set()).add(candidate)
-    if not candidates:
-        assert False, "why am i here"
-        yield bind_action(action, {})
-        return
+    # if not candidates:
+    #     assert False, "why am i here"
+    #     yield bind_action(action, {})
+    #     return
     # find all the possible versions
-    for assignment in combinations(candidates):
+    for assignment in combinations(candidates) if candidates else [{}]:
         feasible = True
         for par in action.parameters:
             if par.name not in assignment:
@@ -253,29 +255,56 @@ class SearchState:
             self.__full_stream_map = DictionaryWithFallback({k:v for k,v in self.object_stream_map.items() if v is not None}, self.parent.full_stream_map if self.parent is not None else None)
         return self.__full_stream_map
             
-    def get_object_computation_graph_key(self, obj):
-        counter = itertools.count()
-        stack = [obj]
-        edges = set()
-        anon = {}
-        while stack:
-            obj = stack.pop(0)
-            stream_action = self.full_stream_map[obj]   
-            if stream_action is None:
-                edges.add((None, None, None, obj))
-                continue
+    # def get_object_computation_graph_key(self, obj):
+    #     counter = itertools.count()
+    #     stack = [obj]
+    #     edges = set()
+    #     anon = {}
+    #     while stack:
+    #         obj = stack.pop(0)
+    #         stream_action = self.full_stream_map[obj]   
+    #         if stream_action is None:
+    #             edges.add((None, None, None, obj))
+    #             continue
 
-            input_objs = stream_action.inputs  + tuple(sorted(list(objects_from_state(stream_action.fluent_facts))))
-            # TODO add fluent objects also to this tuple
-            for parent_obj in input_objs:
-                stack.insert(0, parent_obj)
-                if obj not in anon:
-                    anon[obj] = f'?{next(counter)}'
-                if parent_obj not in anon and self.full_stream_map[parent_obj] is not None:
-                    anon[parent_obj] = f'?{next(counter)}'
-                edges.add((anon.get(parent_obj, parent_obj), stream_action.stream.name, stream_action.outputs.index(obj), anon[obj]))
+    #         input_objs = stream_action.inputs  + tuple(sorted(list(objects_from_state(stream_action.fluent_facts))))
+    #         # TODO add fluent objects also to this tuple
+    #         for parent_obj in input_objs:
+    #             stack.insert(0, parent_obj)
+    #             if obj not in anon:
+    #                 anon[obj] = f'?{next(counter)}'
+    #             if parent_obj not in anon and self.full_stream_map[parent_obj] is not None:
+    #                 anon[parent_obj] = f'?{next(counter)}'
+    #             edges.add((anon.get(parent_obj, parent_obj), stream_action.stream.name, stream_action.outputs.index(obj), anon[obj]))
             
-        return frozenset(edges)
+    #     return frozenset(edges)
+    def get_constraint_graph_key(self, obj):
+        stream_action = self.full_stream_map[obj]
+        if stream_action is None:
+            return obj
+        if self.object_stream_map[obj] is None:
+            return self.parent.get_constraint_graph_key(obj)
+        
+        
+
+        return stream_action
+
+    def get_object_computation_graph_key(self, obj):
+        stream_action = self.full_stream_map[obj]
+        if stream_action is None:
+            return obj
+        if self.object_stream_map[obj] is None:
+            # TODO: this is wasteful. Try to identify the object somehow.
+            # return self.parent.get_constraint_graph_key(obj)
+            return obj
+        return frozenset({
+            (
+                self.get_object_computation_graph_key(input_object),
+                stream_action.inputs.index(input_object) if stream_action.stream.name != 'all' else None,
+                stream_action.stream.name,
+                stream_action.outputs.index(obj),
+            ) for input_object in stream_action.inputs
+        })
 
     def get_path(self):
         path = []
@@ -728,6 +757,8 @@ def extract_from_partial_plan(old_world_state, old_missing, new_world_state, par
 
     object_stream_map = {o:None for o in old_world_state.object_stream_map}
     missing = old_missing.copy()
+    produced = set()
+    used = set()
     for act in partial_plan.actions:
         if act.stream is None:
             continue
@@ -739,12 +770,22 @@ def extract_from_partial_plan(old_world_state, old_missing, new_world_state, par
         
         for out in act.outputs:
             object_stream_map[out] = act
+            produced.add(out)
+        for out in act.inputs:
+            used.add(out)
         for e in act.eff:
             if e in missing:
                 missing.remove(e)
             else:
                 # print('Not missing!', e)
                 pass
+    
+    placeholder = Identifiers.next()
+    object_stream_map[placeholder] = StreamAction(
+        DummyStream('all'),
+        inputs=tuple(produced - used), # i need this to be ordered in order for the cg key to work. But i have nothing with which to base the order on.
+        outputs=(placeholder,)
+    )
 
     return new_world_state, object_stream_map, missing    
 
@@ -760,7 +801,7 @@ def extract_stream_plan(state):
     return stream_plan
 
 def get_stream_action_edges(stream_actions):
-    input_obj_to_streams = {}
+    input_obj_to_streams = defaultdict(set)
     for action in stream_actions:
         for obj in action.inputs:
             input_obj_to_streams.setdefault(obj, set()).add(action)
@@ -813,9 +854,41 @@ def extract_stream_ordering(stream_plan):
     stream_ordering = []
     for edge, object_map in stream_plan:
         stream_actions = {action for action in object_map.values()}
+
+        # if stream_actions:
+        #     final_node = StreamAction(
+        #         DummyStream('and'),
+        #         inputs=tuple(),
+        #         outputs=tuple()
+        #     )
+        #     used = set({out for s in stream_actions for out in s.inputs})
+        #     inputs = []
+        #     for action in stream_actions:
+        #         unused = set(action.outputs) - used
+        #         inputs.extend(list(unused))
+        #     final_node.inputs = tuple(inputs)
+        #     stream_actions.add(final_node)
+
         local_ordering = topological_sort(stream_actions)
         stream_ordering.extend(local_ordering)
     return stream_ordering
+
+@dataclass
+class DummyStream:
+    name: str
+    outputs = tuple()
+    enumerated = False
+    is_test = True
+    
+    @property
+    def external(self):
+        return self
+
+    def get_instance(self, inputs, fluent_facts=tuple()): 
+        return self
+
+    def next_results(self, verbose=False): 
+        return [StreamResult(self, tuple())], []
 
 @dataclass
 class Binding:
@@ -856,8 +929,123 @@ def sample_depth_first(stream_plan, max_steps=10000):
         queue.append(binding)
     return None # infeasible or reached step limit
 
+# DummyStream = namedtuple('DummyStream', ['name'])
+def ancestral_sampling(stream_ordering, objects_from_name=None):
+    if objects_from_name is None:
+        objects_from_name = Object._obj_from_name
+    nodes = stream_ordering
+    edges = get_stream_action_edges(stream_ordering)
+    final_node = StreamAction(
+        DummyStream('FINAL'),
+        inputs=tuple(obj for stream_action in nodes for obj in stream_action.outputs),
+        outputs=tuple()
+    )
+    start_node = StreamAction(
+        DummyStream('START'),
+        inputs=tuple(),
+        outputs=tuple()
+    )
+    children = {
+    }
+    for parent, child in edges:
+        children.setdefault(parent, set()).add(child)
+    for node in nodes:
+        children.setdefault(node, set()).add(final_node)
+        children.setdefault(start_node, set()).add(node)
+    stats = {
+        node: 0
+        for node in nodes
+    }
+    produced = dict()
+    queue = [Binding(0, [start_node], {})]
+    while queue:
+        binding = queue.pop(0)
+        stream_action = binding.stream_plan[0]
+        if stream_action not in [start_node, final_node]:   
+            input_objects = [produced.get(var_name) or objects_from_name[var_name] for var_name in stream_action.inputs]
+            fluent_facts = [(f.predicate, ) + tuple(produced.get(var_name) or objects_from_name[var_name] for var_name in f.args) for f in stream_action.fluent_facts]
+            stream_instance = stream_action.stream.get_instance(input_objects, fluent_facts=fluent_facts)
+            if stream_instance.enumerated:
+                continue
+            results, new_facts = stream_instance.next_results(verbose=False)
+            if not results:
+                continue
+            [new_stream_result] = results
+            output_objects = new_stream_result.output_objects
+            if stream_action.stream.is_test:
+                output_objects = (True,)
+            newly_produced = dict(zip(stream_action.outputs, output_objects))
+            for obj in newly_produced:
+                produced[obj] = newly_produced[obj]
+            # new_mapping = binding.mapping.copy()
+            # new_mapping.update(newly_produced)
+    
+        else:
+            # new_mapping = binding.mapping
+            pass
+
+        stats[stream_action] = stats.get(stream_action, 0) + 1
+        for child in children.get(stream_action, []):
+            input_objects = list(child.inputs) + [var_name for f in child.fluent_facts for var_name in f.args]
+            if all(obj in produced or obj in objects_from_name for obj in input_objects):
+                new_binding = Binding(binding.index + 1, [child], {})
+                queue.append(new_binding)
+    return produced, stats.get(final_node, 0)
+
+def ancestral_sample_with_costs(stream_ordering, final_state, stats={}, max_steps=30, verbose=False):
+    to_produce = set({out for s in stream_ordering for out in s.outputs})
+    for i in range(max_steps):
+        produced, done = ancestral_sampling(stream_ordering)
+
+        for obj in to_produce:
+            cg_key = final_state.get_object_computation_graph_key(obj)
+            cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
+            cg_stats['num_attempts'] += 1
+            if obj in produced:
+                cg_stats['num_successes'] += 1
+
+        if done:
+            return produced
+    return None
+
+def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
+    (_,_,initial_state), _ = stream_plan[0]
+    objects = {k:v for k,v in Object._obj_from_name.items() if k in initial_state.object_stream_map}
+    i = 0
+    particles = [
+        [objects]
+    ]
+    while i < len(stream_plan):
+        (_, _, state), step = stream_plan[i]
+
+        if step:
+            to_produce = set({out for s in step for out in s.outputs})
+            step_particles = []
+            particles.append(step_particles)
+            for j in range(max_steps):
+                prev_particle = particles[i][j % len(particles[i])]
+
+                new_objects, success = ancestral_sampling(step, prev_particle)
+
+                for obj in to_produce:
+                    cg_key = state.get_object_computation_graph_key(obj)
+                    cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
+                    cg_stats['num_attempts'] += 1
+                    if obj in new_objects:
+                        cg_stats['num_successes'] += 1
 
 
+                if success:
+                    step_particles.append(dict(**prev_particle, **new_objects))
+            if len(step_particles) == 0:
+                break
+        else:
+            particles.append(particles[-1])
+        i += 1
+
+    
+    print([len(p) for p in particles])
+    return particles[-1][0] if len(stream_plan) + 1 == len(particles) and particles[-1] else None
 
 def sample_depth_first_with_costs(stream_ordering, final_state, stats={}, max_steps=None, verbose=False):
     """Demo sampling a stream plan using a backtracking depth first approach.
@@ -968,7 +1156,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
     print(f'Explored {expand_count}. Evaluated {evaluate_count}')
     print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-    print(f"Time taken: {(time.time() - start_time).seconds} seconds")
+    print(f"Time taken: {(time.time() - start_time)} seconds")
     print(f"Solution cost: {state.start_distance}")
 
     if found:
@@ -976,7 +1164,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     else:
         return None
 
-def repeated_a_star(search, max_steps=1000):
+def repeated_a_star(search, stats={}, heuristic=None, max_steps=1000):
 
     # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     def cost(state, op, child, verbose=False):
@@ -1001,14 +1189,15 @@ def repeated_a_star(search, max_steps=1000):
                 included.add(stream_action)
         return max(1, c)
 
-    def heuristic(state):
-        actions = state.get_actions()
+    def _heuristic(state, goal):
+        actions = state.get_actions()[1:]
         if len(actions) >= 2:
-            if actions[-1].name == 'move' and actions[-2].name == 'move':
+            if 'move' in actions[-1].name and 'move' in actions[-2].name:
                 return np.inf
-        return 0
+        return len(goal - state.state)*8
+    if heuristic is None:
+        heuristic = _heuristic
 
-    stats = {}
     for _ in range(max_steps):
         goal_state = try_a_star(search, cost, heuristic)
         if goal_state is None:
@@ -1028,12 +1217,20 @@ def repeated_a_star(search, max_steps=1000):
         print(f"Action Skeleton:\n{actions_str}")
         
         stream_plan = extract_stream_plan_from_path(path)
-        stream_ordering = extract_stream_ordering(stream_plan)
-        if not stream_ordering:
-            break
-        object_mapping = sample_depth_first_with_costs(stream_ordering, goal_state, stats)
+        stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
+        # stream_ordering = extract_stream_ordering(stream_plan)
+        # if not stream_ordering:
+        #     break
+        object_mapping = ancestral_sampling_by_edge(stream_plan, goal_state, stats, max_steps=100)
         if object_mapping is not None:
             break
+        c = 0
+        for idx, i in enumerate(path):
+            print(idx, i[1])
+            a = cost(*i, verbose=True)
+            print('action cost:', a)
+            print('cum cost:', a+c)
+            c += a
         print("Could not find object_mapping, retrying with updated costs")
     if goal_state is not None:
         return goal_state.get_actions(), object_mapping, goal_state
@@ -1085,7 +1282,8 @@ if __name__ == '__main__':
     # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_33.yaml'
     # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
 
     parser = argparse.ArgumentParser()

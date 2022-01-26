@@ -8,10 +8,10 @@ import numpy as np
 from frozendict import frozendict
 
 ## DOMAIN SETUP
-WORLD = frozendict({
+WORLD = {
     "height": 10,
     "width": 10,
-})
+}
 def generate_scene():
 
     REGIONS = frozendict({
@@ -53,11 +53,12 @@ def grasp(g, b):
         x = xrange*np.random.random() + xmin
         yield (np.array([x, y]), )
 
-def ik(blockpose, grasp):
+def ik(gripper, blockpose, grasp):
+    # TODO: This is actually wrong. Need to 
     gripperpose = grasp + blockpose
     if np.any(np.array(gripperpose) < 0):
         return
-    if np.any(np.array(gripperpose) > [WORLD['width'], WORLD['height']]):
+    if np.any(np.array(gripperpose) + [gripper['width'], gripper['height']] > [WORLD['width'], WORLD['height']]):
         return
     yield (gripperpose, )
 
@@ -130,7 +131,7 @@ from pddlstream.language.generator import from_gen, from_gen_fn, from_test
 stream_info = StreamInfo(use_unique=True)
 grasp_stream = Stream('grasp', from_gen_fn(grasp), ('?gripper', '?block'), [],('?grasp',), [], info=stream_info)
 placement_stream = Stream('placement', from_gen_fn(placement), ('?block', '?region'), [],('?place',), [], info=stream_info)
-ik_stream = Stream('ik', from_gen_fn(ik), ('?block_pose', '?handpose'), [],('?conf',), [], info=stream_info)
+ik_stream = Stream('ik', from_gen_fn(ik), ('?gripper', '?block_pose', '?handpose'), [],('?conf',), [], info=stream_info)
 safety_stream = Stream('check_safe', from_test(check_safe), ('?gripper', '?gripperpose', '?block', '?blockpose'), [],tuple(), [], info=stream_info)
 
 
@@ -177,14 +178,14 @@ def ancestral_sampling(objects, stream_ordering):
         node: 0
         for node in nodes
     }
-    produced = set()
+    produced = dict()
     queue = [Binding(0, [start_node], {})]
     while queue:
         binding = queue.pop(0)
         stream_action = binding.stream_plan[0]
         if stream_action not in [start_node, final_node]:   
-            input_objects = [binding.mapping.get(var_name) or objects_from_name[var_name] for var_name in stream_action.inputs]
-            fluent_facts = [(f.predicate, ) + tuple(binding.mapping.get(var_name) or objects_from_name[var_name] for var_name in f.args) for f in stream_action.fluent_facts]
+            input_objects = [produced.get(var_name) or objects_from_name[var_name] for var_name in stream_action.inputs]
+            fluent_facts = [(f.predicate, ) + tuple(produced.get(var_name) or objects_from_name[var_name] for var_name in f.args) for f in stream_action.fluent_facts]
             stream_instance = stream_action.stream.get_instance(input_objects, fluent_facts=fluent_facts)
             if stream_instance.enumerated:
                 continue
@@ -197,20 +198,20 @@ def ancestral_sampling(objects, stream_ordering):
                 output_objects = (True,)
             newly_produced = dict(zip(stream_action.outputs, output_objects))
             for obj in newly_produced:
-                produced.add(obj)
-            new_mapping = binding.mapping.copy()
-            new_mapping.update(newly_produced)
+                produced[obj] = newly_produced[obj]
+            # new_mapping = binding.mapping.copy()
+            # new_mapping.update(newly_produced)
     
         else:
-            new_mapping = binding.mapping
+            # new_mapping = binding.mapping
+            pass
 
         stats[stream_action] = stats.get(stream_action, 0) + 1
         for child in children.get(stream_action, []):
             input_objects = list(child.inputs) + [var_name for f in child.fluent_facts for var_name in f.args]
             if all(obj in produced or obj in objects_from_name for obj in input_objects):
-                new_binding = Binding(binding.index + 1, [child], new_mapping)
+                new_binding = Binding(binding.index + 1, [child], {})
                 queue.append(new_binding)
-
     return stats
 
 def ancestral_sampling_acc(objects, ordering, num_attempts=10):
@@ -227,7 +228,7 @@ def ancestral_sampling_acc(objects, ordering, num_attempts=10):
 def pick_block_cg(objects, block_name):
     return [
         StreamAction(grasp_stream, (objects['g1'].pddl, objects[block_name].pddl), ('?grasp',)),
-        StreamAction(ik_stream, (objects[block_name + '_pose'].pddl, '?grasp'), ('?conf',)),
+        StreamAction(ik_stream, (objects['g1'].pddl, objects[block_name + '_pose'].pddl, '?grasp'), ('?conf',)),
         StreamAction(safety_stream, (objects['g1'].pddl, '?conf', objects['b1'].pddl, objects['b1_pose'].pddl), ('?safe1',)),
         StreamAction(safety_stream, (objects['g1'].pddl, '?conf', objects['b2'].pddl, objects['b2_pose'].pddl), ('?safe2',)),
     ]
@@ -392,7 +393,7 @@ def eval_sampling_variance_ancestral(num_scenarios=1000, num_ancestral_samples=3
 
 #%%
 if __name__ == '__main__':
-    N = 2000
+    N = 20
     dataset = generate_dataset(N, 50)
     X, Y = dataset_to_XY(dataset)
     X_train, Y_train = X[:N // 2], Y[:N // 2]
