@@ -8,8 +8,8 @@ from pddl.conditions import Atom, Conjunction, NegatedAtom
 from pddl.actions import PropositionalAction
 import pddl.conditions as conditions
 
-from utils import Identifiers, Unsatisfiable
-from partial import certify, extract_from_partial_plan
+from lifted.utils import Identifiers, Unsatisfiable
+from lifted.partial import certify, extract_from_partial_plan
 
 
 def combinations(candidates):
@@ -50,11 +50,11 @@ def find_applicable_brute_force(
             for arg, candidate in zip(atom.args, ground_atom.args):
                 candidates.setdefault(arg, set()).add(candidate)
 
-    if not candidates:
-        assert False, "why am i here"
+    # if not candidates:
+    #     assert False, "why am i here"
 
     # find all the possible versions
-    for assignment in combinations(candidates):
+    for assignment in combinations(candidates) if candidates else [{}]:
         feasible = True
         for par in action.parameters:
             if (par.name not in assignment) or (assignment[par.name] == '?'):

@@ -4,7 +4,7 @@ import itertools
 from pddl.conditions import Atom
 from pddlstream.language.stream import Stream
 
-from utils import Identifiers, Unsatisfiable
+from lifted.utils import Identifiers, Unsatisfiable
 
 
 def get_assignment(group, stream):
@@ -229,9 +229,7 @@ def certify(state, object_stream_map, missing, streams_by_predicate):
     return p0
 
 
-def extract_from_partial_plan(
-    old_world_state, old_missing, new_world_state, partial_plan
-):
+def extract_from_partial_plan(old_world_state, old_missing, new_world_state, partial_plan):
     """Extract the successor state from the old world state and the partial plan.
     That involves updating the object stream map, the set of facts that are yet to be certified,
     and the new logical state based on the stream actions in the partial plan.
@@ -245,7 +243,7 @@ def extract_from_partial_plan(
             for out in act.outputs:
                 new_objects.add(out)
 
-    object_stream_map = {o: None for o in old_world_state.object_stream_map}
+    object_stream_map = {o:None for o in old_world_state.object_stream_map}
     missing = old_missing.copy()
     for act in partial_plan.actions:
         if act.stream is None:

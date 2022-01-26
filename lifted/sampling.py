@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from pddlstream.language.object import Object
 
-from utils import PriorityQueue
+from lifted.utils import PriorityQueue
 
 
 def extract_stream_plan(state):
@@ -42,7 +42,7 @@ def extract_stream_ordering(stream_plan):
     action plan, modulo a topological sort.
 
     Edit: Assumes each object_map depends only on itself and predecessors."""
-    computed_objects = set(stream_plan[0][0][2].object_stream_map)
+    computed_objects = {x for x,s in stream_plan[0][0][2].object_stream_map.items() if s is None}
 
     def topological_sort(stream_actions):
         incoming_edges = {}

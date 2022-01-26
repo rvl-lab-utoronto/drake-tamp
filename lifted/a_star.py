@@ -11,10 +11,10 @@ sys.path.insert(
     0, "/home/atharv/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/"
 )
 from pddl.conditions import Atom
-
-from lifted import ActionStreamSearch
-from utils import PriorityQueue
-from sampling import (
+import time
+from lifted.utils import PriorityQueue
+from lifted.search import ActionStreamSearch
+from lifted.sampling import (
     extract_stream_plan_from_path,
     sample_depth_first_with_costs,
     extract_stream_ordering,
@@ -118,12 +118,12 @@ def repeated_a_star(search, max_steps=1000, stats={}):
         return max(1, c)
 
     def heuristic(state):
-        actions = [a for _, a, _ in state.get_shortest_path_to_start()]
-        if len(actions) >= 2:
-            if actions[-1] is not None and "move" in actions[-1].name:
-                if actions[-2] is not None and "move" in actions[-2].name:
-                    return np.inf
-        return len(goal - state.state) * 4
+        # actions = [a for _, a, _ in state.get_shortest_path_to_start()]
+        # if len(actions) >= 2:
+        #     if actions[-1] is not None and "move" in actions[-1].name:
+        #         if actions[-2] is not None and "move" in actions[-2].name:
+        #             return np.inf
+        # return len(goal - state.state) * 4
         return 0
 
     stats = {}
