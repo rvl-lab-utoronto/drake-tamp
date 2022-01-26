@@ -3,135 +3,19 @@ have fixed sizes. We want to see if it is possible to use supervised learning to
 objects, given their placements."""
 #%%
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
 import numpy as np
-from frozendict import frozendict
-
-## DOMAIN SETUP
-WORLD = {
-    "height": 10,
-    "width": 10,
-}
-def generate_scene():
-
-    REGIONS = frozendict({
-        "r1": {"width": 3, "x": 0, "y": -0.3, "height": .3},
-        "r2": {"width": 3, "x": 6, "y": -0.3, "height": .3}
-    })
-
-    GRIPPERS = {
-        "g1": {"width": 1.5, "height": 1, "x": 5, "y": 8, "color": None}
-    }
-
-
-    BLOCKS = {
-        "b1": {"width": 1, "height": 1, "color": 'red'},
-        "b2": {"width": 1, "height": 2, "color": 'grey'}
-    }
-
-    while True:
-        p1 = next(placement(BLOCKS["b1"], REGIONS['r1']))[0]
-        p2 = next(placement(BLOCKS["b2"], REGIONS['r1']))[0]
-        if check_safe(BLOCKS["b1"], p1, BLOCKS["b2"], p2):
-            break
-    BLOCKS['b1']['x'], BLOCKS['b1']['y'] = p1
-    BLOCKS['b2']['x'], BLOCKS['b2']['y'] = p2
-
-    return (WORLD, GRIPPERS, REGIONS, BLOCKS)
-
-def grasp(g, b):
-    # relative to the bottom left of the block
-    # has to be within 1e-3 from the top of the block
-    # has to contact at least half of the block width
-    if g['width'] < b['width'] / 2:
-        return
-    xmin = -(g['width'] - b['width'] / 2)
-    xmax = b['width'] / 2
-    xrange = xmax - xmin
-    while True:
-        y = b['height'] + 1e-3 * np.random.random()
-        x = xrange*np.random.random() + xmin
-        yield (np.array([x, y]), )
-
-def ik(gripper, blockpose, grasp):
-    # TODO: This is actually wrong. Need to 
-    gripperpose = grasp + blockpose
-    if np.any(np.array(gripperpose) < 0):
-        return
-    if np.any(np.array(gripperpose) + [gripper['width'], gripper['height']] > [WORLD['width'], WORLD['height']]):
-        return
-    yield (gripperpose, )
-
-def _check_safe(gripper, gripperpose, block, blockpose):
-    corners = [
-        [blockpose[0], blockpose[1]],
-        [blockpose[0] + block['width'], blockpose[1]],
-        [blockpose[0], blockpose[1] + block['height']],
-        [blockpose[0] + block['width'], blockpose[1] + block['height']]
-    ]
-    for corner in corners:
-        if (gripperpose[0] <= corner[0] <= gripperpose[0] + gripper['width']) and \
-        (gripperpose[1] <= corner[1] <= gripperpose[1] + gripper['height']):
-            return False
-    return True
-def check_safe(gripper, gripperpose, block, blockpose):
-    return _check_safe(gripper, gripperpose, block, blockpose) and _check_safe(block, blockpose, gripper, gripperpose)
-
-
-def placement(block, region):
-    if block['width'] > region['width']:
-        return
-
-    y = region['y'] + region['height']
-    xmin = region['x']
-    xmax = region['x'] + region['width'] - block['width']
-    xrange = xmax - xmin
-    while True:
-        x = xrange*np.random.random() + xmin
-        yield (np.array([x, y]), )
-
-def visualize(world, grippers, regions, blocks):
-    fig = plt.figure()
-    ax = plt.gca()
-    plt.xlim(0, world['width'])
-    plt.ylim(-.5, world["height"])
-    
-    region = Rectangle([0, -0.5], world['width'], 0.2, color='black')
-    ax.add_patch(region)
-#     region = Rectangle([-.2, -.5], .2, world['height'] + .2*2, color='black')
-#     ax.add_patch(region)
-#     region = Rectangle([world['width'], -.5], .2, world['height'] + .2*2, color='black')
-#     ax.add_patch(region)
-        
-    for rname in regions:
-        r = regions[rname]
-        region = Rectangle([r['x'], r['y']], r['width'], r['height'], alpha=0.8)
-        ax.add_patch(region)
-
-    for bname in blocks:
-        r = blocks[bname]
-        block = Rectangle([r['x'], r['y']], r['width'], r['height'], color=r['color'], alpha=0.8)
-        ax.add_patch(block)
-        
-    for gname in grippers:
-        r = grippers[gname]
-        gripper = Rectangle([r['x'], r['y']], r['width'], r['height'], color=r['color'], alpha=0.8)
-        ax.add_patch(gripper)
-        stem_width = r['width'] / 4
-        stem_height = world['height'] - (r['y'] + r['height'])
-        stem = Rectangle([(2*r['x'] + r['width']) / 2 - stem_width / 2, (r['y'] + r['height'])], stem_width, stem_height, color=r['color'], alpha=0.8)
-        ax.add_patch(stem)
 
 ## PDDLSTREAM STUFF
 from pddlstream.language.stream import Stream, StreamInfo
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.generator import from_gen, from_gen_fn, from_test
+from experiments.gripper2d.problem import grasp, placement, ik, check_safe, generate_scene
 
 # make streams
 stream_info = StreamInfo(use_unique=True)
 grasp_stream = Stream('grasp', from_gen_fn(grasp), ('?gripper', '?block'), [],('?grasp',), [], info=stream_info)
 placement_stream = Stream('placement', from_gen_fn(placement), ('?block', '?region'), [],('?place',), [], info=stream_info)
-ik_stream = Stream('ik', from_gen_fn(ik), ('?gripper', '?block_pose', '?handpose'), [],('?conf',), [], info=stream_info)
+ik_stream = Stream('ik', from_gen_fn(lambda g,bp,gr: ik(g, bp, gr, dict(width=10, height=10))), ('?gripper', '?block_pose', '?handpose'), [],('?conf',), [], info=stream_info)
 safety_stream = Stream('check_safe', from_test(check_safe), ('?gripper', '?gripperpose', '?block', '?blockpose'), [],tuple(), [], info=stream_info)
 
 
@@ -229,8 +113,8 @@ def pick_block_cg(objects, block_name):
     return [
         StreamAction(grasp_stream, (objects['g1'].pddl, objects[block_name].pddl), ('?grasp',)),
         StreamAction(ik_stream, (objects['g1'].pddl, objects[block_name + '_pose'].pddl, '?grasp'), ('?conf',)),
-        StreamAction(safety_stream, (objects['g1'].pddl, '?conf', objects['b1'].pddl, objects['b1_pose'].pddl), ('?safe1',)),
-        StreamAction(safety_stream, (objects['g1'].pddl, '?conf', objects['b2'].pddl, objects['b2_pose'].pddl), ('?safe2',)),
+        StreamAction(safety_stream, (objects['g1'].pddl, '?conf', objects['b0'].pddl, objects['b0_pose'].pddl), ('?safe1',)),
+        StreamAction(safety_stream, (objects['g1'].pddl, '?conf', objects['b1'].pddl, objects['b1_pose'].pddl), ('?safe2',)),
     ]
 
 ## MODEL STUFF
@@ -240,14 +124,14 @@ from torch.utils.data import TensorDataset, DataLoader
 def get_fixed_size_vec(scene):
     blocks = scene[-1]
     rep = [
+        blocks['b0']['x'],
+#         blocks['b0']['y'],
+#         blocks['b0']['width'],
+#         blocks['b0']['height'],
         blocks['b1']['x'],
 #         blocks['b1']['y'],
 #         blocks['b1']['width'],
-#         blocks['b1']['height'],
-        blocks['b2']['x'],
-#         blocks['b2']['y'],
-#         blocks['b2']['width'],
-#         blocks['b2']['height']
+#         blocks['b1']['height']
     ]
     return rep
 
@@ -301,15 +185,15 @@ def eval(model, X_test, Y_test, log=False):
 def generate_dataset(num_scenarios=1000, num_ancestral_samples=30):
     dataset = []
     for i in range(num_scenarios):
-        scene = generate_scene()
+        scene = generate_scene([1, 3])
         objects = scene_objects(*scene)
         
 
-        ordering = pick_block_cg(objects, 'b1')
+        ordering = pick_block_cg(objects, 'b0')
         stats = ancestral_sampling_acc(objects, ordering, num_ancestral_samples)
         dataset.append((scene, stats))
 
-        ordering = pick_block_cg(objects, 'b2')
+        ordering = pick_block_cg(objects, 'b1')
         stats = ancestral_sampling_acc(objects, ordering, num_ancestral_samples)
         dataset.append((scene, stats))
     return dataset
@@ -372,18 +256,18 @@ def eval_sampling_variance_ancestral(num_scenarios=1000, num_ancestral_samples=3
     b1 = []
     b2 = []
     for i in range(num_scenarios):
-        scene = generate_scene()
+        scene = generate_scene([1, 3])
         objects = scene_objects(*scene)
         
         vals = []
-        ordering = pick_block_cg(objects, 'b1')
+        ordering = pick_block_cg(objects, 'b0')
         for j in range(num_trials):
             stats = ancestral_sampling_acc(objects, ordering, num_ancestral_samples)
             vals.append(stats.get('FINAL', 0) / stats.get('START', 0))
         b1.append((np.mean(vals), np.std(vals)))
 
         vals = []
-        ordering = pick_block_cg(objects, 'b2')
+        ordering = pick_block_cg(objects, 'b1')
         for j in range(num_trials):
             stats = ancestral_sampling_acc(objects, ordering, num_ancestral_samples)
             vals.append(stats.get('FINAL', 0) / stats.get('START', 0))
@@ -393,7 +277,7 @@ def eval_sampling_variance_ancestral(num_scenarios=1000, num_ancestral_samples=3
 
 #%%
 if __name__ == '__main__':
-    N = 20
+    N = 1000
     dataset = generate_dataset(N, 50)
     X, Y = dataset_to_XY(dataset)
     X_train, Y_train = X[:N // 2], Y[:N // 2]

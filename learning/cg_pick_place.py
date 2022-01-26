@@ -1,12 +1,14 @@
-from learning.cg_toy_simple import ancestral_sampling_acc
+import numpy as np
+import matplotlib.pyplot as plt
+from learning.cg_toy_simple import ancestral_sampling_acc, scene_objects
 from lifted_search import StreamAction
-from learning.cg_num_obects import generate_scene, scene_objects, ik, check_safe, grasp, placement, set_placements, WORLD, np, plt, visualize
+from experiments.gripper2d.problem import ik, check_safe, grasp, placement, set_placements
 from pddlstream.language.stream import Stream, StreamInfo
 from pddlstream.language.object import Object, OptimisticObject
 from pddlstream.language.generator import from_gen, from_gen_fn, from_test
 
-WORLD['width'] = 20
 def generate_scene(heights=None):
+    WORLD = dict(width=20, height=10)
     if heights is None:
         num_blocks = np.random.randint(2, 5)
         heights = [np.random.randint(1, 4) for block in range(num_blocks)]
@@ -58,7 +60,7 @@ placement_stream = Stream(
 )
 ik_stream = Stream(
     'ik',
-    from_gen_fn(lambda g,_,bp,gr: ik(g, bp, gr)),
+    from_gen_fn(lambda g,_,bp,gr: ik(g, bp, gr, world=dict(width=20, height=10))),
     ('?gripper', '?block', '?blockpose', '?grasp'),
     [('gripper', '?gripper'), ('grasp', '?gripper', '?block', '?grasp'), ('blockpose', '?blockpose')],
     ('?conf',),

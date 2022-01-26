@@ -1,41 +1,19 @@
+from experiments.gripper2d.problem import set_placements
 from learning.cg_toy_simple import *
 
-def random(start, end):
-    return (np.random.random() * (end - start)) + start
-
-def set_placements(region, blocks):
-    
-    start = region['x']
-    end = region['x'] + region['width']
-    remaining = end - start
-    min_required = sum(b['width'] for b in blocks.values()) + 1e-2
-
-    if min_required > remaining:
-        raise ValueError((min_required, remaining))
-
-    block_names = list(blocks)
-    np.random.shuffle(block_names)
-
-    for block in block_names:
-        blocks[block]['x'] = random(start, end - min_required)
-        start = blocks[block]['x'] + blocks[block]['width']
-        min_required = min_required - blocks[block]['width']
-
-
 def generate_scene(heights=None):
+    WORLD = dict(height=10, width=10)
     if heights is None:
         num_blocks = np.random.randint(2, 5)
         heights = [np.random.randint(1, 4) for block in range(num_blocks)]
 
-    REGIONS = frozendict({
+    REGIONS = {
         "r1": {"width": 10, "x": 0, "y": -0.3, "height": .3},
-#         "r2": {"width": 3, "x": 6, "y": -0.3, "height": .3}
-    })
+    }
 
     GRIPPERS = {
         "g1": {"width": 3.8, "height": 1, "x": 2, "y": 8, "color": None}
     }
-
 
     colors = plt.get_cmap("tab10")
     BLOCKS = {
@@ -58,7 +36,6 @@ def pick_block_cg(scene, objects, block_name):
         StreamAction(safety_stream, (objects['g1'].pddl, '?conf', objects[bname].pddl, objects[f'{bname}_pose'].pddl), (f'?safe_{bname}',)) 
         for bname in scene[-1] if bname != block_name
     ]
-
 
 def generate_dataset(num_scenarios=1000, num_ancestral_samples=30):
     dataset = []
