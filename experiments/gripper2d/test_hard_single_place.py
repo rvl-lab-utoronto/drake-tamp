@@ -1,6 +1,6 @@
 
 
-from integrate_planner import instantiate_planning_problem, Atom, externals
+from experiments.gripper2d.lifted import create_problem
 from lifted_search import ActionStreamSearch, repeated_a_star
 
 world = {
@@ -25,10 +25,14 @@ blocks = {
         "color": 'blue'
     }
 }
-
-objects, actions, initial_state = instantiate_planning_problem((world, grippers, regions, blocks))
-goal = set()
-goal.add(Atom('on', (objects['b0'].pddl, objects['r2'].pddl)))
+scene = (world, grippers, regions, blocks)
+goal = ('and', ('on', 'b0', 'r2'))
+initial_state, goal, externals, actions = create_problem(scene, goal)
 search = ActionStreamSearch(initial_state, goal, externals, actions)
 stats = {}
 result = repeated_a_star(search, stats=stats, max_steps=50)
+if result is not None:
+    action_skeleton, object_mapping, _ = result
+    actions_str = "\n".join([str(a) for a in action_skeleton])
+    print(f"Action Skeleton:\n{actions_str}")
+    print(f"\nObject mapping: {object_mapping}\n") 
