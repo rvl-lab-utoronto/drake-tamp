@@ -1,8 +1,8 @@
 #%%
-from integrate_planner import generate_scene, ik, check_safe, grasp, placement, set_placements, WORLD, np, plt, visualize
+from experiments.gripper2d.problem import ik, check_safe, grasp, placement, generate_scene
 from pddlstream.language.constants import PDDLProblem, print_solution
-from pddlstream.language.generator import from_gen, from_gen_fn, from_test
-from pddlstream.language.stream import Stream, StreamInfo
+from pddlstream.language.generator import from_gen_fn, from_test
+from pddlstream.language.stream import StreamInfo
 from pddlstream.algorithms.meta import solve
 import os
 file_path, _ = os.path.split(os.path.realpath(__file__))
@@ -11,10 +11,10 @@ domain_pddl = open(f"{file_path}/domain.pddl", "r").read()
 stream_pddl = open(f"{file_path}/stream.pddl", "r").read()
 
 def create_problem(scene, goal):
-    _, grippers, regions, blocks = scene
+    world, grippers, regions, blocks = scene
     stream_map = {
         "grasp": from_gen_fn(lambda g,b: grasp(grippers[g], blocks[b])),
-        "ik": from_gen_fn(lambda g,_,bp,gr: ik(grippers[g], bp, gr)),
+        "ik": from_gen_fn(lambda g,_,bp,gr: ik(grippers[g], bp, gr, world)),
         "placement": from_gen_fn(lambda b,r: placement(blocks[b], regions[r])),
         "safe": from_test(lambda g,c,b,p: check_safe(grippers[g], c, blocks[b], p)),
         "safe-block": from_test(lambda b1,p1,b,p: check_safe(blocks[b1], p1, blocks[b], p)),
@@ -37,17 +37,7 @@ def create_problem(scene, goal):
     
     return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
 if __name__ == '__main__':
-#%%
-    from frozendict import frozendict
-    for i in range(7):
-        scene = generate_scene([1, 2, 3, 4])
-#%%
-    # world, grippers, regions, blocks = scene
-    # blocks = frozendict({b:frozendict(bval) for b,bval in blocks.items()})
-    # regions = frozendict({b:frozendict(bval) for b,bval in regions.items()})
-    # grippers = frozendict({b:frozendict(bval) for b,bval in grippers.items()})
-    # scene = (world, grippers, regions, blocks)
-    # goal =  ('holding', grippers['g1'], blocks['b0'])
+    scene = generate_scene([1, 2, 3, 4])
     goal = ('and', 
         ('on', 'b0', 'r2'),
         ('on', 'b1', 'r1'),
@@ -60,7 +50,7 @@ if __name__ == '__main__':
             problem,
             algorithm='adaptive',
             # use_unique=True,
-            max_time=10,
+            max_time=60,
             search_sample_ratio=1,
             max_planner_time = 30,
             logpath="/tmp/",
@@ -70,8 +60,8 @@ if __name__ == '__main__':
                 "placement": StreamInfo(use_unique=True),   
                 "safe": StreamInfo(use_unique=True),    
                 "safe-block": StreamInfo(use_unique=True),  
-            }
+            },
+            verbose=False
         )
     print_solution(solution)
 
-    # %%

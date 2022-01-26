@@ -1,19 +1,14 @@
 import time
 
 import pandas as pd
-from integrate_planner import generate_scene, instantiate_planning_problem, externals
 from lifted_search import ActionStreamSearch, repeated_a_star, Atom
+from experiments.gripper2d.problem import generate_scene
 from experiments.gripper2d.run import create_problem, solve, StreamInfo
+from experiments.gripper2d.lifted import create_problem as create_problem_lifted
 import multiprocessing, sys, os
 import tempfile
 
-def run_adaptive(scene):
-    goal = ('and', 
-        ('on', 'b0', 'r2'),
-        ('on', 'b1', 'r1'),
-        ('on', 'b2', 'r1'),
-        ('on', 'b3', 'r1')
-    )
+def run_adaptive(scene, goal):
     problem = create_problem(scene, goal)
     start = time.time()
     solution = solve(
@@ -42,14 +37,8 @@ def run_adaptive(scene):
 def heuristic(state, goal):
     return len(goal - state.state)*10
 
-def run_lifted(scene):
-    objects, actions, initial_state = instantiate_planning_problem(scene)
-    goal = set()
-    goal.add(Atom('on', (objects['b0'].pddl, objects['r2'].pddl)))
-    goal.add(Atom('on', (objects['b1'].pddl, objects['r1'].pddl)))
-    goal.add(Atom('on', (objects['b2'].pddl, objects['r1'].pddl)))
-    goal.add(Atom('on', (objects['b3'].pddl, objects['r1'].pddl)))
-
+def run_lifted(scene, goal):
+    initial_state, goal, externals, actions = create_problem_lifted(scene, goal)
     start = time.time()
     search = ActionStreamSearch(initial_state, goal, externals, actions)
     stats = {}
@@ -57,24 +46,30 @@ def run_lifted(scene):
     end = time.time()
     return result is not None, end - start
 
-def run_adaptive_process(scene, scene_idx, rep_idx, res):
+def run_adaptive_process(scene, goal, scene_idx, rep_idx, res):
     with open(os.devnull, 'w') as f:
         sys.stdout = f
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
-            res[(scene_idx, rep_idx, 'adaptive')] = run_adaptive(scene)
+            res[(scene_idx, rep_idx, 'adaptive')] = run_adaptive(scene, goal)
 
-def run_lifted_process(scene, scene_idx, rep_idx, res):
+def run_lifted_process(scene, goal, scene_idx, rep_idx, res):
     with open(os.devnull, 'w') as f:
         sys.stdout = f
-        res[(scene_idx, rep_idx, 'lifted')] = run_lifted(scene)
+        res[(scene_idx, rep_idx, 'lifted')] = run_lifted(scene, goal)
 
 
 if __name__ == '__main__':
-    num_scenes = 50
+    num_scenes = 1
     num_reps = 6
     scenes = []
     data = []
+    goal = ('and', 
+        ('on', 'b0', 'r2'),
+        ('on', 'b1', 'r1'),
+        ('on', 'b2', 'r1'),
+        ('on', 'b3', 'r1')
+    )
     for i in range(num_scenes):
         scene = generate_scene([1, 2, 3, 4])
         scenes.append(scene)
@@ -85,7 +80,7 @@ if __name__ == '__main__':
     for scene_idx in range(num_scenes):
         jobs = []
         for rep in range(num_reps):
-            p = multiprocessing.Process(target=run_adaptive_process, args=(scenes[scene_idx], scene_idx, rep, return_dict,))
+            p = multiprocessing.Process(target=run_adaptive_process, args=(scenes[scene_idx], goal, scene_idx, rep, return_dict,))
             p.start()
             jobs.append(p)
             
@@ -96,7 +91,7 @@ if __name__ == '__main__':
     for scene_idx in range(num_scenes):
         jobs = []
         for rep in range(num_reps):
-            p = multiprocessing.Process(target=run_lifted_process, args=(scenes[scene_idx], scene_idx, rep, return_dict,))
+            p = multiprocessing.Process(target=run_lifted_process, args=(scenes[scene_idx], goal, scene_idx, rep, return_dict,))
             p.start()
             jobs.append(p)
             
