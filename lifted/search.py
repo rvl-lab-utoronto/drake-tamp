@@ -8,7 +8,7 @@ from pddl.conditions import Atom, Conjunction, NegatedAtom
 from pddl.actions import PropositionalAction
 import pddl.conditions as conditions
 
-from lifted.utils import Identifiers, Unsatisfiable
+from lifted.utils import Identifiers, Unsatisfiable, OPT_PREFIX
 from lifted.partial import certify, extract_from_partial_plan
 REUSE_INITIAL_CERTIFIABLE_OBJECTS = False
 
@@ -19,16 +19,9 @@ def combinations(candidates):
     for combo in itertools.product(*domains):
         yield dict(zip(keys, combo))
 
-
-def find_applicable_brute_force(
-    action, state, allow_missing, object_stream_map={}, filter_precond=True
-):
-    """Given an action schema and a state, return the list of partially grounded
-    operators possible in the given state"""
-
-    # Find all possible assignments of the state.objects to action.parameters
-    # such that [action.preconditions - {atom | atom in certified}] <= state
+def find_assignments_brute_force(action, state, allow_missing):
     candidates = {}
+    params = {x.name for x in action.parameters}
     for atom in action.precondition.parts:
 
         for ground_atom in state:
@@ -38,26 +31,40 @@ def find_applicable_brute_force(
             if ground_atom.predicate in allow_missing:
                 if (not REUSE_INITIAL_CERTIFIABLE_OBJECTS) or any([arg[0] == "?" for arg in ground_atom.args]):
                     continue
-
+            if any(p not in params and p != arg for p,arg in zip(atom.args, ground_atom.args)):
+                continue
             for arg, candidate in zip(atom.args, ground_atom.args):
-                if arg not in {x.name for x in action.parameters}:
+                if arg not in params:
                     continue
 
                 
                 if ground_atom.predicate in allow_missing:
                     assert REUSE_INITIAL_CERTIFIABLE_OBJECTS
-                    candidates.setdefault(arg, set()).add('?')
+                    candidates.setdefault(arg, set()).add("?")
 
                 candidates.setdefault(arg, set()).add(candidate)
-
-    # if not candidates:
-    #     assert False, "why am i here"
+    return list(combinations(candidates)) if candidates else [{}]
+        
+def find_applicable_brute_force(
+    action, state, allow_missing, object_stream_map={}, filter_precond=True
+):
+    """Given an action schema and a state, return the list of partially grounded
+    operators possible in the given state"""
+    # Find all possible assignments of the state.objects to action.parameters
+    # such that [action.preconditions - {atom | atom in certified}] <= state
+    params = {x.name for x in action.parameters}
+    for atom in action.precondition.parts:
+        if not any(arg in params for arg in atom.args) and (
+            (not atom.negated and atom not in state) or
+            (atom.negated and atom in state)
+        ):
+            return
 
     # find all the possible versions
-    for assignment in combinations(candidates) if candidates else [{}]:
+    for assignment in find_assignments_brute_force(action, state, allow_missing):
         feasible = True
         for par in action.parameters:
-            if (par.name not in assignment) or (assignment[par.name] == '?'):
+            if (par.name not in assignment) or (assignment[par.name] == "?"):
                 assignment[par.name] = Identifiers.next()
 
         assert isinstance(action.precondition, Conjunction)
@@ -264,12 +271,12 @@ class SearchState:
     #         for parent_obj in input_objs:
     #             stack.insert(0, parent_obj)
     #             if obj not in anon:
-    #                 anon[obj] = f"?{next(counter)}"
+    #                 anon[obj] = f"x{next(counter)}"
     #             if (
     #                 parent_obj not in anon
     #                 and self.full_stream_map[parent_obj] is not None
     #             ):
-    #                 anon[parent_obj] = f"?{next(counter)}"
+    #                 anon[parent_obj] = f"x{next(counter)}"
     #             edges.add(
     #                 (
     #                     anon.get(parent_obj, parent_obj),
@@ -338,7 +345,7 @@ class ActionStreamSearch:
                 continue
             for o1, o2 in zip(a.args, b.args):
                 if o1 != o2:
-                    if o1.startswith("?") and o2.startswith("?"):
+                    if o1.startswith(OPT_PREFIX) and o2.startswith(OPT_PREFIX):
                         cg1 = s1.get_object_computation_graph_key(o1)
                         cg2 = s2.get_object_computation_graph_key(o2)
                         if check_cg_equivalence(cg1, cg2):
