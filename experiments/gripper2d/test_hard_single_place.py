@@ -1,7 +1,7 @@
 
 
-from experiments.gripper2d.lifted import create_problem
-from lifted_search import ActionStreamSearch, repeated_a_star
+from experiments.gripper2d.lifted_problem import create_problem
+from lifted.a_star import ActionStreamSearch, repeated_a_star
 
 world = {
     "width": 20,

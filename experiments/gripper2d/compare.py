@@ -1,10 +1,11 @@
 import time
 
 import pandas as pd
-from lifted_search import ActionStreamSearch, repeated_a_star, Atom
+from lifted.a_star import repeated_a_star
+from lifted.search import ActionStreamSearch
 from experiments.gripper2d.problem import generate_scene
 from experiments.gripper2d.run import create_problem, solve, StreamInfo
-from experiments.gripper2d.lifted import create_problem as create_problem_lifted
+from experiments.gripper2d.lifted_problem import create_problem as create_problem_lifted
 import multiprocessing, sys, os
 import tempfile
 
@@ -60,7 +61,9 @@ def run_lifted_process(scene, goal, scene_idx, rep_idx, res):
 
 
 if __name__ == '__main__':
-    num_scenes = 1
+    import numpy as np
+    np.random.seed(10)
+    num_scenes = 50
     num_reps = 6
     scenes = []
     data = []

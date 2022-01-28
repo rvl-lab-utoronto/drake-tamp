@@ -18,8 +18,9 @@ from lifted.sampling import (
     extract_stream_plan_from_path,
     sample_depth_first_with_costs,
     extract_stream_ordering,
+    ancestral_sampling_by_edge
 )
-
+ENABLE_EQUALITY_CHECK = False
 
 def try_a_star(search, cost, heuristic, max_step=10000):
     start_time = time.time()
@@ -47,25 +48,26 @@ def try_a_star(search, cost, heuristic, max_step=10000):
                 continue
 
             is_unique = True
-            for node in closed:
-                if search.test_equal(child, node):
-                    is_unique = False
+            if ENABLE_EQUALITY_CHECK:
+                for node in closed:
+                    if search.test_equal(child, node):
+                        is_unique = False
 
-                    dup1 = False
-                    for _, parent in node.parents:
-                        if search.test_equal(parent, state):
-                            dup1 = True
-                            break
-                    if not dup1:
-                        node.parents.add((op, state))
+                        dup1 = False
+                        for _, parent in node.parents:
+                            if search.test_equal(parent, state):
+                                dup1 = True
+                                break
+                        if not dup1:
+                            node.parents.add((op, state))
 
-                    dup1 = False
-                    for _, _c in state.children:
-                        if search.test_equal(node, _c):
-                            dup1 = True
-                            break
-                    if not dup1:
-                        state.children.add((op, node))
+                        dup1 = False
+                        for _, _c in state.children:
+                            if search.test_equal(node, _c):
+                                dup1 = True
+                                break
+                        if not dup1:
+                            state.children.add((op, node))
 
             if not is_unique:
                 continue
@@ -73,7 +75,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             state.children.add((op, child))
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
-            q.push(child, child.start_distance + heuristic(child))
+            q.push(child, child.start_distance + heuristic(child, search.goal))
 
         closed.append(state)
 
@@ -90,7 +92,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
         return None
 
 
-def repeated_a_star(search, max_steps=1000, stats={}):
+def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
 
     # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     def cost(state, op, child, verbose=False):
@@ -117,14 +119,8 @@ def repeated_a_star(search, max_steps=1000, stats={}):
                 included.add(stream_action)
         return max(1, c)
 
-    def heuristic(state):
-        # actions = [a for _, a, _ in state.get_shortest_path_to_start()]
-        # if len(actions) >= 2:
-        #     if actions[-1] is not None and "move" in actions[-1].name:
-        #         if actions[-2] is not None and "move" in actions[-2].name:
-        #             return np.inf
-        # return len(goal - state.state) * 4
-        return 0
+    if heuristic is None:
+        heuristic = lambda s,g: 0
 
     stats = {}
     for _ in range(max_steps):
@@ -148,12 +144,19 @@ def repeated_a_star(search, max_steps=1000, stats={}):
         print(f"Action Skeleton:\n{actions_str}")
 
         stream_plan = extract_stream_plan_from_path(path)
-        stream_ordering = extract_stream_ordering(stream_plan)
-        if not stream_ordering:
-            break
-        object_mapping = sample_depth_first_with_costs(
-            stream_ordering, goal_state, stats
-        )
+        stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
+        object_mapping = ancestral_sampling_by_edge(stream_plan, goal_state, stats, max_steps=30)
+
+        path = goal_state.get_shortest_path_to_start()
+        c = 0
+        for idx, i in enumerate(path):
+            print(idx, i[1])
+            a = cost(*i, verbose=True)
+            print("action cost:", a)
+            print("cum cost:", a + c)
+            c += a
+
+
         if object_mapping is not None:
             break
         print("Could not find object_mapping, retrying with updated costs")

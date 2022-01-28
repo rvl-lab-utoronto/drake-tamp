@@ -1,4 +1,4 @@
-from lifted_search import ActionStreamSearch, repeated_a_star
+from lifted.a_star import ActionStreamSearch, repeated_a_star
 import os
 import sys
 
@@ -143,6 +143,7 @@ def instantiate_planning_problem(scene):
         initial_state.add(Atom('on', (objects[b].pddl, objects['r1'].pddl))) # TODO: put this into the scene def
         initial_state.add(Atom('atpose', (objects[b].pddl,  objects[f"{b}_pose"].pddl)))
         initial_state.add(Atom('blockpose', (objects[f"{b}_pose"].pddl, )))
+        initial_state.add(Atom('placement', (objects[b].pddl, objects['r1'].pddl, objects[f"{b}_pose"].pddl)))
     
     return objects, actions, initial_state
 
@@ -173,14 +174,28 @@ def create_problem(scene, goal):
     return initial_state, goal_set, externals, actions
 
 if __name__ == '__main__':
+    import numpy as np
+    import time
+    np.random.seed(1)
     scene = generate_scene([1, 2, 3, 4])
-    initial_state, goal, externals, actions = create_problem(scene, ('and', ('on', 'b0', 'r2')))
+    initial_state, goal, externals, actions = create_problem(scene, ('and', ('on', 'b0', 'r2'), ('on', 'b1', 'r1'), ('on', 'b2', 'r1'), ('on', 'b3', 'r1')))
     search = ActionStreamSearch(initial_state, goal, externals, actions)
     stats = {}
+
+    profile = 'new_lifted.profile'
+    if profile:
+        import cProfile, pstats, io
+        pr = cProfile.Profile()
+        pr.enable()
     result = repeated_a_star(search, stats=stats, max_steps=10, heuristic=lambda s, g: len(g - s.state)*10)
     if result is not None:
         action_skeleton, object_mapping, _ = result
         actions_str = "\n".join([str(a) for a in action_skeleton])
         print(f"Action Skeleton:\n{actions_str}")
         print(f"\nObject mapping: {object_mapping}\n") 
-
+    if profile:
+            pr.disable()
+            s = io.StringIO()
+            ps = pstats.Stats(pr, stream=s)
+            ps.print_stats()
+            ps.dump_stats(profile)   
