@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import numpy as np
 from frozendict import frozendict
+from copy import deepcopy
+import imageio
 
 def grasp(g, b):
     # relative to the bottom left of the block
@@ -30,21 +32,33 @@ def ik(gripper, blockpose, grasp, world):
         return
     yield (gripperpose, )
 
-def _check_safe(gripper, gripperpose, block, blockpose):
-    corners = [
-        [blockpose[0], blockpose[1]],
-        [blockpose[0] + block['width'], blockpose[1]],
-        [blockpose[0], blockpose[1] + block['height']],
-        [blockpose[0] + block['width'], blockpose[1] + block['height']]
-    ]
-    for corner in corners:
-        if (gripperpose[0] <= corner[0] <= gripperpose[0] + gripper['width']) and \
-        (gripperpose[1] <= corner[1] <= gripperpose[1] + gripper['height']):
-            return False
+def check_overlap(l1, r1, l2, r2):
+    # To check if either rectangle is actually a line
+    # For example :  l1 ={-1,0}  r1={1,1}  l2={0,-1}
+    # r2={0,1}
+ 
+    if (l1[0] == r1[0] or l1[1] == r1[1] or l2[0] == r2[0]
+        or l2[1] == r2[1]):
+        # the line cannot have positive overlap
+        return False
+ 
+    # If one rectangle is on left side of other
+    if (l1[0] >= r2[0] or l2[0] >= r1[0]):
+        return False
+ 
+    # If one rectangle is above other
+    if (r1[1] >= l2[1] or r2[1] >= l1[1]):
+        return False
+ 
     return True
-def check_safe(gripper, gripperpose, block, blockpose):
-    return _check_safe(gripper, gripperpose, block, blockpose) and _check_safe(block, blockpose, gripper, gripperpose)
 
+def check_safe(gripper, gripperpose, block, blockpose):
+    return not check_overlap(
+        (gripperpose[0], gripperpose[1] + gripper["height"]),
+        (gripperpose[0] + gripper["width"], gripperpose[1]),
+        (blockpose[0], blockpose[1] + block["height"]),
+        (blockpose[0] + block["width"], blockpose[1]),
+    )
 
 def placement(block, region):
     if block['width'] > region['width']:
@@ -58,7 +72,8 @@ def placement(block, region):
         x = xrange*np.random.random() + xmin
         yield (np.array([x, y]), )
 
-def visualize(world, grippers, regions, blocks):
+
+def visualize(world, grippers, regions, blocks, path=None):
     fig = plt.figure()
     ax = plt.gca()
     plt.xlim(0, world['width'])
@@ -89,6 +104,9 @@ def visualize(world, grippers, regions, blocks):
         stem_height = world['height'] - (r['y'] + r['height'])
         stem = Rectangle([(2*r['x'] + r['width']) / 2 - stem_width / 2, (r['y'] + r['height'])], stem_width, stem_height, color=r['color'], alpha=0.8)
         ax.add_patch(stem)
+    if path is not None:
+        plt.savefig(path, dpi=300)
+
 
 def random(start, end):
     return (np.random.random() * (end - start)) + start
@@ -143,3 +161,25 @@ def generate_scene(heights=None):
     set_placements(REGIONS['r1'], BLOCKS)
 
     return (WORLD, GRIPPERS, REGIONS, BLOCKS)
+
+def visualize_plan(scene, objects, action_skeleton, object_mapping, path=None):
+    visualize(*scene, path=f"{path}0.png" if path is not None else None)
+    world, grippers, regions, blocks = deepcopy(scene)
+    for i,action in enumerate(action_skeleton[:]):
+        if 'pick' in action.name:
+            block = action.name.split(',')[1]
+            grippers['g1']['x'], grippers['g1']['y'] = object_mapping[action.var_mapping[f'?conf']].value
+        elif 'place' in action.name:
+            block = action.name.split(',')[1]
+            print(block)
+            grippers['g1']['x'], grippers['g1']['y'] = object_mapping[action.var_mapping[f'?conf']].value
+            blocks[block]['x'], blocks[block]['y'] = object_mapping[action.var_mapping[f'?blockpose']].value
+        visualize(world, grippers, regions, blocks, path=f"{path}{i + 1}.png" if path is not None else None)
+        
+    if path is not None:
+        images = []
+        filenames = [f'{path}{i}.png' for i in range(len(action_skeleton))]
+        print(filenames)
+        for filename in filenames:
+            images.append(imageio.imread(filename))
+        imageio.mimsave(f'{path}.gif', images, duration=1)

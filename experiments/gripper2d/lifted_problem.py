@@ -140,10 +140,10 @@ def instantiate_planning_problem(scene):
         initial_state.add(Atom('conf', (objects[f"{g}_pose"].pddl, )))
     for b in blocks:
         initial_state.add(Atom('block', (objects[b].pddl, )))
-        initial_state.add(Atom('on', (objects[b].pddl, objects['r1'].pddl))) # TODO: put this into the scene def
+        initial_state.add(Atom('on', (objects[b].pddl, objects[blocks[b].get("on", "r1")].pddl))) # TODO: put this into the scene def
         initial_state.add(Atom('atpose', (objects[b].pddl,  objects[f"{b}_pose"].pddl)))
         initial_state.add(Atom('blockpose', (objects[f"{b}_pose"].pddl, )))
-        initial_state.add(Atom('placement', (objects[b].pddl, objects['r1'].pddl, objects[f"{b}_pose"].pddl)))
+        initial_state.add(Atom('placement', (objects[b].pddl, objects[blocks[b].get("on", "r1")].pddl, objects[f"{b}_pose"].pddl)))
     
     return objects, actions, initial_state
 
@@ -171,7 +171,7 @@ def create_problem(scene, goal):
         args = item[1:]
         goal_set.add(Atom(pred, tuple(objects[arg].pddl for arg in args)))
     
-    return initial_state, goal_set, externals, actions
+    return initial_state, goal_set, externals, actions, objects
 
 if __name__ == '__main__':
     import numpy as np

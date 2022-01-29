@@ -27,7 +27,7 @@ blocks = {
 }
 scene = (world, grippers, regions, blocks)
 goal = ('and', ('on', 'b0', 'r2'))
-initial_state, goal, externals, actions = create_problem(scene, goal)
+initial_state, goal, externals, actions, _ = create_problem(scene, goal)
 search = ActionStreamSearch(initial_state, goal, externals, actions)
 stats = {}
 result = repeated_a_star(search, stats=stats, max_steps=50)

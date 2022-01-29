@@ -39,7 +39,7 @@ def heuristic(state, goal):
     return len(goal - state.state)*10
 
 def run_lifted(scene, goal):
-    initial_state, goal, externals, actions = create_problem_lifted(scene, goal)
+    initial_state, goal, externals, actions, _ = create_problem_lifted(scene, goal)
     start = time.time()
     search = ActionStreamSearch(initial_state, goal, externals, actions)
     stats = {}
