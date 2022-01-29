@@ -9,10 +9,10 @@ world = {
     "height": 10
 }
 regions = {
-    "r1": {"width": 3, "x": 0, "y": -0.3, "height": .3},
+    "r1": {"width": 9, "x": 0, "y": -0.3, "height": .3},
     "r2": {"width": 9, "x": 10, "y": -0.3, "height": .3},
     "r3": {"width": 9, "x": 20, "y": -0.3, "height": .3},
-    "r4": {"width": 3, "x": 31, "y": -0.3, "height": .3},
+    "r4": {"width": 9, "x": 31, "y": -0.3, "height": .3},
 }
 
 grippers = {
@@ -57,7 +57,10 @@ blocks = {
     },
 }
 scene = (world, grippers, regions, blocks)
-goal = ('and', ('on', 'block0', 'r2'), ('on', 'block1', 'r2'),('on', 'blocker0', 'r1'), ('on', 'blocker1', 'r4'))
+goal = ('and',
+    ('on', 'block0', 'r2'), ('on', 'block1', 'r2'),
+    ('on', 'blocker0', 'r1'), ('on', 'blocker1', 'r4')
+)
 #%%
 # visualize(*scene)
 #%%

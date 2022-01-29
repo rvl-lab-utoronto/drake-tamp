@@ -72,7 +72,7 @@ def instantiate_planning_problem(scene):
                     Atom('atpose', (objects[b].pddl, '?blockpose')).negate(),
                     Atom('grasped', (objects[g].pddl, objects[b].pddl, '?grasp')),
                     Atom('holding', (objects[g].pddl, objects[b].pddl)),
-                    Atom('atconf', (objects[g].pddl, '?conf')),
+                    # Atom('atconf', (objects[g].pddl, '?conf')),
                 ]
                 actions.append(
                     Action(
@@ -117,7 +117,7 @@ def instantiate_planning_problem(scene):
                     Atom('holding', (objects[g].pddl, objects[b].pddl)).negate(),
                     Atom('on', (objects[b].pddl, objects[r].pddl)),
                     Atom('atpose', (objects[b].pddl, '?blockpose')),
-                    Atom('atconf', (objects[g].pddl, '?conf')),
+                    # Atom('atconf', (objects[g].pddl, '?conf')),
                 ]
                 actions.append(
                     Action(
@@ -136,7 +136,7 @@ def instantiate_planning_problem(scene):
     for g in grippers:
         initial_state.add(Atom('gripper', (objects[g].pddl, )))
         initial_state.add(Atom('empty', (objects[g].pddl,)))
-        initial_state.add(Atom('atconf', (objects[g].pddl, objects[f"{g}_pose"].pddl)))
+        # initial_state.add(Atom('atconf', (objects[g].pddl, objects[f"{g}_pose"].pddl)))
         initial_state.add(Atom('conf', (objects[f"{g}_pose"].pddl, )))
     for b in blocks:
         initial_state.add(Atom('block', (objects[b].pddl, )))

@@ -31,8 +31,7 @@ def create_problem(scene, goal):
     for b in blocks:
         p = tuple([blocks[b]['x'], blocks[b]['y']])
         init.add(('block', b))
-        init.add(('on', b, 'r1')) # TODO: put this into the scenef
-        init.add(('atpose', b,  p))
+        init.add(('on', b, blocks[b]["on"]))
         init.add(('blockpose', p))
     
     return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
