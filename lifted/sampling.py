@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from pddlstream.language.object import Object
 
-from utils import PriorityQueue
+from utils import PriorityQueue, topological_sort
 
 
 def extract_stream_plan(state):
@@ -42,41 +42,16 @@ def extract_stream_ordering(stream_plan):
     action plan, modulo a topological sort.
 
     Edit: Assumes each object_map depends only on itself and predecessors."""
+
     computed_objects = set(stream_plan[0][0][2].object_stream_map)
-
-    def topological_sort(stream_actions):
-        incoming_edges = {}
-        ready = set()
-        for stream_action in stream_actions:
-            missing = set(stream_action.inputs) - computed_objects
-            if missing:
-                incoming_edges[stream_action] = missing
-            else:
-                ready.add(stream_action)
-
-        result = []
-        while ready:
-            stream_action = ready.pop()
-            result.append(stream_action)
-            for out in stream_action.outputs:
-                computed_objects.add(out)
-            for candidate in list(incoming_edges):
-                missing = incoming_edges[candidate] - computed_objects
-                if missing:
-                    incoming_edges[candidate] = missing
-                else:
-                    del incoming_edges[candidate]
-                    ready.add(candidate)
-
-        assert (
-            not incoming_edges
-        ), "Something went wrong. Either the CG has a cycle, or depends on missing (or future) step."
-        return result
 
     stream_ordering = []
     for edge, object_map in stream_plan:
         stream_actions = {action for action in object_map.values()}
-        local_ordering = topological_sort(stream_actions)
+        local_ordering, missing = topological_sort(stream_actions, computed_objects)
+        assert (
+            not missing
+        ), "Something went wrong. Either the CG has a cycle, or depends on missing (or future) step."
         stream_ordering.extend(local_ordering)
     return stream_ordering
 
@@ -86,52 +61,6 @@ class Binding:
     index: int
     stream_plan: list
     mapping: dict
-
-
-def sample_depth_first(stream_plan, max_steps=10000):
-    """Demo sampling a stream plan using a backtracking depth first approach.
-    Returns a mapping if one exists, or None if infeasible or timeout."""
-    queue = [Binding(0, stream_plan, {})]
-    steps = 0
-    while queue and steps < max_steps:
-        binding = queue.pop(0)
-        steps += 1
-
-        stream_action = binding.stream_plan[binding.index]
-
-        input_objects = [
-            binding.mapping.get(var_name) or Object.from_name(var_name)
-            for var_name in stream_action.inputs
-        ]
-        fluent_facts = [
-            (f.predicate,)
-            + tuple(
-                binding.mapping.get(var_name) or Object.from_name(var_name)
-                for var_name in f.args
-            )
-            for f in stream_action.fluent_facts
-        ]
-        stream_instance = stream_action.stream.get_instance(
-            input_objects, fluent_facts=fluent_facts
-        )
-        if stream_instance.enumerated:
-            continue
-        results, new_facts = stream_instance.next_results(verbose=True)
-        if not results:
-            continue
-        [new_stream_result] = results
-        output_objects = new_stream_result.output_objects
-
-        new_mapping = binding.mapping.copy()
-        new_mapping.update(dict(zip(stream_action.outputs, output_objects)))
-        new_binding = Binding(binding.index + 1, binding.stream_plan, new_mapping)
-
-        if len(new_binding.stream_plan) == new_binding.index:
-            return new_binding.mapping
-
-        queue.append(new_binding)
-        queue.append(binding)
-    return None  # infeasible or reached step limit
 
 
 def sample_depth_first_with_costs(

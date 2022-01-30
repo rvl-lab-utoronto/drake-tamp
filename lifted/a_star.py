@@ -3,6 +3,7 @@ import math
 from pddlstream.language.conversion import fact_from_evaluation
 
 import sys
+
 sys.path.insert(
     0,
     "/home/mohammed/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/",
@@ -24,12 +25,10 @@ from sampling import (
 def try_a_star(search, cost, heuristic, max_step=10000):
     start_time = time.time()
     q = PriorityQueue([search.init])
-    closed = []
+    closed = {}
     expand_count = 0
     evaluate_count = 0
     found = False
-
-    current_length = 0
 
     while q and expand_count < max_step:
         state = q.pop()
@@ -39,35 +38,15 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             found = True
             break
 
-        for op, child in search.successors(state):
-            # state.children.append((op, child))
-            if (
-                child.unsatisfiable
-            ):  # or any([search.test_equal(child, node) for node in closed]):
+        successors = search.successors(state)
+        for op, child in successors:
+            if child.unsatisfiable:
                 continue
 
-            is_unique = True
-            for node in closed:
-                if search.test_equal(child, node):
-                    is_unique = False
-
-                    dup1 = False
-                    for _, parent in node.parents:
-                        if search.test_equal(parent, state):
-                            dup1 = True
-                            break
-                    if not dup1:
-                        node.parents.add((op, state))
-
-                    dup1 = False
-                    for _, _c in state.children:
-                        if search.test_equal(node, _c):
-                            dup1 = True
-                            break
-                    if not dup1:
-                        state.children.add((op, node))
-
-            if not is_unique:
+            if hash(child) in closed:
+                node = closed[hash(child)]
+                node.parents.add((op, state))
+                state.children.add((op, node))
                 continue
 
             state.children.add((op, child))
@@ -75,7 +54,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             child.start_distance = state.start_distance + cost(state, op, child)
             q.push(child, child.start_distance + heuristic(child))
 
-        closed.append(state)
+        closed[hash(state)] = state
 
     av_branching_f = evaluate_count / expand_count
     approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
@@ -84,10 +63,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     print(f"Time taken: {(time.time() - start_time)} seconds")
     print(f"Solution cost: {state.start_distance}")
 
-    if found:
-        return state
-    else:
-        return None
+    return state if found else None
 
 
 def repeated_a_star(search, max_steps=1000, stats={}):
@@ -205,15 +181,16 @@ if __name__ == "__main__":
     problem, model_poses = construct_problem_from_sim(sim, station_dict, prob_info)
     evaluations, goal_exp, domain, externals = parse_problem(problem)
 
-
     init = set()
     for evaluation in evaluations:
         x = fact_from_evaluation(evaluation)
+        # init.add(Atom(x[0], [PredicateObject(o.pddl, generated=False) for o in x[1:]]))
         init.add(Atom(x[0], [o.pddl for o in x[1:]]))
 
     goal = set()
     assert goal_exp[0] == "and"
     for x in goal_exp[1:]:
+        # goal.add(Atom(x[0], [PredicateObject(o.pddl, generated=False) for o in x[1:]]))
         goal.add(Atom(x[0], [o.pddl for o in x[1:]]))
 
     print("Initial:", init)
@@ -223,11 +200,13 @@ if __name__ == "__main__":
     search = ActionStreamSearch(init, goal, externals, domain.actions)
 
     from ompl.util import setLogLevel, LogLevel
+
     setLogLevel(LogLevel.LOG_WARN)
 
     if args.profile is not None:
         import lifted
         from line_profiler import LineProfiler
+
         profile = LineProfiler()
         profile.add_function(repeated_a_star)
         profile.add_function(try_a_star)
