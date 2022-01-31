@@ -48,7 +48,7 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    print(length)
+    # print(length)
     h = HAND_HEIGHT + (length) - FINGER_HEIGHT - FINGER_HEIGHT
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
