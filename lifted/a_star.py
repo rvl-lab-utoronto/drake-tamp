@@ -33,6 +33,10 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
     while q and expand_count < max_step:
         state = q.pop()
+
+        if hash(state) in closed:
+            continue
+
         expand_count += 1
 
         if search.test_goal(state):
