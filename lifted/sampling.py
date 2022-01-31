@@ -1,8 +1,10 @@
+from collections import defaultdict
 from dataclasses import dataclass
+from lifted.partial import StreamAction, DummyStream
 
 from pddlstream.language.object import Object
 
-from utils import PriorityQueue, topological_sort
+from lifted.utils import PriorityQueue, topological_sort
 
 
 def extract_stream_plan(state):
@@ -20,11 +22,11 @@ def extract_stream_plan(state):
 
 
 def get_stream_action_edges(stream_actions):
-    input_obj_to_streams = {}
+    input_obj_to_streams = defaultdict(set)
     for action in stream_actions:
         for obj in action.inputs:
             input_obj_to_streams.setdefault(obj, set()).add(action)
-
+    
     edges = []
     for action in stream_actions:
         children = set()
@@ -143,3 +145,119 @@ def extract_stream_plan_from_path(path):
         }
         stream_plan.append((edge, stream_map))
     return stream_plan
+
+def ancestral_sampling(stream_ordering, objects_from_name=None):
+    if objects_from_name is None:
+        objects_from_name = Object._obj_from_name
+    nodes = stream_ordering
+    edges = get_stream_action_edges(stream_ordering)
+    final_node = StreamAction(
+        DummyStream('FINAL'),
+        inputs=tuple(obj for stream_action in nodes for obj in stream_action.outputs),
+        outputs=tuple()
+    )
+    start_node = StreamAction(
+        DummyStream('START'),
+        inputs=tuple(),
+        outputs=tuple()
+    )
+    children = {
+    }
+    for parent, child in edges:
+        children.setdefault(parent, set()).add(child)
+    for node in nodes:
+        children.setdefault(node, set()).add(final_node)
+        children.setdefault(start_node, set()).add(node)
+    stats = {
+        node: 0
+        for node in nodes
+    }
+    produced = dict()
+    queue = [Binding(0, [start_node], {})]
+    while queue:
+        binding = queue.pop(0)
+        stream_action = binding.stream_plan[0]
+        if stream_action not in [start_node, final_node]:   
+            input_objects = [produced.get(var_name) or objects_from_name[var_name] for var_name in stream_action.inputs]
+            fluent_facts = [(f.predicate, ) + tuple(produced.get(var_name) or objects_from_name[var_name] for var_name in f.args) for f in stream_action.fluent_facts]
+            stream_instance = stream_action.stream.get_instance(input_objects, fluent_facts=fluent_facts)
+            if stream_instance.enumerated:
+                continue
+            results, new_facts = stream_instance.next_results(verbose=False)
+            if not results:
+                continue
+            [new_stream_result] = results
+            output_objects = new_stream_result.output_objects
+            if stream_action.stream.is_test:
+                output_objects = (True,)
+            newly_produced = dict(zip(stream_action.outputs, output_objects))
+            for obj in newly_produced:
+                produced[obj] = newly_produced[obj]
+            # new_mapping = binding.mapping.copy()
+            # new_mapping.update(newly_produced)
+    
+        else:
+            # new_mapping = binding.mapping
+            pass
+
+        stats[stream_action] = stats.get(stream_action, 0) + 1
+        for child in children.get(stream_action, []):
+            input_objects = list(child.inputs) + [var_name for f in child.fluent_facts for var_name in f.args]
+            if all(obj in produced or obj in objects_from_name for obj in input_objects):
+                new_binding = Binding(binding.index + 1, [child], {})
+                queue.append(new_binding)
+    return produced, stats.get(final_node, 0)
+
+def ancestral_sample_with_costs(stream_ordering, final_state, stats={}, max_steps=30, verbose=False):
+    to_produce = set({out for s in stream_ordering for out in s.outputs})
+    for i in range(max_steps):
+        produced, done = ancestral_sampling(stream_ordering)
+
+        for obj in to_produce:
+            cg_key = final_state.get_object_computation_graph_key(obj)
+            cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
+            cg_stats['num_attempts'] += 1
+            if obj in produced:
+                cg_stats['num_successes'] += 1
+
+        if done:
+            return produced
+    return None
+
+def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
+    (_,_,initial_state), _ = stream_plan[0]
+    objects = {k:v for k,v in Object._obj_from_name.items() if k in initial_state.object_stream_map}
+    i = 0
+    particles = [
+        [objects]
+    ]
+    while i < len(stream_plan):
+        (_, _, state), step = stream_plan[i]
+
+        if step:
+            to_produce = set({out for s in step for out in s.outputs})
+            step_particles = []
+            particles.append(step_particles)
+            for j in range(max_steps):
+                prev_particle = particles[i][j % len(particles[i])]
+
+                new_objects, success = ancestral_sampling(step, prev_particle)
+
+                for obj in to_produce:
+                    cg_key = state.get_object_computation_graph_key(obj)
+                    cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
+                    cg_stats['num_attempts'] += 1
+                    if obj in new_objects:
+                        cg_stats['num_successes'] += 1
+
+
+                if success:
+                    step_particles.append(dict(**prev_particle, **new_objects))
+            if len(step_particles) == 0:
+                break
+        else:
+            particles.append(particles[-1])
+        i += 1
+
+    
+    return particles[-1][0] if len(stream_plan) + 1 == len(particles) and particles[-1] else None

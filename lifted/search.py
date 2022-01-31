@@ -3,19 +3,20 @@ import itertools
 from dataclasses import dataclass
 
 import numpy as np
-from utils import replace_objects_in_condition
+from lifted.utils import replace_objects_in_condition
 
 from pddl.conditions import Atom, Conjunction, NegatedAtom
 import pddl.conditions as conditions
 
-from utils import (
+from lifted.utils import (
     Identifiers,
     Unsatisfiable,
     PropositionalAction,
     replace_objects_in_action,
+    OPT_PREFIX
 )
-from partial import certify, extract_from_partial_plan
-
+from lifted.partial import certify, extract_from_partial_plan
+REUSE_INITIAL_CERTIFIABLE_OBJECTS = False
 
 def combinations(candidates):
     """Given a dictionary from key (k^j) to a set of possible values D_k^j, yield all the
@@ -24,17 +25,9 @@ def combinations(candidates):
     for combo in itertools.product(*domains):
         yield dict(zip(keys, combo))
 
-
-def find_applicable_brute_force(
-    action, state, allow_missing, object_stream_map={}, filter_precond=True
-):
-    """Given an action schema and a state, return the list of partially grounded
-    operators possible in the given state"""
-
-    # Find all possible assignments of the state.objects to action.parameters
-    # such that [action.preconditions - {atom | atom in certified}] <= state
+def find_assignments_brute_force(action, state, allow_missing):
     candidates = {}
-
+    params = {x.name for x in action.parameters}
     for atom in action.precondition.parts:
 
         for ground_atom in state:
@@ -42,25 +35,38 @@ def find_applicable_brute_force(
                 continue
 
             if ground_atom.predicate in allow_missing:
-                if any([arg.startswith("?") for arg in ground_atom.args]):
+                if (not REUSE_INITIAL_CERTIFIABLE_OBJECTS) or any([arg[0] == OPT_PREFIX for arg in ground_atom.args]):
                     continue
-
-                for stream in allow_missing[ground_atom.predicate]:
-                    for output in stream.outputs:
-                        if not (
-                            output in candidates
-                            and any([a == "?" for a in candidates[output]])
-                        ):
-                            candidates.setdefault(output, set()).add("?")
-
+            if any(p not in params and p != arg for p,arg in zip(atom.args, ground_atom.args)):
+                continue
             for arg, candidate in zip(atom.args, ground_atom.args):
-                candidates.setdefault(arg, set()).add(candidate)
+                if arg not in params:
+                    continue
+                
+                if ground_atom.predicate in allow_missing:
+                    assert REUSE_INITIAL_CERTIFIABLE_OBJECTS
+                    candidates.setdefault(arg, set()).add("?")
 
-    if not candidates:
-        assert False, "why am i here"
+                candidates.setdefault(arg, set()).add(candidate)
+    return list(combinations(candidates)) if candidates else [{}]
+        
+def find_applicable_brute_force(
+    action, state, allow_missing, object_stream_map={}, filter_precond=True
+):
+    """Given an action schema and a state, return the list of partially grounded
+    operators possible in the given state"""
+    # Find all possible assignments of the state.objects to action.parameters
+    # such that [action.preconditions - {atom | atom in certified}] <= state
+    params = {x.name for x in action.parameters}
+    for atom in action.precondition.parts:
+        if not any(arg in params for arg in atom.args) and (
+            (not atom.negated and atom not in state) or
+            (atom.negated and atom in state)
+        ):
+            return
 
     # find all the possible versions
-    for assignment in combinations(candidates):
+    for assignment in find_assignments_brute_force(action, state, allow_missing):
         feasible = True
         for par in action.parameters:
             if (par.name not in assignment) or (assignment[par.name] == "?"):
@@ -81,9 +87,13 @@ def find_applicable_brute_force(
                 if atom.predicate not in allow_missing:
                     feasible = False
                     break
-                if all(arg in object_stream_map for arg in atom.args):
-                    feasible = False
-                    break
+                # THIS SAYS THAT A FACT WILL NOT BE ACHIEVABLE
+                # IF ALL OF ITS ARGUMENTS ARE NON OPTIMISTIC
+                # BUT THIS IS NOT TRUE FOR TEST STREAMS.
+                # HAVE TO REVISIT THIS ASSUMPTION ELSEWHERE
+                # if all(arg in object_stream_map for arg in atom.args):
+                #     feasible = False
+                #     break
 
             if atom.negated and atom.negate() in state:
                 feasible = False
@@ -129,7 +139,8 @@ def find_applicable_brute_force(
             # grounded positive precondition not in state
             if any(
                 atom.predicate not in allow_missing
-                or all(arg in object_stream_map for arg in atom.args)
+                 # THIS CONDITION IS NOT VALID FOR TEST STREAMS
+                 # or all(arg in object_stream_map for arg in atom.args)
                 for atom in missing_positive
             ):
                 assert False
@@ -152,6 +163,20 @@ def apply(action, state):
 def objects_from_state(state):
     return {arg for atom in state for arg in atom.args}
 
+@dataclass
+class DictionaryWithFallbacks:
+    own_keys: dict
+    fallbacks: Any  # list of DictionaryWithFallback or None
+
+    def __getitem__(self, key):
+        if key in self.own_keys:
+            return self.own_keys[key]
+        elif self.fallbacks is not None:
+            for fb in self.fallbacks:
+                ret = fb[key]
+                if ret is not None:
+                    return ret
+        return None
 
 class SearchState:
     def __init__(self, state, object_stream_map, unsatisfied, id_key, parents=set()):
@@ -179,6 +204,80 @@ class SearchState:
 
     def __hash__(self):
         return hash(self.id_key)
+
+    @property
+    def full_stream_map(self):
+        if self.__full_stream_map is None:
+            self.__full_stream_map = DictionaryWithFallbacks(
+                {k: v for k, v in self.object_stream_map.items() if v is not None},
+                [parent.full_stream_map for _, parent in self.parents]
+                if len(self.parents) > 0
+                else None,
+            )
+        return self.__full_stream_map
+
+    def get_object_computation_graph_key(self, obj):
+        if obj in self.object_computation_graph_keys:
+            return self.object_computation_graph_keys[obj]
+
+        stream_action = self.full_stream_map[obj]
+        if stream_action is None:
+            return obj
+        if self.object_stream_map[obj] is None:
+            # TODO: this is wasteful. Try to identify the object somehow.
+            # return self.parent.get_constraint_graph_key(obj)
+            return obj
+        edges = frozenset({
+            (
+                self.get_object_computation_graph_key(input_object),
+                stream_action.inputs.index(input_object) if stream_action.stream.name != 'all' else None,
+                stream_action.stream.name,
+                stream_action.outputs.index(obj),
+            ) for input_object in stream_action.inputs
+        })
+
+        self.object_computation_graph_keys[obj] = edges
+        return edges
+
+    # def get_object_computation_graph_key(self, obj):
+    #     if obj in self.object_computation_graph_keys:
+    #         return self.object_computation_graph_keys[obj]
+
+    #     counter = itertools.count()
+    #     stack = [obj]
+    #     edges = set()
+    #     anon = {}
+    #     while stack:
+    #         obj = stack.pop(0)
+    #         stream_action = self.full_stream_map[obj]
+    #         if stream_action is None:
+    #             edges.add((None, None, None, obj))
+    #             continue
+
+    #         input_objs = stream_action.inputs + tuple(
+    #             sorted(list(objects_from_state(stream_action.fluent_facts)))
+    #         )
+    #         # TODO add fluent objects also to this tuple
+    #         for parent_obj in input_objs:
+    #             stack.insert(0, parent_obj)
+    #             if obj not in anon:
+    #                 anon[obj] = f"x{next(counter)}"
+    #             if (
+    #                 parent_obj not in anon
+    #                 and self.full_stream_map[parent_obj] is not None
+    #             ):
+    #                 anon[parent_obj] = f"x{next(counter)}"
+    #             edges.add(
+    #                 (
+    #                     anon.get(parent_obj, parent_obj),
+    #                     stream_action.stream.name,
+    #                     stream_action.outputs.index(obj),
+    #                     anon[obj],
+    #                 )
+    #             )
+
+    #     self.object_computation_graph_keys[obj] = frozenset(edges)
+    #     return frozenset(edges)
 
     def get_shortest_path_to_start(self):
         path = []
@@ -297,4 +396,5 @@ class ActionStreamSearch:
                     except Unsatisfiable:
                         continue
             state.expanded = True
+            
             return successors

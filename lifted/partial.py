@@ -2,9 +2,9 @@ from dataclasses import dataclass, field
 import itertools
 
 from pddl.conditions import Atom
-from pddlstream.language.stream import Stream
+from pddlstream.language.stream import Stream, StreamResult
 
-from utils import (
+from lifted.utils import (
     Identifiers,
     Unsatisfiable,
     topological_sort,
@@ -86,6 +86,23 @@ class StreamAction:
     def get_cg_key(self):
         return (self.stream.name, self.inputs, self.fluent_facts, frozenset(self.pre))
 
+
+@dataclass
+class DummyStream:
+    name: str
+    outputs = tuple()
+    enumerated = False
+    is_test = True
+    
+    @property
+    def external(self):
+        return self
+
+    def get_instance(self, inputs, fluent_facts=tuple()): 
+        return self
+
+    def next_results(self, verbose=False): 
+        return [StreamResult(self, tuple())], []
 
 @dataclass
 class Resolver:
@@ -253,10 +270,12 @@ def extract_from_partial_plan(
             for out in act.outputs:
                 new_objects.add(out)
 
-    object_stream_map = {o: None for o in old_world_state.object_stream_map}
+    object_stream_map = {o:None for o in old_world_state.object_stream_map}
     missing = old_missing.copy()
     object_mapping = {}
     ordered_actions, _ = topological_sort(partial_plan.actions, set(object_stream_map))
+    produced = set()
+    used = set()
     for i, act in enumerate(ordered_actions):
         if act.stream is None:
             continue
@@ -350,13 +369,22 @@ def extract_from_partial_plan(
 
         for out in act.outputs:
             object_stream_map[out] = act
-
+            produced.add(out)
+        for out in act.inputs:
+            used.add(out)
         for e in act.eff:
             if e in missing:
                 missing.remove(e)
             else:
                 # print('Not missing!', e)
                 pass
+    
+    placeholder = Identifiers.next()
+    object_stream_map[placeholder] = StreamAction(
+        DummyStream('all'),
+        inputs=tuple(produced - used), # i need this to be ordered in order for the cg key to work. But i have nothing with which to base the order on.
+        outputs=(placeholder,)
+    )
 
     for o in object_mapping:
         assert o not in object_stream_map, "need to handle this!"

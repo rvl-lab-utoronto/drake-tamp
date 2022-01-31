@@ -4,6 +4,7 @@ import collections
 
 from pddl.conditions import Atom, NegatedAtom, Conjunction
 
+OPT_PREFIX = "#"
 
 class PriorityQueue:
     def __init__(self, init=[]):
@@ -31,7 +32,7 @@ class Identifiers:
     @classmethod
     def next(cls):
         cls.idx += 1
-        return f"?x{cls.idx}"
+        return f"{OPT_PREFIX}x{cls.idx}"
 
 
 class Unsatisfiable(Exception):
