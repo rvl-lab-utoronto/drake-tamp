@@ -32,7 +32,10 @@ class Identifiers:
     @classmethod
     def next(cls):
         cls.idx += 1
-        return f"{OPT_PREFIX}x{cls.idx}"
+        return PredicateObject(
+            f"{OPT_PREFIX}x{cls.idx}",
+            generated=True,
+        )
 
 
 class Unsatisfiable(Exception):

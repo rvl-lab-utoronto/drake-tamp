@@ -1,6 +1,7 @@
 from typing import Any
 import itertools
 from dataclasses import dataclass
+import copy
 
 import numpy as np
 from lifted.utils import replace_objects_in_condition
@@ -13,7 +14,8 @@ from lifted.utils import (
     Unsatisfiable,
     PropositionalAction,
     replace_objects_in_action,
-    OPT_PREFIX
+    OPT_PREFIX,
+    PredicateObject
 )
 from lifted.partial import certify, extract_from_partial_plan
 REUSE_INITIAL_CERTIFIABLE_OBJECTS = False
@@ -67,6 +69,12 @@ def find_applicable_brute_force(
 
     # find all the possible versions
     for assignment in find_assignments_brute_force(action, state, allow_missing):
+    
+        assignment = {
+            k: PredicateObject(copy.deepcopy(v.data)) if isinstance(v, PredicateObject) else v
+            for k, v in assignment.items()
+        }
+
         feasible = True
         for par in action.parameters:
             if (par.name not in assignment) or (assignment[par.name] == "?"):
@@ -356,7 +364,6 @@ class ActionStreamSearch:
                             new_world_state,
                             object_stream_map,
                             new_missing,
-                            object_mapping,
                         ) = extract_from_partial_plan(
                             state,
                             missing,
@@ -364,7 +371,6 @@ class ActionStreamSearch:
                             partial_plan,
                             self.cg_id_map,
                         )
-                        new_op = replace_objects_in_action(op, object_mapping)
 
                         temp_object_mapping = {
                             x: "?"
@@ -389,10 +395,10 @@ class ActionStreamSearch:
                             object_stream_map,
                             new_missing,
                             state_id_key,
-                            parents={(new_op, state)},
+                            parents={(op, state)},
                         )
 
-                        successors.append((new_op, op_state))
+                        successors.append((op, op_state))
                     except Unsatisfiable:
                         continue
             state.expanded = True

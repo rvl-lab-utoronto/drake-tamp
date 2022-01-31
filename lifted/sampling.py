@@ -252,7 +252,9 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
 
 
                 if success:
-                    step_particles.append(dict(**prev_particle, **new_objects))
+                    _temp_dict = prev_particle.copy()
+                    _temp_dict.update(new_objects)
+                    step_particles.append(_temp_dict)
             if len(step_particles) == 0:
                 break
         else:

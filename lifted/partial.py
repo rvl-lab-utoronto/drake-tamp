@@ -264,11 +264,11 @@ def extract_from_partial_plan(
     Edit: As of today (Dec 1) objects are not added to the object stream map until their CG is
     fully determined.
     """
-    new_objects = set()
+    new_objects = []
     for act in partial_plan.actions:
         if act.stream is not None:
             for out in act.outputs:
-                new_objects.add(out)
+                new_objects.append(out)
 
     object_stream_map = {o:None for o in old_world_state.object_stream_map}
     missing = old_missing.copy()
@@ -295,74 +295,19 @@ def extract_from_partial_plan(
             original_outputs, original_effs = cg_id_map[cg_key]
 
             if original_outputs != act.outputs or original_effs != act.eff:
-
+                
                 temp_object_replacement_map = {
-                    old: new for old, new in zip(act.outputs, original_outputs)
+                    str(old): str(new) for old, new in zip(act.outputs, original_outputs)
                 }
-
-                for child_act in ordered_actions[i + 1 :]:
-                    child_act.inputs = tuple(
-                        [
-                            temp_object_replacement_map.get(obj, obj)
-                            for obj in child_act.inputs
-                        ]
-                    )
-                    child_act.outputs = tuple(
-                        [
-                            temp_object_replacement_map.get(obj, obj)
-                            for obj in child_act.outputs
-                        ]
-                    )
-                    child_act.pre = set(
-                        [
-                            replace_objects_in_condition(
-                                condition, temp_object_replacement_map
-                            )
-                            for condition in child_act.pre
-                        ]
-                    )
-                    child_act.eff = set(
-                        [
-                            replace_objects_in_condition(
-                                condition, temp_object_replacement_map
-                            )
-                            for condition in child_act.eff
-                        ]
-                    )
-                    child_act.fluent_facts = tuple(
-                        [
-                            replace_objects_in_condition(
-                                fact, temp_object_replacement_map
-                            )
-                            for fact in child_act.fluent_facts
-                        ]
-                    )
-
-                new_objects = set(
-                    [temp_object_replacement_map.get(obj, obj) for obj in new_objects]
-                )
-
-                missing = set(
-                    [
-                        replace_objects_in_condition(
-                            condition, temp_object_replacement_map
-                        )
-                        for condition in missing
-                    ]
-                )
-
-                new_world_state = set(
-                    [
-                        replace_objects_in_condition(fact, temp_object_replacement_map)
-                        for fact in new_world_state
-                    ]
-                )
-
-                act.outputs, act.eff = original_outputs, original_effs
                 object_mapping.update(temp_object_replacement_map)
+
+
+                for old, new in zip(act.outputs, original_outputs):
+                    old.data = new.data
 
         else:
             cg_id_map[cg_key] = act.outputs, act.eff
+
 
         if not act.stream.is_fluent:
             new_world_state |= act.eff
@@ -370,15 +315,58 @@ def extract_from_partial_plan(
         for out in act.outputs:
             object_stream_map[out] = act
             produced.add(out)
+
         for out in act.inputs:
             used.add(out)
-        for e in act.eff:
-            if e in missing:
-                missing.remove(e)
-            else:
-                # print('Not missing!', e)
-                pass
+
+    new_objects = set()
+    for act in ordered_actions:
+        if act.stream is not None:
+            for out in act.outputs:
+                new_objects.add(out)
+
+    # missing = set(
+    #     [
+    #         replace_objects_in_condition(
+    #             condition, object_mapping
+    #         )
+    #         for condition in missing
+    #     ]
+    # )
     
+    for act in ordered_actions:
+        if act.stream is None:
+            continue
+        # object's CG is determined if all inputs are produced now, or previously
+        if any(
+            parent_obj not in new_objects
+            and parent_obj not in old_world_state.object_stream_map
+            for parent_obj in act.inputs
+        ):
+            continue
+        for e in act.eff:
+            for f in list(missing):
+                if e.predicate != f.predicate:
+                    continue
+                for e_args, f_arg in zip(e.args, f.args):
+                    if e_args != f_arg:
+                        break
+                else:
+                    missing.remove(f)
+
+            # if e in missing:
+            #     missing.remove(e)
+            # else:
+            #     # print('Not missing!', e)
+            #     pass
+
+    new_world_state = set(
+        [
+            replace_objects_in_condition(fact, object_mapping)
+            for fact in new_world_state
+        ]
+    )
+
     placeholder = Identifiers.next()
     object_stream_map[placeholder] = StreamAction(
         DummyStream('all'),
@@ -386,7 +374,4 @@ def extract_from_partial_plan(
         outputs=(placeholder,)
     )
 
-    for o in object_mapping:
-        assert o not in object_stream_map, "need to handle this!"
-
-    return new_world_state, object_stream_map, missing, object_mapping
+    return new_world_state, object_stream_map, missing

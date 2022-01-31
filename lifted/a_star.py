@@ -212,14 +212,14 @@ if __name__ == "__main__":
     setLogLevel(LogLevel.LOG_WARN)
 
     if args.profile is not None:
-        import lifted
+        from lifted.search import find_applicable_brute_force
         from line_profiler import LineProfiler
 
         profile = LineProfiler()
         profile.add_function(repeated_a_star)
         profile.add_function(try_a_star)
-        profile.add_function(lifted.find_applicable_brute_force)
-        profile.add_function(ActionStreamSearch.test_equal)
+        profile.add_function(find_applicable_brute_force)
+        profile.add_function(ActionStreamSearch.successors)
         profile.enable()
 
     start_time = time.time()

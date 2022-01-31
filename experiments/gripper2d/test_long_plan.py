@@ -67,6 +67,17 @@ if __name__ == '__main__':
         from experiments.gripper2d.lifted_problem import create_problem
         from lifted.a_star import ActionStreamSearch, repeated_a_star
 
+        # from lifted.a_star import try_a_star
+        # from lifted.partial import extract_from_partial_plan
+        # from line_profiler import LineProfiler
+        
+        # profile = LineProfiler()
+        # profile.add_function(repeated_a_star)
+        # profile.add_function(try_a_star)
+        # profile.add_function(ActionStreamSearch.successors)
+        # profile.add_function(extract_from_partial_plan)
+        # profile.enable()
+
         initial_state, goal, externals, actions, objects = create_problem(scene, goal)
         search = ActionStreamSearch(initial_state, goal, externals, actions)
         stats = {}
@@ -76,6 +87,9 @@ if __name__ == '__main__':
             actions_str = "\n".join([str(a) for a in action_skeleton])
             print(f"Action Skeleton:\n{actions_str}")
             print(f"\nObject mapping: {object_mapping}\n") 
+
+        # profile.print_stats(open("lifted.prof.log", "w"))
+
     elif alg == 'a':
         from experiments.gripper2d.run import create_problem, solve, print_solution
         from experiments.gripper2d.run import create_problem, solve, StreamInfo
