@@ -27,6 +27,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     start_time = time.time()
     q = PriorityQueue([search.init])
     closed = {}
+    generated = {}
     expand_count = 0
     evaluate_count = 0
     found = False
@@ -48,13 +49,14 @@ def try_a_star(search, cost, heuristic, max_step=10000):
             if child.unsatisfiable:
                 continue
 
-            if hash(child) in closed:
-                node = closed[hash(child)]
+            if hash(child) in generated:
+                node = generated[hash(child)]
                 node.parents.add((op, state))
                 state.children.add((op, node))
                 continue
 
             state.children.add((op, child))
+            generated[hash(child)] = child
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
             q.push(child, child.start_distance + heuristic(child, search.goal))
