@@ -84,7 +84,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             if stream_action is not None:
                 if stream_action in included:
                     continue
-                cg_key = child.get_object_computation_graph_key(obj)
+                cg_key = child.object_stream_map[obj].get_cg_key()
                 if cg_key in stats:
                     s = stats[cg_key]
                     comp_cost = (
@@ -101,7 +101,8 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
         return max(1, c)
 
     if heuristic is None:
-        heuristic = lambda s,g: 0
+        # heuristic = lambda s,g: 0
+        heuristic = lambda s, g: 10*len(g - s.state)
 
     stats = {}
     for _ in range(max_steps):

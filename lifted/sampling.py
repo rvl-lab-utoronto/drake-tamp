@@ -244,7 +244,7 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
                 new_objects, success = ancestral_sampling(step, prev_particle)
 
                 for obj in to_produce:
-                    cg_key = state.get_object_computation_graph_key(obj)
+                    cg_key = state.object_stream_map[obj].get_cg_key()
                     cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
                     cg_stats['num_attempts'] += 1
                     if obj in new_objects:
