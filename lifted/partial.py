@@ -264,24 +264,15 @@ def extract_from_partial_plan(
     Edit: As of today (Dec 1) objects are not added to the object stream map until their CG is
     fully determined.
     """
-    new_objects = []
-    for act in partial_plan.actions:
-        if act.stream is not None:
-            for out in act.outputs:
-                new_objects.append(out)
-
     object_stream_map = {o:None for o in old_world_state.object_stream_map}
     missing = old_missing.copy()
     object_mapping = {}
     ordered_actions, _ = topological_sort(partial_plan.actions, set(object_stream_map))
     produced = set()
     used = set()
-    for i, act in enumerate(ordered_actions):
-        if act.stream is None:
-            continue
-        # object's CG is determined if all inputs are produced now, or previously
-        if any(
-            parent_obj not in new_objects
+    for act in ordered_actions:
+        if act.stream is None or any(
+            parent_obj not in produced
             and parent_obj not in old_world_state.object_stream_map
             for parent_obj in act.inputs
         ):
@@ -296,18 +287,15 @@ def extract_from_partial_plan(
 
             if original_outputs != act.outputs or original_effs != act.eff:
                 
-                temp_object_replacement_map = {
+                object_mapping.update({
                     str(old): str(new) for old, new in zip(act.outputs, original_outputs)
-                }
-                object_mapping.update(temp_object_replacement_map)
-
+                })
 
                 for old, new in zip(act.outputs, original_outputs):
                     old.data = new.data
 
         else:
             cg_id_map[cg_key] = act.outputs, act.eff
-
 
         if not act.stream.is_fluent:
             new_world_state |= act.eff
@@ -318,32 +306,7 @@ def extract_from_partial_plan(
 
         for out in act.inputs:
             used.add(out)
-
-    new_objects = set()
-    for act in ordered_actions:
-        if act.stream is not None:
-            for out in act.outputs:
-                new_objects.add(out)
-
-    # missing = set(
-    #     [
-    #         replace_objects_in_condition(
-    #             condition, object_mapping
-    #         )
-    #         for condition in missing
-    #     ]
-    # )
     
-    for act in ordered_actions:
-        if act.stream is None:
-            continue
-        # object's CG is determined if all inputs are produced now, or previously
-        if any(
-            parent_obj not in new_objects
-            and parent_obj not in old_world_state.object_stream_map
-            for parent_obj in act.inputs
-        ):
-            continue
         for e in act.eff:
             for f in list(missing):
                 if e.predicate != f.predicate:
@@ -353,12 +316,6 @@ def extract_from_partial_plan(
                         break
                 else:
                     missing.remove(f)
-
-            # if e in missing:
-            #     missing.remove(e)
-            # else:
-            #     # print('Not missing!', e)
-            #     pass
 
     new_world_state = set(
         [
