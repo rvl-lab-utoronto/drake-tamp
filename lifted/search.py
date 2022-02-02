@@ -18,7 +18,7 @@ from lifted.utils import (
     PredicateObject
 )
 from lifted.partial import certify, extract_from_partial_plan
-REUSE_INITIAL_CERTIFIABLE_OBJECTS = False
+REUSE_INITIAL_CERTIFIABLE_OBJECTS = True
 
 def combinations(candidates):
     """Given a dictionary from key (k^j) to a set of possible values D_k^j, yield all the
@@ -212,80 +212,6 @@ class SearchState:
 
     def __hash__(self):
         return hash(self.id_key)
-
-    @property
-    def full_stream_map(self):
-        if self.__full_stream_map is None:
-            self.__full_stream_map = DictionaryWithFallbacks(
-                {k: v for k, v in self.object_stream_map.items() if v is not None},
-                [parent.full_stream_map for _, parent in self.parents]
-                if len(self.parents) > 0
-                else None,
-            )
-        return self.__full_stream_map
-
-    def get_object_computation_graph_key(self, obj):
-        if obj in self.object_computation_graph_keys:
-            return self.object_computation_graph_keys[obj]
-
-        stream_action = self.full_stream_map[obj]
-        if stream_action is None:
-            return obj
-        if self.object_stream_map[obj] is None:
-            # TODO: this is wasteful. Try to identify the object somehow.
-            # return self.parent.get_constraint_graph_key(obj)
-            return obj
-        edges = frozenset({
-            (
-                self.get_object_computation_graph_key(input_object),
-                stream_action.inputs.index(input_object) if stream_action.stream.name != 'all' else None,
-                stream_action.stream.name,
-                stream_action.outputs.index(obj),
-            ) for input_object in stream_action.inputs
-        })
-
-        self.object_computation_graph_keys[obj] = edges
-        return edges
-
-    # def get_object_computation_graph_key(self, obj):
-    #     if obj in self.object_computation_graph_keys:
-    #         return self.object_computation_graph_keys[obj]
-
-    #     counter = itertools.count()
-    #     stack = [obj]
-    #     edges = set()
-    #     anon = {}
-    #     while stack:
-    #         obj = stack.pop(0)
-    #         stream_action = self.full_stream_map[obj]
-    #         if stream_action is None:
-    #             edges.add((None, None, None, obj))
-    #             continue
-
-    #         input_objs = stream_action.inputs + tuple(
-    #             sorted(list(objects_from_state(stream_action.fluent_facts)))
-    #         )
-    #         # TODO add fluent objects also to this tuple
-    #         for parent_obj in input_objs:
-    #             stack.insert(0, parent_obj)
-    #             if obj not in anon:
-    #                 anon[obj] = f"x{next(counter)}"
-    #             if (
-    #                 parent_obj not in anon
-    #                 and self.full_stream_map[parent_obj] is not None
-    #             ):
-    #                 anon[parent_obj] = f"x{next(counter)}"
-    #             edges.add(
-    #                 (
-    #                     anon.get(parent_obj, parent_obj),
-    #                     stream_action.stream.name,
-    #                     stream_action.outputs.index(obj),
-    #                     anon[obj],
-    #                 )
-    #             )
-
-    #     self.object_computation_graph_keys[obj] = frozenset(edges)
-    #     return frozenset(edges)
 
     def get_shortest_path_to_start(self):
         path = []
