@@ -25,7 +25,50 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     start_time = time.time()
     q = PriorityQueue([search.init])
     closed = {}
-    generated = {}
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+    while q and expand_count < max_step:
+        state = q.pop()
+
+        if hash(state) in closed:
+            continue
+
+        expand_count += 1
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        successors = search.successors(state)
+        for op, child in successors:
+            if child.unsatisfiable:
+                continue
+
+            child.parents = {(op, state)}
+            child.start_distance = state.start_distance + cost(state, op, child)
+            state.children.add((op, child))
+            evaluate_count += 1
+            q.push(child, child.start_distance + heuristic(child, search.goal))
+
+        closed[hash(state)] = state
+
+    av_branching_f = evaluate_count / expand_count
+    approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
+    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
+    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    print(f"Time taken: {(time.time() - start_time)} seconds")
+    print(f"Solution cost: {state.start_distance}")
+
+    return state if found else None
+
+
+def try_a_star_modified(search, cost, heuristic, max_step=10000):
+    start_time = time.time()
+    q = PriorityQueue([search.init])
+    closed = {}
+    generated = {hash(search.init): search.init}
     expand_count = 0
     evaluate_count = 0
     found = False
@@ -48,16 +91,20 @@ def try_a_star(search, cost, heuristic, max_step=10000):
                 continue
 
             if hash(child) in generated:
-                node = generated[hash(child)]
-                node.parents.add((op, state))
-                state.children.add((op, node))
+                child = generated[hash(child)]
+                child.parents.add((op, state))
+                child.start_distance = min(
+                    child.start_distance,
+                    state.start_distance + cost(state, op, child)
+                )
+                state.children.add((op, child))
                 continue
-
-            child.parents.add((op, state))
-            state.children.add((op, child))
+            
             generated[hash(child)] = child
-            evaluate_count += 1
+            child.parents = {(op, state)}
             child.start_distance = state.start_distance + cost(state, op, child)
+            state.children.add((op, child))
+            evaluate_count += 1
             q.push(child, child.start_distance + heuristic(child, search.goal))
 
         closed[hash(state)] = state
@@ -72,11 +119,11 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     return state if found else None
 
 
-def try_a_star_tree(search, cost, heuristic, max_step=100000):
+def try_a_star_tree(search, cost, heuristic, max_step=500000):
     start_time = time.time()
     q = PriorityQueue([search.init])
     closed = {}
-    generated = {}
+    generated = {hash(search.init): search.init}
     expand_count = 0
     evaluate_count = 0
     found = False
@@ -151,8 +198,9 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
 
     stats = {}
     for _ in range(max_steps):
-        goal_state = try_a_star_tree(search, cost, heuristic)
         # goal_state = try_a_star(search, cost, heuristic)
+        goal_state = try_a_star_modified(search, cost, heuristic)
+        # goal_state = try_a_star_tree(search, cost, heuristic)
         if goal_state is None:
             print("Could not find feasable action plan!")
             break
