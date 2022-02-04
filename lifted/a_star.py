@@ -15,11 +15,9 @@ sys.path.insert(
 from pddl.conditions import Atom
 import time
 from lifted.utils import PriorityQueue
-from lifted.search import ActionStreamSearch, SearchState
+from lifted.search import ActionStreamSearch
 from lifted.sampling import (
     extract_stream_plan_from_path,
-    sample_depth_first_with_costs,
-    extract_stream_ordering,
     ancestral_sampling_by_edge
 )
 ENABLE_EQUALITY_CHECK = False
@@ -75,7 +73,7 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     return state if found else None
 
 
-def try_a_star_tree(search, cost, heuristic, max_step=10000):
+def try_a_star_tree(search, cost, heuristic, max_step=100000):
     start_time = time.time()
     q = PriorityQueue([search.init])
     closed = {}
@@ -86,9 +84,6 @@ def try_a_star_tree(search, cost, heuristic, max_step=10000):
 
     while q and expand_count < max_step:
         state = q.pop()
-
-        if hash(state) in closed:
-            continue
 
         expand_count += 1
 
