@@ -93,16 +93,17 @@ class DummyStream:
     outputs = tuple()
     enumerated = False
     is_test = True
-    
+
     @property
     def external(self):
         return self
 
-    def get_instance(self, inputs, fluent_facts=tuple()): 
+    def get_instance(self, inputs, fluent_facts=tuple()):
         return self
 
-    def next_results(self, verbose=False): 
+    def next_results(self, verbose=False):
         return [StreamResult(self, tuple())], []
+
 
 @dataclass
 class Resolver:
@@ -264,7 +265,7 @@ def extract_from_partial_plan(
     Edit: As of today (Dec 1) objects are not added to the object stream map until their CG is
     fully determined.
     """
-    object_stream_map = {o:None for o in old_world_state.object_stream_map}
+    object_stream_map = {o: None for o in old_world_state.object_stream_map}
     missing = old_missing.copy()
     object_mapping = {}
     ordered_actions, _ = topological_sort(partial_plan.actions, set(object_stream_map))
@@ -286,10 +287,13 @@ def extract_from_partial_plan(
             original_outputs, original_effs = cg_id_map[cg_key]
 
             if original_outputs != act.outputs or original_effs != act.eff:
-                
-                object_mapping.update({
-                    str(old): str(new) for old, new in zip(act.outputs, original_outputs)
-                })
+
+                object_mapping.update(
+                    {
+                        str(old): str(new)
+                        for old, new in zip(act.outputs, original_outputs)
+                    }
+                )
 
                 for old, new in zip(act.outputs, original_outputs):
                     old.data = new.data
@@ -306,7 +310,7 @@ def extract_from_partial_plan(
 
         for out in act.inputs:
             used.add(out)
-    
+
         for e in act.eff:
             for f in list(missing):
                 if e.predicate != f.predicate:
@@ -318,17 +322,16 @@ def extract_from_partial_plan(
                     missing.remove(f)
 
     new_world_state = set(
-        [
-            replace_objects_in_condition(fact, object_mapping)
-            for fact in new_world_state
-        ]
+        [replace_objects_in_condition(fact, object_mapping) for fact in new_world_state]
     )
 
     placeholder = Identifiers.next()
     object_stream_map[placeholder] = StreamAction(
-        DummyStream('all'),
-        inputs=tuple(produced - used), # i need this to be ordered in order for the cg key to work. But i have nothing with which to base the order on.
-        outputs=(placeholder,)
+        DummyStream("all"),
+        inputs=tuple(
+            produced - used
+        ),  # i need this to be ordered in order for the cg key to work. But i have nothing with which to base the order on.
+        outputs=(placeholder,),
     )
 
     return new_world_state, object_stream_map, missing

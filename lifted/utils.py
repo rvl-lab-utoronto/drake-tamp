@@ -6,6 +6,7 @@ from pddl.conditions import Atom, NegatedAtom, Conjunction
 
 OPT_PREFIX = "#"
 
+
 class PriorityQueue:
     def __init__(self, init=[]):
         self.heap = []

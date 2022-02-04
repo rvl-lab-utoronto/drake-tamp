@@ -15,10 +15,12 @@ from lifted.utils import (
     PropositionalAction,
     replace_objects_in_action,
     OPT_PREFIX,
-    PredicateObject
+    PredicateObject,
 )
 from lifted.partial import certify, extract_from_partial_plan
+
 REUSE_INITIAL_CERTIFIABLE_OBJECTS = True
+
 
 def combinations(candidates):
     """Given a dictionary from key (k^j) to a set of possible values D_k^j, yield all the
@@ -26,6 +28,7 @@ def combinations(candidates):
     keys, domains = zip(*candidates.items())
     for combo in itertools.product(*domains):
         yield dict(zip(keys, combo))
+
 
 def find_assignments_brute_force(action, state, allow_missing):
     candidates = {}
@@ -37,21 +40,27 @@ def find_assignments_brute_force(action, state, allow_missing):
                 continue
 
             if ground_atom.predicate in allow_missing:
-                if (not REUSE_INITIAL_CERTIFIABLE_OBJECTS) or any([arg[0] == OPT_PREFIX for arg in ground_atom.args]):
+                if (not REUSE_INITIAL_CERTIFIABLE_OBJECTS) or any(
+                    [arg[0] == OPT_PREFIX for arg in ground_atom.args]
+                ):
                     continue
-            if any(p not in params and p != arg for p,arg in zip(atom.args, ground_atom.args)):
+            if any(
+                p not in params and p != arg
+                for p, arg in zip(atom.args, ground_atom.args)
+            ):
                 continue
             for arg, candidate in zip(atom.args, ground_atom.args):
                 if arg not in params:
                     continue
-                
+
                 if ground_atom.predicate in allow_missing:
                     assert REUSE_INITIAL_CERTIFIABLE_OBJECTS
                     candidates.setdefault(arg, set()).add("?")
 
                 candidates.setdefault(arg, set()).add(candidate)
     return list(combinations(candidates)) if candidates else [{}]
-        
+
+
 def find_applicable_brute_force(
     action, state, allow_missing, object_stream_map={}, filter_precond=True
 ):
@@ -62,16 +71,17 @@ def find_applicable_brute_force(
     params = {x.name for x in action.parameters}
     for atom in action.precondition.parts:
         if not any(arg in params for arg in atom.args) and (
-            (not atom.negated and atom not in state) or
-            (atom.negated and atom in state)
+            (not atom.negated and atom not in state) or (atom.negated and atom in state)
         ):
             return
 
     # find all the possible versions
     for assignment in find_assignments_brute_force(action, state, allow_missing):
-    
+
         assignment = {
-            k: PredicateObject(copy.deepcopy(v.data)) if isinstance(v, PredicateObject) else v
+            k: PredicateObject(copy.deepcopy(v.data))
+            if isinstance(v, PredicateObject)
+            else v
             for k, v in assignment.items()
         }
 
@@ -147,8 +157,8 @@ def find_applicable_brute_force(
             # grounded positive precondition not in state
             if any(
                 atom.predicate not in allow_missing
-                 # THIS CONDITION IS NOT VALID FOR TEST STREAMS
-                 # or all(arg in object_stream_map for arg in atom.args)
+                # THIS CONDITION IS NOT VALID FOR TEST STREAMS
+                # or all(arg in object_stream_map for arg in atom.args)
                 for atom in missing_positive
             ):
                 assert False
@@ -171,6 +181,7 @@ def apply(action, state):
 def objects_from_state(state):
     return {arg for atom in state for arg in atom.args}
 
+
 @dataclass
 class DictionaryWithFallbacks:
     own_keys: dict
@@ -186,8 +197,11 @@ class DictionaryWithFallbacks:
                     return ret
         return None
 
+
 class SearchState:
-    def __init__(self, state, object_stream_map, unsatisfied, id_key, parents = None, children = None):
+    def __init__(
+        self, state, object_stream_map, unsatisfied, id_key, parents=None, children=None
+    ):
         self.id_key = id_key
         self.state = frozenset(state.copy())
         self.object_stream_map = object_stream_map.copy()
@@ -338,5 +352,5 @@ class ActionStreamSearch:
                         continue
 
             state.expanded = True
-            
+
             return successors

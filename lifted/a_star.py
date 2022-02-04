@@ -16,11 +16,10 @@ from pddl.conditions import Atom
 import time
 from lifted.utils import PriorityQueue
 from lifted.search import ActionStreamSearch
-from lifted.sampling import (
-    extract_stream_plan_from_path,
-    ancestral_sampling_by_edge
-)
+from lifted.sampling import extract_stream_plan_from_path, ancestral_sampling_by_edge
+
 ENABLE_EQUALITY_CHECK = False
+
 
 def try_a_star(search, cost, heuristic, max_step=10000):
     start_time = time.time()
@@ -148,7 +147,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
 
     if heuristic is None:
         # heuristic = lambda s,g: 0
-        heuristic = lambda s, g: 10*len(g - s.state)
+        heuristic = lambda s, g: 10 * len(g - s.state)
 
     stats = {}
     for _ in range(max_steps):
@@ -173,8 +172,13 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
         print(f"Action Skeleton:\n{actions_str}")
 
         stream_plan = extract_stream_plan_from_path(path)
-        stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
-        object_mapping = ancestral_sampling_by_edge(stream_plan, goal_state, stats, max_steps=30)
+        stream_plan = [
+            (edge, list({action for action in object_map.values()}))
+            for (edge, object_map) in stream_plan
+        ]
+        object_mapping = ancestral_sampling_by_edge(
+            stream_plan, goal_state, stats, max_steps=30
+        )
 
         path = goal_state.get_shortest_path_to_start()
         c = 0
@@ -184,7 +188,6 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             print("action cost:", a)
             print("cum cost:", a + c)
             c += a
-
 
         if object_mapping is not None:
             break
