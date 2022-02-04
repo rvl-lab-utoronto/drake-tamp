@@ -187,22 +187,32 @@ class DictionaryWithFallbacks:
         return None
 
 class SearchState:
-    def __init__(self, state, object_stream_map, unsatisfied, id_key, parents=set()):
+    def __init__(self, state, object_stream_map, unsatisfied, id_key, parents = None, children = None):
+        self.id_key = id_key
         self.state = frozenset(state.copy())
         self.object_stream_map = object_stream_map.copy()
         self.unsatisfied = unsatisfied
         self.unsatisfiable = False
-        self.children = set()
-        self.parents = parents
+        self.children = children if children is not None else set()
+        self.parents = parents if parents is not None else set()
         self.start_distance = 0
         self.rhs = 0
         self.num_attempts = 1
         self.num_successes = 1
         self.expanded = False
-        self.object_computation_graph_keys = {}
-        self.id_key = id_key
 
-        self.__full_stream_map = None
+    def __deepcopy__(self, memo):
+        memo[id(self)] = newself = self.__class__(
+            copy.deepcopy(self.state, memo),
+            copy.deepcopy(self.object_stream_map, memo),
+            copy.deepcopy(self.unsatisfied, memo),
+            copy.deepcopy(self.id_key, memo),
+        )
+
+        newself.parents = copy.deepcopy(self.parents, memo)
+        newself.children = copy.deepcopy(self.children, memo)
+
+        return newself
 
     def __repr__(self):
         return str((self.state, self.object_stream_map, self.unsatisfied))
@@ -321,12 +331,12 @@ class ActionStreamSearch:
                             object_stream_map,
                             new_missing,
                             state_id_key,
-                            parents={(op, state)},
                         )
 
                         successors.append((op, op_state))
                     except Unsatisfiable:
                         continue
+
             state.expanded = True
             
             return successors
