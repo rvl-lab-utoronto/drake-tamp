@@ -200,7 +200,7 @@ class DictionaryWithFallbacks:
 
 class SearchState:
     def __init__(
-        self, state, object_stream_map, unsatisfied, id_key, parents=None, children=None
+        self, state, object_stream_map, unsatisfied, id_key, parents=None, children=None, is_init=False,
     ):
         self.id_key = id_key
         self.state = frozenset(state.copy())
@@ -214,6 +214,7 @@ class SearchState:
         self.num_attempts = 1
         self.num_successes = 1
         self.expanded = False
+        self.is_init = is_init
 
     def __deepcopy__(self, memo):
         memo[id(self)] = newself = self.__class__(
@@ -240,7 +241,7 @@ class SearchState:
     def get_shortest_path_to_start(self):
         path = []
         node = self
-        while node is not None:
+        while not node.is_init:
             msd = np.inf
             mp = None
             a = None
@@ -249,9 +250,15 @@ class SearchState:
                     msd = parent.start_distance
                     mp = parent
                     a = action
+
+            assert (
+                mp.start_distance <= node.start_distance
+            ), "Distance to start should not increase when going up path"
+
             path.insert(0, (mp, a, node))
             node = mp
-        return path[1:]
+
+        return path
 
 
 class ActionStreamSearch:
@@ -276,7 +283,7 @@ class ActionStreamSearch:
 
         id_key = tuple(sorted(f for f in init if f.predicate in self.fluent_predicates))
         self.init = SearchState(
-            init, {o: None for o in self.init_objects}, set(), id_key
+            init, {o: None for o in self.init_objects}, set(), id_key, is_init=True
         )
 
     def test_goal(self, state):
