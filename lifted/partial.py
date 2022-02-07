@@ -84,7 +84,7 @@ class StreamAction:
         return f"{self.stream.name}({self.inputs})->({self.outputs}), fluents={self.fluent_facts}"
 
     def get_cg_key(self):
-        return (self.stream.name, self.inputs, self.fluent_facts, frozenset(self.pre))
+        return (self.stream.name, self.inputs, self.fluent_facts)
 
 
 @dataclass
