@@ -4,16 +4,13 @@ from dataclasses import dataclass
 import copy
 
 import numpy as np
-from lifted.utils import replace_objects_in_condition
 
-from pddl.conditions import Atom, Conjunction, NegatedAtom
-import pddl.conditions as conditions
-
+from pddl.conditions import Conjunction, Truth, Atom, NegatedAtom
 from lifted.utils import (
     Identifiers,
     Unsatisfiable,
     PropositionalAction,
-    replace_objects_in_action,
+    replace_objects_in_condition,
     OPT_PREFIX,
     PredicateObject,
 )
@@ -130,7 +127,7 @@ def find_applicable_brute_force(
                 atom = Atom(atom.predicate, args)
 
             condition = effect.condition  # TODO: assign the parameters in this
-            if effect.parameters or not isinstance(effect.condition, conditions.Truth):
+            if effect.parameters or not isinstance(effect.condition, Truth):
                 raise NotImplementedError
             effects.append((condition, atom, effect, assignment.copy()))
 
@@ -206,7 +203,6 @@ class SearchState:
         self.state = frozenset(state.copy())
         self.object_stream_map = object_stream_map.copy()
         self.unsatisfied = unsatisfied
-        self.unsatisfiable = False
         self.children = children if children is not None else set()
         self.parents = parents if parents is not None else set()
         self.start_distance = 0
@@ -241,6 +237,11 @@ class SearchState:
     def get_shortest_path_to_start(self):
         path = []
         node = self
+
+        assert (
+            node.is_init or len(node.parents) > 0
+        ), "Node is not initial state and does not have any parents"
+
         while not node.is_init:
             msd = np.inf
             mp = None
@@ -328,6 +329,11 @@ class ActionStreamSearch:
                             partial_plan,
                             self.cg_id_map,
                         )
+
+                        op.object_stream_map_delta = {
+                            k: v for k, v in object_stream_map.items()
+                            if v is not None
+                        }
 
                         temp_object_mapping = {
                             x: "?"

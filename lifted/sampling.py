@@ -7,20 +7,6 @@ from pddlstream.language.object import Object
 from lifted.utils import PriorityQueue, topological_sort
 
 
-def extract_stream_plan(state):
-    """Given a search state, return the list of object stream maps needed by each action
-    along the path to state. The list contains one dictionary per action."""
-
-    stream_plan = []
-    while state is not None:
-        objects_created = {
-            k: v for k, v in state.object_stream_map.items() if v is not None
-        }
-        stream_plan.insert(0, objects_created)
-        state = state.parent
-    return stream_plan
-
-
 def get_stream_action_edges(stream_actions):
     input_obj_to_streams = defaultdict(set)
     for action in stream_actions:
@@ -141,7 +127,7 @@ def extract_stream_plan_from_path(path):
     stream_plan = []
     for edge in path:
         stream_map = {
-            k: v for k, v in edge[2].object_stream_map.items() if v is not None
+            k: v for k, v in edge[1].object_stream_map_delta.items() if v is not None
         }
         stream_plan.append((edge, stream_map))
     return stream_plan
@@ -240,7 +226,7 @@ def ancestral_sample_with_costs(
 
 
 def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
-    (_, _, initial_state), _ = stream_plan[0]
+    (initial_state, _, _), _ = stream_plan[0]
     objects = {
         k: v
         for k, v in Object._obj_from_name.items()
@@ -249,7 +235,7 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
     i = 0
     particles = [[objects]]
     while i < len(stream_plan):
-        (_, _, state), step = stream_plan[i]
+        (_, op, state), step = stream_plan[i]
 
         if step:
             to_produce = set({out for s in step for out in s.outputs})
@@ -261,7 +247,7 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
                 new_objects, success = ancestral_sampling(step, prev_particle)
 
                 for obj in to_produce:
-                    cg_key = state.object_stream_map[obj].get_cg_key()
+                    cg_key = op.object_stream_map_delta[obj].get_cg_key()
                     cg_stats = stats.setdefault(
                         cg_key, {"num_attempts": 0.0, "num_successes": 0.0}
                     )

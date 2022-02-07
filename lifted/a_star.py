@@ -1,7 +1,9 @@
 import math
 import copy
+import time
 
 from pddlstream.language.conversion import fact_from_evaluation
+
 
 import sys
 
@@ -13,7 +15,7 @@ sys.path.insert(
     0, "/home/atharv/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/"
 )
 from pddl.conditions import Atom
-import time
+
 from lifted.utils import PriorityQueue
 from lifted.search import ActionStreamSearch
 from lifted.sampling import extract_stream_plan_from_path, ancestral_sampling_by_edge
@@ -43,9 +45,6 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
         successors = search.successors(state)
         for op, child in successors:
-            if child.unsatisfiable:
-                continue
-
             child.parents = {(op, state)}
             child.start_distance = state.start_distance + cost(state, op, child)
             state.children.add((op, child))
@@ -87,17 +86,15 @@ def try_a_star_modified(search, cost, heuristic, max_step=10000):
 
         successors = search.successors(state)
         for op, child in successors:
-            if child.unsatisfiable:
-                continue
 
             if hash(child) in generated:
-                child = generated[hash(child)]
-                child.parents.add((op, state))
-                child.start_distance = min(
-                    child.start_distance,
-                    state.start_distance + cost(state, op, child)
+                node = generated[hash(child)]
+                node.parents.add((op, state))
+                node.start_distance = min(
+                    node.start_distance,
+                    state.start_distance + cost(state, op, node)
                 )
-                state.children.add((op, child))
+                state.children.add((op, node))
                 continue
             
             generated[hash(child)] = child
@@ -119,7 +116,7 @@ def try_a_star_modified(search, cost, heuristic, max_step=10000):
     return state if found else None
 
 
-def try_a_star_tree(search, cost, heuristic, max_step=500000):
+def try_a_star_tree(search, cost, heuristic, max_step=10000):
     start_time = time.time()
     q = PriorityQueue([search.init])
     closed = {}
@@ -131,6 +128,9 @@ def try_a_star_tree(search, cost, heuristic, max_step=500000):
     while q and expand_count < max_step:
         state = q.pop()
 
+        if hash(state) in closed:
+            continue
+
         expand_count += 1
 
         if search.test_goal(state):
@@ -139,11 +139,20 @@ def try_a_star_tree(search, cost, heuristic, max_step=500000):
 
         successors = search.successors(state)
         for op, child in successors:
-            if child.unsatisfiable:
-                continue
 
             if hash(child) in generated:
-                child = copy.copy(generated[hash(child)])
+                node = generated[hash(child)]
+                old_object_stream_map = {o: None for o in child.object_stream_map}
+                for node_op, node_child in search.successors(node):
+                    node.children.add((node_op, node_child))
+                    node_op, node_child = copy.copy(node_op), copy.copy(node_child)
+                    node_child.parents = {(node_op, child)}
+                    node_child.children = set()
+                    tmp_object_stream_map = copy.copy(old_object_stream_map)
+                    tmp_object_stream_map.update(node_op.object_stream_map_delta)
+                    node_child.object_stream_map = tmp_object_stream_map
+                    child.children.add((node_op, node_child))
+                    child.expanded = True
             else:
                 generated[hash(child)] = child
 
@@ -199,8 +208,8 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
     stats = {}
     for _ in range(max_steps):
         # goal_state = try_a_star(search, cost, heuristic)
-        goal_state = try_a_star_modified(search, cost, heuristic)
-        # goal_state = try_a_star_tree(search, cost, heuristic)
+        # goal_state = try_a_star_modified(search, cost, heuristic)
+        goal_state = try_a_star_tree(search, cost, heuristic)
         if goal_state is None:
             print("Could not find feasable action plan!")
             break
@@ -225,7 +234,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             for (edge, object_map) in stream_plan
         ]
         object_mapping = ancestral_sampling_by_edge(
-            stream_plan, goal_state, stats, max_steps=30
+            stream_plan, goal_state, stats, max_steps=100
         )
 
         path = goal_state.get_shortest_path_to_start()
