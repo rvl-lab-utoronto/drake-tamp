@@ -197,7 +197,14 @@ class DictionaryWithFallbacks:
 
 class SearchState:
     def __init__(
-        self, state, object_stream_map, unsatisfied, id_key, parents=None, children=None, is_init=False,
+        self,
+        state,
+        object_stream_map,
+        unsatisfied,
+        id_key,
+        parents=None,
+        children=None,
+        is_init=False,
     ):
         self.id_key = id_key
         self.state = frozenset(state.copy())
@@ -331,8 +338,7 @@ class ActionStreamSearch:
                         )
 
                         op.object_stream_map_delta = {
-                            k: v for k, v in object_stream_map.items()
-                            if v is not None
+                            k: v for k, v in object_stream_map.items() if v is not None
                         }
 
                         temp_object_mapping = {

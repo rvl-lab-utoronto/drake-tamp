@@ -91,12 +91,11 @@ def try_a_star_modified(search, cost, heuristic, max_step=10000):
                 node = generated[hash(child)]
                 node.parents.add((op, state))
                 node.start_distance = min(
-                    node.start_distance,
-                    state.start_distance + cost(state, op, node)
+                    node.start_distance, state.start_distance + cost(state, op, node)
                 )
                 state.children.add((op, node))
                 continue
-            
+
             generated[hash(child)] = child
             child.parents = {(op, state)}
             child.start_distance = state.start_distance + cost(state, op, child)
