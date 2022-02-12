@@ -25,8 +25,8 @@ def make_cube(name, color, size, buffer, ball_radius=1e-7):
         name = elm.attrib.get("name", "")
         if name.startswith("ball"):
             num = int(name[-1]) - 1
-            x = (-1) ** (num & 0b01) * size[0]
-            y = (-1) ** ((num & 0b10) >> 1) * size[1]
+            x = (-1) ** (num & 0b01) * size[0] / 2
+            y = (-1) ** ((num & 0b10) >> 1) * size[1] / 2
             z = ((num & 0b100) >> 2) * size[2]
             elm.find("pose").text = f"{x} {y} {z} 0 0 0"
             elm.find("geometry").find("sphere").find("radius").text = f"{ball_radius}"
