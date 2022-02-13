@@ -711,7 +711,8 @@ class Dataset:
     def load_pkl(self, file_path):
         with open(file_path, "rb") as f:
             data = pickle.load(f)
-
+        if not data["labels"] or not any(l.label for l in data["labels"]):
+            return
         model_info = self.model_info_class(**data["model_info"].__dict__)
         problem_info = data["problem_info"]
         if self.model_info is None:
