@@ -65,7 +65,8 @@ def make_argument_parser():
             "model",
             "cachingmodel",
             "multiheadmodel",
-            "complexityoracle"
+            "complexityoracle",
+            "statsablation"
         ],
     )
     parser.add_argument(

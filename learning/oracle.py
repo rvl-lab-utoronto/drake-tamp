@@ -535,6 +535,19 @@ class ComplexityModelV3(Oracle):
         l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
         return 1  / l
 
+
+class StatsAblation(Oracle):
+    def __init__(
+        self, domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_path, model_poses
+    ):
+        super().__init__(domain_pddl, stream_pddl, initial_conditions, goal_conditions, model_poses = model_poses)
+        self.model_path = model_path
+        with open(model_path, 'r') as f:
+            self.stats = json.load(f)
+    def predict(self, result, node_from_atom, levels, **kwargs):
+        return self.stats[result.name]
+
+
 class ComplexityModelV3StructureAware(Oracle):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
