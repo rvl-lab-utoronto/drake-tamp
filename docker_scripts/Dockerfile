@@ -55,7 +55,7 @@ RUN mv bazel.gpg /etc/apt/trusted.gpg.d/
 RUN echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/sources.list.d/bazel.list
 RUN apt-get update
 RUN apt-get -y install bazel
-sudo apt-get install jq
+RUN apt-get -y install jq
 
 # pddlstream
 #RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream
