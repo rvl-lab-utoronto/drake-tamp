@@ -335,3 +335,79 @@ def extract_from_partial_plan(
     )
 
     return new_world_state, object_stream_map, missing
+
+
+def extract_from_partial_plan2(
+    old_world_state, old_missing, new_world_state, partial_plan, id_cg_map
+):
+    """Extract the successor state from the old world state and the partial plan.
+    That involves updating the object stream map, the set of facts that are yet to be certified,
+    and the new logical state based on the stream actions in the partial plan.
+
+    Edit: As of today (Dec 1) objects are not added to the object stream map until their CG is
+    fully determined.
+    """
+    object_stream_map = {o: None for o in old_world_state.object_stream_map}
+    missing = old_missing.copy()
+    object_mapping = {}
+    ordered_actions, _ = topological_sort(partial_plan.actions, set(object_stream_map))
+    produced = set()
+    used = set()
+    for act in ordered_actions:
+        if act.stream is None or any(
+            parent_obj not in produced
+            and parent_obj not in old_world_state.object_stream_map
+            for parent_obj in act.inputs
+        ):
+            continue
+
+        for ob in act.outputs:
+            ob_cg = (
+                act.stream.name,
+                tuple([
+                    id_cg_map[parent_ob]
+                    for parent_ob in act.inputs
+                ]),
+                act.fluents,   
+            )
+            if ob in id_cg_map and id_cg_map[ob] != ob_cg:
+                new_ob_id = Identifiers.next()
+                ob.data = new_ob_id.data
+                object_mapping[str(ob)] = str(new_ob_id)
+
+            id_cg_map[str(ob)] = ob_cg
+
+        if not act.stream.is_fluent:
+            new_world_state |= act.eff
+
+        for out in act.outputs:
+            object_stream_map[out] = act
+            produced.add(out)
+
+        for out in act.inputs:
+            used.add(out)
+
+        for e in act.eff:
+            for f in list(missing):
+                if e.predicate != f.predicate:
+                    continue
+                for e_args, f_arg in zip(e.args, f.args):
+                    if e_args != f_arg:
+                        break
+                else:
+                    missing.remove(f)
+
+    new_world_state = set(
+        [replace_objects_in_condition(fact, object_mapping) for fact in new_world_state]
+    )
+
+    placeholder = Identifiers.next()
+    object_stream_map[placeholder] = StreamAction(
+        DummyStream("all"),
+        inputs=tuple(
+            produced - used
+        ),  # i need this to be ordered in order for the cg key to work. But i have nothing with which to base the order on.
+        outputs=(placeholder,),
+    )
+
+    return new_world_state, object_stream_map, missing
