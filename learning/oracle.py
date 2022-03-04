@@ -749,6 +749,12 @@ class MultiHeadModel(Oracle):
             hidden_size = kwargs.pop('hidden_size')
         else:
             hidden_size = 16
+
+        if "use_level" in kwargs:
+            self.use_level = kwargs.pop("use_level")
+        else:
+            self.use_level = True
+
         super().__init__(*args, **kwargs)
         self.model_path = model_path
         self.feature_size = feature_size
@@ -824,4 +830,7 @@ class MultiHeadModel(Oracle):
             score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
             self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
             self.running_average = (self.running_average*(self.N-1) + score) / self.N
-        return score/(l  + count  - 1)
+        if self.use_level:
+            return score/(l  + count  - 1)
+        else:
+            return score/count
