@@ -201,7 +201,7 @@ class StreamInstanceClassifierV2(nn.Module):
     def get_init_reps(self, problem_graph):
         problem_graph = Batch().from_data_list([problem_graph])
         prob_x = self.problem_graph_network(problem_graph, return_x=True)
-        object_reps = {name: prob_x[i] for i,name in enumerate(problem_graph.nodes[0])}
+        object_reps = {name: {"rep": prob_x[i], "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
         return object_reps
 
     def forward(self, data, object_reps=None, score=False, update_reps=False):
@@ -220,10 +220,15 @@ class StreamInstanceClassifierV2(nn.Module):
         for stream in stream_schedule:
             stream_index = self.stream_to_index[stream["name"]] - 1
             stream_mlp = self.mlps[stream_index]
-            stream_inputs = torch.cat([object_reps[n] for n in stream["input_objects"]], dim=0)
+            
+            stream_inputs = torch.cat([object_reps[n]["rep"] for n in stream["input_objects"]], dim=0)
+            stream_logits = torch.cat([object_reps[n]["logit"] for n in stream["input_objects"]], dim=0)
+            prev_log = (stream_logits*torch.softmax(-stream_logits, dim=0)).sum(0, keepdim=True)
+
             out, outputs = stream_mlp(stream_inputs)
+            out = out + prev_log - torch.logsumexp(torch.cat([out, prev_log, torch.tensor([1.], device=out.device)], dim=0), dim=0)
             for out_name, out_rep in zip(stream["output_objects"], outputs):
-                object_reps[out_name] = out_rep
+                object_reps[out_name] = {"rep": out_rep, "logit": out}
 
         out = out.unsqueeze(0)
         # candidate object embeddings, and candidate fact embeddings to mlp
