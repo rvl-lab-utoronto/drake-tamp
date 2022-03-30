@@ -202,6 +202,8 @@ class SearchState:
         object_stream_map,
         unsatisfied,
         id_key,
+        id_cg_map,
+        id_anon_cg_map,
         parents=None,
         children=None,
         is_init=False,
@@ -212,12 +214,16 @@ class SearchState:
         self.unsatisfied = unsatisfied
         self.children = children if children is not None else set()
         self.parents = parents if parents is not None else set()
+        self.ancestors = set().union(*[p.ancestors for p in self.parents])
         self.start_distance = 0
         self.rhs = 0
         self.num_attempts = 1
         self.num_successes = 1
         self.expanded = False
         self.is_init = is_init
+
+        self.id_cg_map = id_cg_map
+        self.id_anon_cg_map = id_anon_cg_map
 
     def __deepcopy__(self, memo):
         memo[id(self)] = newself = self.__class__(
@@ -276,9 +282,6 @@ class ActionStreamSearch:
         self.externals = externals
         self.actions = actions
 
-        self.id_cg_map = {}
-        self.cg_id_map = {}
-
         self.streams_by_predicate = {}
         for stream in externals:
             for fact in stream.certified:
@@ -310,7 +313,7 @@ class ActionStreamSearch:
                     state.object_stream_map,
                 )
                 for op in ops:
-                    new_world_state = apply(op, state.state)
+                    new_logical_world_state = apply(op, state.state)
                     missing_positive = {
                         atom for atom in op.precondition.parts if not atom.negated
                     } - set(state.state)
@@ -326,44 +329,41 @@ class ActionStreamSearch:
                         # this extracts the important bits from it
                         # (i.e. description of the state)
                         (
-                            new_world_state,
+                            new_logical_world_state,
                             object_stream_map,
                             new_missing,
+                            new_id_cg_map,
+                            new_id_anon_cg_map
                         ) = extract_from_partial_plan(
                             state,
                             missing,
-                            new_world_state,
+                            new_logical_world_state,
                             partial_plan,
-                            self.cg_id_map,
                         )
 
                         op.object_stream_map_delta = {
                             k: v for k, v in object_stream_map.items() if v is not None
                         }
 
-                        temp_object_mapping = {
-                            x: "?"
-                            for f in new_world_state
-                            for x in f.args
-                            if x not in object_stream_map
-                        }
-                        temp_world_state = set(
-                            replace_objects_in_condition(f, temp_object_mapping)
-                            for f in new_world_state
-                        )
-                        state_id_key = tuple(
-                            sorted(
-                                f
-                                for f in temp_world_state
-                                if f.predicate in self.fluent_predicates
+                        state_id_key = tuple(sorted(
+                            (
+                                f.predicate,
+                                tuple(
+                                    self.id_anon_cg_map.get(x, x) if x in object_stream_map else "?"
+                                    for x in f.args
+                                ),
                             )
-                        )
+                            for f in new_logical_world_state
+                            if f.predicate in self.fluent_predicates
+                        ))
 
                         op_state = SearchState(
-                            new_world_state,
+                            new_logical_world_state,
                             object_stream_map,
                             new_missing,
                             state_id_key,
+                            new_id_cg_map,
+                            new_id_anon_cg_map
                         )
 
                         successors.append((op, op_state))

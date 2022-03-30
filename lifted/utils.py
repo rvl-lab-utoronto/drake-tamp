@@ -164,3 +164,36 @@ class PropositionalAction:
         for cond, fact in self.del_effects:
             print("DEL: %s -> %s" % (", ".join(map(str, cond)), fact))
         print("cost:", self.cost)
+
+
+def anonymise(obj, id_cg_map):
+    counter = itertools.count()
+    stack = [obj]
+    edges = set()
+    anon = {obj: f"x{next(counter)}"}
+
+    while stack:
+        obj = stack.pop(0)
+
+        if obj in id_cg_map:
+            idx, stream_name, inputs, fluents = id_cg_map[obj]
+        else:
+            continue
+
+        input_objs = inputs + fluents
+
+        for parent_obj in input_objs:
+            stack.insert(0, parent_obj)
+
+            if parent_obj not in anon and parent_obj in id_cg_map:
+                anon[parent_obj] = f"x{next(counter)}"
+    
+            edges.add(
+                (
+                    anon.get(parent_obj, parent_obj),
+                    (stream_name, idx),
+                    anon[obj],
+                )
+            )
+
+    return tuple(sorted(edges))

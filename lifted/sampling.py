@@ -88,7 +88,7 @@ def sample_depth_first_with_costs(
         result = stream_instance.next_results()
 
         output_cg_keys = [
-            final_state.get_object_computation_graph_key(obj)
+            final_state.id_anon_cg_map[obj]
             for obj in stream_action.outputs
         ]
         for cg_key in output_cg_keys:
@@ -212,7 +212,7 @@ def ancestral_sample_with_costs(
         produced, done = ancestral_sampling(stream_ordering)
 
         for obj in to_produce:
-            cg_key = final_state.get_object_computation_graph_key(obj)
+            cg_key = final_state.id_anon_cg_map[obj]
             cg_stats = stats.setdefault(
                 cg_key, {"num_attempts": 0.0, "num_successes": 0.0}
             )

@@ -118,50 +118,30 @@ def try_a_star_modified(search, cost, heuristic, max_step=10000):
 def try_a_star_tree(search, cost, heuristic, max_step=10000):
     start_time = time.time()
     q = PriorityQueue([search.init])
-    closed = {}
-    generated = {hash(search.init): search.init}
+    closed = {search.init}
     expand_count = 0
     evaluate_count = 0
     found = False
 
     while q and expand_count < max_step:
         state = q.pop()
-
-        if hash(state) in closed:
-            continue
-
         expand_count += 1
 
         if search.test_goal(state):
             found = True
             break
 
-        successors = search.successors(state)
-        for op, child in successors:
-
-            if hash(child) in generated:
-                node = generated[hash(child)]
-                old_object_stream_map = {o: None for o in child.object_stream_map}
-                for node_op, node_child in search.successors(node):
-                    node.children.add((node_op, node_child))
-                    node_op, node_child = copy.copy(node_op), copy.copy(node_child)
-                    node_child.parents = {(node_op, child)}
-                    node_child.children = set()
-                    tmp_object_stream_map = copy.copy(old_object_stream_map)
-                    tmp_object_stream_map.update(node_op.object_stream_map_delta)
-                    node_child.object_stream_map = tmp_object_stream_map
-                    child.children.add((node_op, node_child))
-                    child.expanded = True
-            else:
-                generated[hash(child)] = child
-
-            child.parents = {(op, state)}
-            child.start_distance = state.start_distance + cost(state, op, child)
-            state.children.add((op, child))
+        for op, child in search.successors(state):
             evaluate_count += 1
-            q.push(child, child.start_distance + heuristic(child, search.goal))
 
-        closed[hash(state)] = state
+            if child not in closed or child in state.ancestors:
+                child.parents = {(op, state)}
+                child.ancestors = state.ancestors | {state}
+                child.start_distance = state.start_distance + cost(state, op, child)
+                state.children.add((op, child))
+
+                q.push(child, child.start_distance + heuristic(child, search.goal))
+                closed.add(child)
 
     av_branching_f = evaluate_count / expand_count
     approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
@@ -184,7 +164,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             if stream_action is not None:
                 if stream_action in included:
                     continue
-                cg_key = child.object_stream_map[obj].get_cg_key()
+                cg_key = search.id_anon_cg_map[obj]
                 if cg_key in stats:
                     s = stats[cg_key]
                     comp_cost = (
