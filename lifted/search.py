@@ -75,12 +75,12 @@ def find_applicable_brute_force(
     # find all the possible versions
     for assignment in find_assignments_brute_force(action, state, allow_missing):
 
-        assignment = {
-            k: PredicateObject(copy.deepcopy(v.data))
-            if isinstance(v, PredicateObject)
-            else v
-            for k, v in assignment.items()
-        }
+        # assignment = {
+        #     k: PredicateObject(copy.deepcopy(v.data))
+        #     if isinstance(v, PredicateObject)
+        #     else v
+        #     for k, v in assignment.items()
+        # }
 
         feasible = True
         for par in action.parameters:
@@ -202,8 +202,8 @@ class SearchState:
         object_stream_map,
         unsatisfied,
         id_key,
-        id_cg_map,
-        id_anon_cg_map,
+        id_cg_map=None,
+        id_anon_cg_map=None,
         parents=None,
         children=None,
         is_init=False,
@@ -222,8 +222,8 @@ class SearchState:
         self.expanded = False
         self.is_init = is_init
 
-        self.id_cg_map = id_cg_map
-        self.id_anon_cg_map = id_anon_cg_map
+        self.id_cg_map = id_cg_map if id_cg_map is not None else {}
+        self.id_anon_cg_map = id_anon_cg_map if id_anon_cg_map is not None else {}
 
     def __deepcopy__(self, memo):
         memo[id(self)] = newself = self.__class__(
@@ -349,7 +349,8 @@ class ActionStreamSearch:
                             (
                                 f.predicate,
                                 tuple(
-                                    self.id_anon_cg_map.get(x, x) if x in object_stream_map else "?"
+                                    new_id_anon_cg_map.get(x, x) 
+                                    if x in object_stream_map else "?"
                                     for x in f.args
                                 ),
                             )

@@ -164,7 +164,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             if stream_action is not None:
                 if stream_action in included:
                     continue
-                cg_key = search.id_anon_cg_map[obj]
+                cg_key = child.id_anon_cg_map[obj]
                 if cg_key in stats:
                     s = stats[cg_key]
                     comp_cost = (

@@ -348,8 +348,8 @@ def extract_from_partial_plan(
     ordered_actions, _ = topological_sort(partial_plan.actions, set(object_stream_map))
     produced = set()
     
-    id_cg_map = copy.deepcopy(old_world_state.id_cg_map)
-    id_anon_cg_map = copy.deepcopy(old_world_state.id_anon_cg_map)
+    id_cg_map = old_world_state.id_cg_map.copy()
+    id_anon_cg_map = old_world_state.id_anon_cg_map.copy()
 
     for act in ordered_actions:
         if act.stream is None or any(

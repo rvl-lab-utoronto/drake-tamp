@@ -77,5 +77,5 @@ if result is not None:
 
 # %%
 
-visualize_plan(scene, objects, action_skeleton, object_mapping)
+# visualize_plan(scene, objects, action_skeleton, object_mapping)
 # %%
