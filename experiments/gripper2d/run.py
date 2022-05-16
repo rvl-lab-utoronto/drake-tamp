@@ -31,7 +31,8 @@ def create_problem(scene, goal):
     for b in blocks:
         p = tuple([blocks[b]['x'], blocks[b]['y']])
         init.add(('block', b))
-        init.add(('on', b, blocks[b]["on"]))
+        init.add(('atpose', b,  p))
+        init.add(('on', b, blocks[b].get("on", "r1")))
         init.add(('blockpose', p))
     
     return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
@@ -52,14 +53,14 @@ if __name__ == '__main__':
             max_time=60,
             search_sample_ratio=1,
             max_planner_time = 30,
-            logpath="/tmp/",
-            stream_info={
-                "grasp": StreamInfo(use_unique=True),   
-                "ik": StreamInfo(use_unique=True),  
-                "placement": StreamInfo(use_unique=True),   
-                "safe": StreamInfo(use_unique=True),    
-                "safe-block": StreamInfo(use_unique=True),  
-            },
+            # logpath="/tmp/",
+            # stream_info={
+            #     "grasp": StreamInfo(use_unique=True),   
+            #     "ik": StreamInfo(use_unique=True),  
+            #     "placement": StreamInfo(use_unique=True),   
+            #     "safe": StreamInfo(use_unique=True),    
+            #     "safe-block": StreamInfo(use_unique=True),  
+            # },
             verbose=False
         )
     print_solution(solution)
