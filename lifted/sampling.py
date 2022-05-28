@@ -247,13 +247,13 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
                 new_objects, success = ancestral_sampling(step, prev_particle)
 
                 for obj in to_produce:
-                    cg_key = op.object_stream_map_delta[obj].get_cg_key()
+                    cg_key = state.id_anon_cg_map[obj]
                     cg_stats = stats.setdefault(
                         cg_key, {"num_attempts": 0.0, "num_successes": 0.0}
                     )
-                    cg_stats["num_attempts"] += 1
+                    stats[cg_key]["num_attempts"] += 1
                     if obj in new_objects:
-                        cg_stats["num_successes"] += 1
+                        stats[cg_key]["num_successes"] += 1
 
                 if success:
                     _temp_dict = prev_particle.copy()

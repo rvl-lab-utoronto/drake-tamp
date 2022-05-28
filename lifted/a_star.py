@@ -153,7 +153,7 @@ def try_a_star_tree(search, cost, heuristic, max_step=10000):
     return state if found else None
 
 
-def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
+def repeated_a_star(search, stats, max_steps=1000, heuristic=None):
 
     # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     def cost(state, op, child, verbose=False):
@@ -184,7 +184,6 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
         # heuristic = lambda s,g: 0
         heuristic = lambda s, g: 10 * len(g - s.state)
 
-    stats = {}
     for _ in range(max_steps):
         # goal_state = try_a_star(search, cost, heuristic)
         # goal_state = try_a_star_modified(search, cost, heuristic)
@@ -203,7 +202,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             print("cum cost:", a + c)
             c += a
 
-        action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
+        action_skeleton = [a for _, a, _ in path]
         actions_str = "\n".join([str(a) for a in action_skeleton])
         print(f"Action Skeleton:\n{actions_str}")
 
