@@ -14,7 +14,7 @@ goal:
 - and
 - - on-table
   - block0
-  - - purple_table
+  - - green_table
     - base_link
 - - on-block
   - block1
@@ -27,27 +27,27 @@ main_links:
 objects:
   block0:
     X_WO:
-    - -0.27859372866901333
-    - 0.5361314723950549
-    - 0.371
-    - 0.0
-    - 0.0
-    - 5.143230639482233
-    main_link: base_link
-    on-block: block1
-    path: models/blocks_world/sdf/block0.sdf
-  block1:
-    X_WO:
-    - -0.27859372866901333
-    - 0.5361314723950549
+    - -0.14518208876123542
+    - 0.6394944314289257
     - 0.325
     - 0.0
     - 0.0
-    - 5.143230639482233
+    - 4.326319373309803
     main_link: base_link
     on-table:
     - green_table
     - base_link
+    path: models/blocks_world/sdf/block0.sdf
+  block1:
+    X_WO:
+    - -0.14518208876123542
+    - 0.6394944314289257
+    - 0.371
+    - 0.0
+    - 0.0
+    - 4.326319373309803
+    main_link: base_link
+    on-block: block0
     path: models/blocks_world/sdf/block1.sdf
 planning_directive: directives/one_arm_blocks_world.yaml
 run_attr:
