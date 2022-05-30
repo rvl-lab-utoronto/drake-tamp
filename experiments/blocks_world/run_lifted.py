@@ -76,7 +76,7 @@ def instantiate_actions(prob_info):
                         Atom('empty', (arm_pddl,)),
                         Atom('on-table', (object_pddl, surface_pddl)),
                         Atom('atworldpose', (object_pddl, '?X_WB')),
-                        Atom('atconf', (arm_pddl, '?pre_q')),
+                        # Atom('atconf', (arm_pddl, '?pre_q')),
                         Atom('ik', (arm_pddl, object_pddl,'?X_WB', '?X_HB', '?pre_q', '?q'))
                 ]
                 for other in other_objects:
@@ -122,7 +122,7 @@ def instantiate_actions(prob_info):
                 preconds = [
                         Atom('ik', (arm_pddl, object_pddl,'?X_WB', '?X_HB', '?pre_q', '?q')),
                         Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')),
-                        Atom('atconf', (arm_pddl, '?pre_q')),
+                        # Atom('atconf', (arm_pddl, '?pre_q')),
                         Atom('table-support', (object_pddl, '?X_WB', surface_pddl)),
                 ]
                 for other in other_objects:
@@ -145,48 +145,151 @@ def instantiate_actions(prob_info):
                         cost=1,
                     )
                 )
+        for object in prob_info.objects:
+            object_pddl = Object.from_value(object).pddl
+            other_objects = [o for o in prob_info.objects if o != object]
+            for other_object in other_objects:
+                other_object_pddl = Object.from_value(other_object).pddl
+                # UNSTACK #
+                params = [
+                        TypedObject(
+                            name='?X_WB',
+                            type_name='object'
+                        ),
+                        TypedObject(
+                            name='?X_HB',
+                            type_name='object'
+                        ),
+                        TypedObject(
+                            name='?pre_q',
+                            type_name='object'
+                        ),
+                        TypedObject(
+                            name='?q',
+                            type_name='object'
+                        )
+                ] + [TypedObject(name=f'?X_W{other}', type_name='object') for other in other_objects]
+                preconds = [
+                        Atom('clear', (object_pddl,)),
+                        Atom('empty', (arm_pddl,)),
+                        Atom('on-block', (object_pddl, other_object_pddl)),
+                        Atom('atworldpose', (object_pddl, '?X_WB')),
+                        # Atom('atconf', (arm_pddl, '?pre_q')),
+                        Atom('ik', (arm_pddl, object_pddl,'?X_WB', '?X_HB', '?pre_q', '?q'))
+                ]
+                for other in other_objects:
+                    preconds.append(Atom('atworldpose', (Object.from_value(other).pddl, f"?X_W{other}")))
+                    preconds.append(Atom('colfree-block', (arm_pddl, '?q', Object.from_value(other).pddl, f"?X_W{other}")))
+    
+                effects = [
+                    Atom('empty', (arm_pddl,)).negate(),
+                    Atom('on-block', (object_pddl, other_object_pddl)).negate(),
+                    Atom('atworldpose', (object_pddl, '?X_WB')).negate(),
+                    Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')),
+                    Atom('clear', (other_object_pddl,))
+                ]
+                actions.append(
+                    Action(
+                        name=f"unstack({arm},{object},{other_object})",
+                        parameters=params,
+                        num_external_parameters=len(params),
+                        precondition=Conjunction(preconds),
+                        effects=[Effect([], conditions.Truth(), atom) for atom in effects],
+                        cost=1,
+                    )
+                )
 
-        # MOVE #
-        params = [
-                TypedObject(
-                    name='?q1',
-                    type_name='object'
-                ),
-                TypedObject(
-                    name='?traj',
-                    type_name='object'
-                ),
-                TypedObject(
-                    name='?q2',
-                    type_name='object'
-                ),
-        ]
-        preconds = [
-                Atom('motion', (arm_pddl, '?q1', '?traj', '?q2')),
-                Atom('atconf', (arm_pddl, '?q1')),
-        ]
+                # STACK #
+                params = [
+                        TypedObject(
+                            name='?X_WB',
+                            type_name='object'
+                        ),
+                        TypedObject(
+                            name='?X_HB',
+                            type_name='object'
+                        ),
+                        TypedObject(
+                            name='?pre_q',
+                            type_name='object'
+                        ),
+                        TypedObject(
+                            name='?q',
+                            type_name='object'
+                        )
+                ] + [TypedObject(name=f'?X_W{other}', type_name='object') for other in other_objects]
+                preconds = [
+                        Atom('clear', (other_object_pddl,)),
+                        Atom('ik', (arm_pddl, object_pddl,'?X_WB', '?X_HB', '?pre_q', '?q')),
+                        Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')),
+                        # Atom('atconf', (arm_pddl, '?pre_q')),
+                        Atom('block-support', (object_pddl, '?X_WB', other_object_pddl, f"?X_W{other_object}")),
+                        Atom('atworldpose', (other_object_pddl, f"?X_W{other_object}")),
+                ]
+                for other in other_objects:
+                    if other == other_object:
+                        continue
+                    preconds.append(Atom('atworldpose', (Object.from_value(other).pddl, f"?X_W{other}")))
+                    preconds.append(Atom('colfree-block', (arm_pddl, '?q', Object.from_value(other).pddl, f"?X_W{other}")))
+    
+                effects = [
+                    Atom('empty', (arm_pddl,)),
+                    Atom('on-block', (object_pddl, other_object_pddl)),
+                    Atom('atworldpose', (object_pddl, '?X_WB')),
+                    Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')).negate(),
+                    Atom('clear', (other_object_pddl,)).negate()
+                ]
+                actions.append(
+                    Action(
+                        name=f"stack({arm},{object},{other_object})",
+                        parameters=params,
+                        num_external_parameters=len(params),
+                        precondition=Conjunction(preconds),
+                        effects=[Effect([], conditions.Truth(), atom) for atom in effects],
+                        cost=1,
+                    )
+                )
+        # # MOVE #
+        # params = [
+        #         TypedObject(
+        #             name='?q1',
+        #             type_name='object'
+        #         ),
+        #         TypedObject(
+        #             name='?traj',
+        #             type_name='object'
+        #         ),
+        #         TypedObject(
+        #             name='?q2',
+        #             type_name='object'
+        #         ),
+        # ]
+        # preconds = [
+        #         Atom('motion', (arm_pddl, '?q1', '?traj', '?q2')),
+        #         Atom('atconf', (arm_pddl, '?q1')),
+        # ]
 
-        effects = [
-            Atom('atconf', (arm_pddl, '?q1')).negate(),
-            Atom('atconf', (arm_pddl, '?q2')),
-        ]
-        actions.append(
-            Action(
-                name=f"move({arm})",
-                parameters=params,
-                num_external_parameters=len(params),
-                precondition=Conjunction(preconds),
-                effects=[Effect([], conditions.Truth(), atom) for atom in effects],
-                cost=1,
-            )
-        )
+        # effects = [
+        #     Atom('atconf', (arm_pddl, '?q1')).negate(),
+        #     Atom('atconf', (arm_pddl, '?q2')),
+        # ]
+        # actions.append(
+        #     Action(
+        #         name=f"move({arm})",
+        #         parameters=params,
+        #         num_external_parameters=len(params),
+        #         precondition=Conjunction(preconds),
+        #         effects=[Effect([], conditions.Truth(), atom) for atom in effects],
+        #         cost=1,
+        #     )
+        # )
 
     return actions
 
 
 if __name__ == '__main__':
 
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/test/2_2_1_0.yaml'
     init, goal, externals, actions = create_problem(problem_file)
 
     print('Initial:', init)
@@ -197,12 +300,12 @@ if __name__ == '__main__':
     stats = {}
 
     def heuristic(state, goal):
-        actions = [a for _, a, _ in state.get_shortest_path_to_start()]
-        if len(actions) >= 2:
-            if actions[-1] is not None and "move" in actions[-1].name:
-                if actions[-2] is not None and "move" in actions[-2].name:
-                    return np.inf
-        return len(goal - state.state) * 4
+        # actions = [a for _, a, _ in state.get_shortest_path_to_start()]
+        # if len(actions) >= 2:
+        #     if actions[-1] is not None and "move" in actions[-1].name:
+        #         if actions[-2] is not None and "move" in actions[-2].name:
+        #             return np.inf
+        return len(goal - state.state)
 
     profile = 'lifted_2nonmono.profile'
     if profile:
