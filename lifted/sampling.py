@@ -5,7 +5,7 @@ from lifted.partial import StreamAction, DummyStream
 from pddlstream.language.object import Object
 
 from lifted.utils import PriorityQueue
-
+import random
 
 def extract_stream_plan(state):
     """Given a search state, return the list of object stream maps needed by each action
@@ -253,8 +253,12 @@ def ancestral_sampling(stream_ordering, objects_from_name=None):
             fluent_facts = [(f.predicate, ) + tuple(produced.get(var_name) or objects_from_name[var_name] for var_name in f.args) for f in stream_action.fluent_facts]
             stream_instance = stream_action.stream.get_instance(input_objects, fluent_facts=fluent_facts)
             if stream_instance.enumerated:
-                continue
-            results, new_facts = stream_instance.next_results(verbose=False)
+                if len(stream_instance.results_history) > 0:
+                    results = random.choice(stream_instance.results_history)
+                else:
+                    results = None
+            else:
+                results, _ = stream_instance.next_results(verbose=False)
             if not results:
                 continue
             [new_stream_result] = results

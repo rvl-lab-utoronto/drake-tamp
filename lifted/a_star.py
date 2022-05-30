@@ -20,20 +20,20 @@ from lifted.sampling import (
     extract_stream_ordering,
     ancestral_sampling_by_edge
 )
-ENABLE_EQUALITY_CHECK = False
+ENABLE_EQUALITY_CHECK = True
 
 def try_a_star(search, cost, heuristic, max_step=10000):
     start_time = time.time()
     q = PriorityQueue([search.init])
-    closed = []
+    closed = dict()
     expand_count = 0
     evaluate_count = 0
     found = False
 
-    current_length = 0
-
     while q and expand_count < max_step:
         state = q.pop()
+        if ENABLE_EQUALITY_CHECK and state.id in closed:
+            continue
         expand_count += 1
 
         if search.test_goal(state):
@@ -49,35 +49,20 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
             is_unique = True
             if ENABLE_EQUALITY_CHECK:
-                for node in closed:
-                    if search.test_equal(child, node):
-                        is_unique = False
-
-                        dup1 = False
-                        for _, parent in node.parents:
-                            if search.test_equal(parent, state):
-                                dup1 = True
-                                break
-                        if not dup1:
-                            node.parents.add((op, state))
-
-                        dup1 = False
-                        for _, _c in state.children:
-                            if search.test_equal(node, _c):
-                                dup1 = True
-                                break
-                        if not dup1:
-                            state.children.add((op, node))
+                child_id = search.get_id(child)
+                child.id = child_id
+                if child_id in closed:
+                    is_unique = False
 
             if not is_unique:
                 continue
-
             state.children.add((op, child))
             evaluate_count += 1
             child.start_distance = state.start_distance + cost(state, op, child)
             q.push(child, child.start_distance + heuristic(child, search.goal))
 
-        closed.append(state)
+        if ENABLE_EQUALITY_CHECK:
+            closed[state.id] = state
 
     av_branching_f = evaluate_count / expand_count
     approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)

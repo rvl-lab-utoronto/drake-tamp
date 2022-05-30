@@ -332,6 +332,21 @@ class ActionStreamSearch:
             for effect in action.effects:
                 self.fluent_predicates.add(effect.literal.predicate)
 
+        self.init.id = self.get_id(self.init)
+
+    def get_id(self, s1):
+        anon = dict()
+        f1 = sorted(f for f in s1.state if f.predicate in self.fluent_predicates)
+        state = []
+        for a in f1:
+            f = [a.predicate]
+            for o1 in a.args:
+                if o1.startswith(OPT_PREFIX):
+                    o1 = anon.setdefault(o1, len(anon))
+                f.append(o1)
+            state.append(tuple(f))
+        return hash(frozenset(state))
+
     def test_equal(self, s1, s2):
         f1 = sorted(f for f in s1.state if f.predicate in self.fluent_predicates)
         f2 = sorted(f for f in s2.state if f.predicate in self.fluent_predicates)

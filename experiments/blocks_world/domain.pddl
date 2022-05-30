@@ -31,7 +31,7 @@
 
         ; fluents 
         (empty ?arm)
-        (atconf ?arm ?q)
+        ; (atconf ?arm ?q)
         (atworldpose ?block ?X_WB)
         (athandpose ?arm ?block ?X_HB)
         (clear ?block)
@@ -74,7 +74,7 @@
             (ik ?arm ?block ?X_WB ?X_HB ?pre_q ?q)
             (atworldpose ?block ?X_WB)
             (empty ?arm)
-            (atconf ?arm ?pre_q)
+            ; (atconf ?arm ?pre_q)
             (on-table ?block ?table)
             (forall (?otherblock)
                 (imply 
@@ -91,33 +91,33 @@
         )
     )
 
-    (:action move
-        :parameters (?arm ?q1 ?traj ?q2) 
-        :precondition (and
-            (motion ?arm ?q1 ?traj ?q2) 
-            (atconf ?arm ?q1)
-            (or
-                (empty ?arm)
-                (forall (?item)
-                    (or
-                        (grasped ?arm ?item)
-                        (not (exists
-                                (?X_WI ?X_HI ?q)
-                                (and
-                                    (ik ?arm ?item ?X_WI ?X_HI ?q2 ?q)
-                                    (atworldpose ?item ?X_WI)
-                                )    
-                            )
-                        )
-                    )
-                )
-            )
-        )
-        :effect (and
-            (atconf ?arm ?q2)
-            (not (atconf ?arm ?q1))
-        )
-    )
+    ; (:action move
+    ;     :parameters (?arm ?q1 ?traj ?q2) 
+    ;     :precondition (and
+    ;         (motion ?arm ?q1 ?traj ?q2) 
+    ;         (atconf ?arm ?q1)
+    ;         (or
+    ;             (empty ?arm)
+    ;             (forall (?item)
+    ;                 (or
+    ;                     (grasped ?arm ?item)
+    ;                     (not (exists
+    ;                             (?X_WI ?X_HI ?q)
+    ;                             (and
+    ;                                 (ik ?arm ?item ?X_WI ?X_HI ?q2 ?q)
+    ;                                 (atworldpose ?item ?X_WI)
+    ;                             )    
+    ;                         )
+    ;                     )
+    ;                 )
+    ;             )
+    ;         )
+    ;     )
+    ;     :effect (and
+    ;         (atconf ?arm ?q2)
+    ;         (not (atconf ?arm ?q1))
+    ;     )
+    ; )
 
     (:action place ; place block on table
         :parameters (?arm ?block ?table ?X_WB ?X_HB ?pre_q ?q) 
@@ -127,7 +127,7 @@
             (table ?table)
             (ik ?arm ?block ?X_WB ?X_HB ?pre_q ?q)
             (athandpose ?arm ?block ?X_HB)
-            (atconf ?arm ?pre_q)
+            ; (atconf ?arm ?pre_q)
             (table-support ?block ?X_WB ?table)
             (forall (?otherblock)
                 (imply 
@@ -155,7 +155,7 @@
             (ik ?arm ?block ?X_WB ?X_HB ?pre_q ?q) 
             (athandpose ?arm ?block ?X_HB)
             (atworldpose ?lowerblock ?X_WL)
-            (atconf ?arm ?pre_q)
+            ; (atconf ?arm ?pre_q)
             (block-support ?block ?X_WB ?lowerblock ?X_WL)
             (forall (?otherblock)
                 (imply 
@@ -184,7 +184,7 @@
             (ik ?arm ?block ?X_WB ?X_HB ?pre_q ?q)
             (atworldpose ?block ?X_WB)
             (empty ?arm)
-            (atconf ?arm ?pre_q)
+            ; (atconf ?arm ?pre_q)
             (on-block ?block ?lowerblock)
             (forall (?otherblock)
                 (imply 
