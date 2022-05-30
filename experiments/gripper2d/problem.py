@@ -150,15 +150,18 @@ def generate_scene(heights=None):
 
 
     colors = plt.get_cmap("tab10")
+    
+    region = "r1"
     BLOCKS = {
         f"b{i}": {
             "width": 1,
             "y": 0,
             "height": height,
-            "color": colors(i)
+            "color": colors(i),
+            "on": region
         } for i, height in enumerate(heights)
     }
-    set_placements(REGIONS['r1'], BLOCKS)
+    set_placements(REGIONS[region], BLOCKS)
 
     return (WORLD, GRIPPERS, REGIONS, BLOCKS)
 

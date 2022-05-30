@@ -33,6 +33,7 @@ def create_problem(scene, goal):
         init.add(('block', b))
         init.add(('on', b, blocks[b]["on"]))
         init.add(('blockpose', p))
+        init.add(('atpose', b,  p))
     
     return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal)
 if __name__ == '__main__':
