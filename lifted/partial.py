@@ -347,6 +347,7 @@ def extract_from_partial_plan(
     missing = old_missing.copy()
     ordered_actions, _ = topological_sort(partial_plan.actions, set(object_stream_map))
     produced = set()
+    used = set()
     
     id_cg_map = old_world_state.id_cg_map.copy()
     id_anon_cg_map = old_world_state.id_anon_cg_map.copy()
@@ -381,6 +382,9 @@ def extract_from_partial_plan(
             object_stream_map[out] = act
             produced.add(out)
 
+        for out in act.inputs:
+            used.add(out)
+
         for e in act.eff:
             for f in list(missing):
                 if e.predicate != f.predicate:
@@ -390,5 +394,11 @@ def extract_from_partial_plan(
                         break
                 else:
                     missing.remove(f)
+
+    ph_obj = Identifiers.next()
+    ph_in = tuple(produced - used) # need to define ordering
+    object_stream_map[ph_obj] = StreamAction(DummyStream("all"), ph_in, (ph_obj,))
+    id_cg_map[str(ph_obj)] = (0, "all", ph_in, ())
+    id_anon_cg_map[str(ph_obj)] = anonymise(ph_obj, id_cg_map)
 
     return new_world_state, object_stream_map, missing, id_cg_map, id_anon_cg_map

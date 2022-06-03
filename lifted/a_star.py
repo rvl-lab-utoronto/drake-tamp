@@ -143,17 +143,27 @@ def try_a_star_tree(search, cost, heuristic, max_step=10000):
                 q.push(child, child.start_distance + heuristic(child, search.goal))
                 closed.add(child)
 
+    time_taken = time.time() - start_time
+
     av_branching_f = evaluate_count / expand_count
     approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
     print(f"Explored {expand_count}. Evaluated {evaluate_count}")
     print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-    print(f"Time taken: {(time.time() - start_time)} seconds")
+    print(f"Time taken: {time_taken} seconds")
     print(f"Solution cost: {state.start_distance}")
 
-    return state if found else None
+    result = {
+        "expanded": expand_count,
+        "evaluated": evaluate_count,
+        "search_time": time_taken,
+        "solved": found,
+        "out_of_budget": expand_count >= max_step,
+    }
+
+    return state, result
 
 
-def repeated_a_star(search, stats, max_steps=1000, heuristic=None):
+def repeated_a_star(search, stats, max_steps=20, heuristic=None):
 
     # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     def cost(state, op, child, verbose=False):
@@ -184,11 +194,15 @@ def repeated_a_star(search, stats, max_steps=1000, heuristic=None):
         # heuristic = lambda s,g: 0
         heuristic = lambda s, g: 10 * len(g - s.state)
 
-    for _ in range(max_steps):
+    stats_list = []
+    path, object_mapping, goal_state = None, None, None
+    success = False
+    for attempt in range(max_steps):
         # goal_state = try_a_star(search, cost, heuristic)
         # goal_state = try_a_star_modified(search, cost, heuristic)
-        goal_state = try_a_star_tree(search, cost, heuristic)
-        if goal_state is None:
+        goal_state, search_stats = try_a_star_tree(search, cost, heuristic)
+        stats_list.append(search_stats)
+        if not search_stats["solved"]:
             print("Could not find feasable action plan!")
             break
 
@@ -215,7 +229,6 @@ def repeated_a_star(search, stats, max_steps=1000, heuristic=None):
             stream_plan, goal_state, stats, max_steps=100
         )
 
-        path = goal_state.get_shortest_path_to_start()
         c = 0
         for idx, i in enumerate(path):
             print(idx, i[1])
@@ -225,12 +238,24 @@ def repeated_a_star(search, stats, max_steps=1000, heuristic=None):
             c += a
 
         if object_mapping is not None:
+            print("Found a solution!")
+            print(f"Object Mapping:\n{object_mapping}\n")
+            success = True
             break
+
         print("Could not find object_mapping, retrying with updated costs")
 
-    if goal_state is not None:
-        action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
-        return action_skeleton, object_mapping, goal_state
+    if not success:
+        print("Could not solve task!")
+    
+    return {
+        "stats": stats_list,
+        "action_skeleton": [a for _, a, _ in path] if path is not None else None,
+        "object_mapping": object_mapping,
+        "goal_state": goal_state,
+        "success": success,
+    }
+
 
 
 if __name__ == "__main__":

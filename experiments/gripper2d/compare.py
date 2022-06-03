@@ -7,11 +7,13 @@ from experiments.gripper2d.problem import generate_scene
 from experiments.gripper2d.run import create_problem, solve, StreamInfo
 from experiments.gripper2d.lifted_problem import create_problem as create_problem_lifted
 import sys, os, time
+from contextlib import redirect_stdout
 import multiprocessing as mp
 import tempfile
 from tqdm import tqdm
+import json
 
-def run_adaptive(scene, goal):
+def run_adaptive(scene, goal, logpath):
     problem = create_problem(scene, goal)
     start = time.time()
     solution = solve(
@@ -21,7 +23,7 @@ def run_adaptive(scene, goal):
         max_time=30,
         search_sample_ratio=0.01,
         max_planner_time = 30,
-        logpath="/tmp/",
+        logpath=logpath,
         stream_info={
             "grasp": StreamInfo(use_unique=True),   
             "ik": StreamInfo(use_unique=True),  
@@ -34,8 +36,26 @@ def run_adaptive(scene, goal):
     end = time.time()
 
     plan, _, evaluations = solution
-    solved, duration = plan is not None, end - start
-    return solved, duration
+
+    with open(logpath + "stats.json") as f:
+        stats = json.load(f)
+    stats = stats["fd_stats"]
+    solved_stats_list = [s for s in stats if s.get("solved", False)]
+    solved_stats = solved_stats_list[-1] if solved_stats_list else None
+
+    return {
+        "algo": "adaptive",
+        "success": plan is not None,
+        "duration": end - start,
+        "expanded": solved_stats["expanded"] if solved_stats else None,
+        "evaluated": solved_stats["evaluated"] if solved_stats else None,
+        "search_time": solved_stats["search_time"] if solved_stats else None,
+        "total_expanded": sum([s["expanded"] for s in stats if "expanded" in s]),
+        "total_evaluated": sum([s["evaluated"] for s in stats if "evaluated" in s]),
+        "total_search_time": sum([s["search_time"] for s in stats if "search_time" in s]),
+        "attempts": len([s for s in stats if "expanded" in s]),
+        "skeleton_length": len(plan) if plan else None,
+    }
 
 def heuristic(state, goal):
     return len(goal - state.state)*10
@@ -45,21 +65,35 @@ def run_lifted(scene, goal):
     start = time.time()
     search = ActionStreamSearch(initial_state, goal, externals, actions)
     stats = {}
-    result = repeated_a_star(search, stats=stats, max_steps=10, heuristic=heuristic)
+    result = repeated_a_star(search, stats=stats, max_steps=20, heuristic=heuristic)
     end = time.time()
-    return result is not None, end - start
+    return {
+        "algo": "lifted",
+        "success": result["success"],
+        "duration": end - start,
+        "expanded": result["stats"][-1]["expanded"],
+        "evaluated": result["stats"][-1]["evaluated"],
+        "search_time": result["stats"][-1]["search_time"],
+        "total_expanded": sum([s["expanded"] for s in result["stats"]]),
+        "total_evaluated": sum([s["evaluated"] for s in result["stats"]]),
+        "total_search_time": sum([s["search_time"] for s in result["stats"]]),
+        "attempts": len(result["stats"]),
+        "skeleton_length": len(result["action_skeleton"]) if result["success"] else None,
+    }
+
+    return result["success"], end - start,
 
 def run_adaptive_process(scene, goal, scene_idx, rep_idx, res):
-    with open(os.devnull, 'w') as f:
-        sys.stdout = f
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            os.chdir(tmpdirname)
-            res[(scene_idx, rep_idx, 'adaptive')] = run_adaptive(scene, goal)
+    with open(f"/tmp/adaptive_{scene_idx}_{rep_idx}_out.log", 'w') as f:
+        with redirect_stdout(f):
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                os.chdir(tmpdirname)
+                res[(scene_idx, rep_idx, 'adaptive')] = run_adaptive(scene, goal, logpath=f"/tmp/adaptive_{scene_idx}_{rep_idx}_")
 
 def run_lifted_process(scene, goal, scene_idx, rep_idx, res):
-    with open(os.devnull, 'w') as f:
-        sys.stdout = f
-        res[(scene_idx, rep_idx, 'lifted')] = run_lifted(scene, goal)
+    with open(f"/tmp/lifted_{scene_idx}_{rep_idx}.log", 'w') as f:
+        with redirect_stdout(f):
+            res[(scene_idx, rep_idx, 'lifted')] = run_lifted(scene, goal)
 
 
 if __name__ == '__main__':
@@ -86,15 +120,16 @@ if __name__ == '__main__':
         ('on', 'b2', 'r1'),
         ('on', 'b3', 'r1')
     )
+    block_heights = [[1, 2, 3, 4]]
+    region_widths = [5, 1, 4]
     for i in range(num_scenes):
-        scene = generate_scene([1, 2, 3, 4])
+        scene = generate_scene(block_heights, region_widths)
         scenes.append(scene)
 
     manager = mp.Manager()
     return_dict = manager.dict()
     pool = mp.Pool(processes=mp.cpu_count() - 1)
     results = []
-
     for scene_idx in range(num_scenes):
         for rep in range(num_reps):
             if run_adaptive_flag:
@@ -131,27 +166,36 @@ if __name__ == '__main__':
     pool.join()
 
     data = []
+    missing = []
     for scene_idx in range(num_scenes):
         for rep in range(num_reps):
             if run_lifted_flag: 
-                lsolved, lduration = return_dict[(scene_idx, rep, 'lifted')]
-                data.append(dict(alg='lifted', solved=lsolved, duration=lduration, scene_idx=scene_idx, rep_idx=rep))
+                key = (scene_idx, rep, 'lifted')
+                if key in return_dict:
+                    res_dict = return_dict[key]
+                    res_dict['scene_idx'] = scene_idx
+                    res_dict['rep'] = rep
+                    data.append(res_dict)
+                else:
+                    missing.append(("lifted", scene_idx, rep))
             if run_adaptive_flag:
-                asolved, aduration = return_dict[(scene_idx, rep, 'adaptive')]
-                data.append(dict(alg='adaptive', solved=asolved, duration=aduration, scene_idx=scene_idx, rep_idx=rep))
+                key = (scene_idx, rep, 'adaptive')
+                if key in return_dict:
+                    res_dict = return_dict[key]
+                    res_dict['scene_idx'] = scene_idx
+                    res_dict['rep'] = rep
+                    data.append(res_dict)
+                else:
+                    missing.append(("adaptive", scene_idx, rep))
 
     df = pd.DataFrame(data)
     df.to_csv('temp/comparison_results.csv')
 
+    print("Missing: ", missing)
+
     if run_lifted_flag: 
-        lifted_df = df[df.alg == 'lifted']
-        print("\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}lifted".format(
-            lifted_df["solved"].mean(), lifted_df["solved"].std(),
-            lifted_df["duration"].mean(), lifted_df["duration"].std(),
-        ))
+        print("Lifted Summary -")
+        print(df[df.algo == 'lifted'].mean())
     if run_adaptive_flag:
-        adaptive_df = df[df.alg == 'adaptive']
-        print("\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}adaptive".format(
-            adaptive_df["solved"].mean(), adaptive_df["solved"].std(),
-            adaptive_df["duration"].mean(), adaptive_df["duration"].std(),
-        ))
+        print("Adaptive Summary -")
+        print(df[df.algo == 'adaptive'].mean())

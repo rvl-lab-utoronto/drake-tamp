@@ -82,11 +82,10 @@ if __name__ == '__main__':
         search = ActionStreamSearch(initial_state, goal, externals, actions)
         stats = {}
         result = repeated_a_star(search, stats=stats, max_steps=1, heuristic=lambda s,g: 0)
-        if result is not None:
-            action_skeleton, object_mapping, _ = result
-            actions_str = "\n".join([str(a) for a in action_skeleton])
+        if result["success"]:
+            actions_str = "\n".join([str(a) for a in result["action_skeleton"]])
             print(f"Action Skeleton:\n{actions_str}")
-            print(f"\nObject mapping: {object_mapping}\n") 
+            print(f"\nObject mapping: {result['object_mapping']}\n") 
 
         # profile.print_stats(open("lifted.prof.log", "w"))
 
