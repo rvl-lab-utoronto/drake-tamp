@@ -54,6 +54,7 @@ def run_adaptive(scene, goal, logpath):
         "total_evaluated": sum([s["evaluated"] for s in stats if "evaluated" in s]),
         "total_search_time": sum([s["search_time"] for s in stats if "search_time" in s]),
         "attempts": len([s for s in stats if "expanded" in s]),
+        "timeout": solved_stats["timeout"] if solved_stats else None,
         "skeleton_length": len(plan) if plan else None,
     }
 
@@ -65,7 +66,7 @@ def run_lifted(scene, goal):
     start = time.time()
     search = ActionStreamSearch(initial_state, goal, externals, actions)
     stats = {}
-    result = repeated_a_star(search, stats=stats, max_steps=20, heuristic=heuristic)
+    result = repeated_a_star(search, stats=stats, max_steps=50, heuristic=heuristic)
     end = time.time()
     return {
         "algo": "lifted",
@@ -78,6 +79,7 @@ def run_lifted(scene, goal):
         "total_evaluated": sum([s["evaluated"] for s in result["stats"]]),
         "total_search_time": sum([s["search_time"] for s in result["stats"]]),
         "attempts": len(result["stats"]),
+        "timeout": result["timeout"],
         "skeleton_length": len(result["action_skeleton"]) if result["success"] else None,
     }
 
@@ -114,14 +116,20 @@ if __name__ == '__main__':
     num_reps = args.num_reps
     scenes = []
     data = []
-    goal = ('and', 
-        ('on', 'b0', 'r2'),
-        ('on', 'b1', 'r1'),
-        ('on', 'b2', 'r1'),
-        ('on', 'b3', 'r1')
-    )
-    block_heights = [[1, 2, 3, 4]]
-    region_widths = [5, 1, 4]
+
+    block_heights = [[1, 2, 3, 4], [], [4, 1]]
+    region_widths = [5, 1, 3, 1, 3.5]
+    goal = ['and', ('on', 'b0', 'r3')]
+    bcounter = 0
+    for ridx, regional_block_heights in enumerate(block_heights):
+        goal.extend([
+            ('on', f'b{bcounter + bidx}', f'r{ridx + 1}') 
+            for bidx in range(len(regional_block_heights))
+            if (bcounter + bidx, ridx) != (0, 0)
+        ])
+        bcounter += len(regional_block_heights)
+    goal = tuple(goal)
+
     for i in range(num_scenes):
         scene = generate_scene(block_heights, region_widths)
         scenes.append(scene)
@@ -193,9 +201,16 @@ if __name__ == '__main__':
 
     print("Missing: ", missing)
 
-    if run_lifted_flag: 
-        print("Lifted Summary -")
-        print(df[df.algo == 'lifted'].mean())
-    if run_adaptive_flag:
-        print("Adaptive Summary -")
-        print(df[df.algo == 'adaptive'].mean())
+    ldf = df[df["algo"] == "lifted"]
+    adf = df[df["algo"] == "adaptive"]
+
+    print("Summary -")
+    pd.set_option('display.precision', 5)
+    print(pd.DataFrame({
+        "lifted": ldf.mean(),
+        "lifted std": ldf.std(),
+        "adaptive": adf.mean(),
+        "adaptive std": adf.std(),
+        })
+    )
+    

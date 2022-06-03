@@ -197,7 +197,10 @@ def repeated_a_star(search, stats, max_steps=20, heuristic=None):
     stats_list = []
     path, object_mapping, goal_state = None, None, None
     success = False
-    for attempt in range(max_steps):
+    attempts = 0
+    while attempts < max_steps:
+        attempts += 1
+
         # goal_state = try_a_star(search, cost, heuristic)
         # goal_state = try_a_star_modified(search, cost, heuristic)
         goal_state, search_stats = try_a_star_tree(search, cost, heuristic)
@@ -245,7 +248,11 @@ def repeated_a_star(search, stats, max_steps=20, heuristic=None):
 
         print("Could not find object_mapping, retrying with updated costs")
 
+    timeout = False
     if not success:
+        if attempts >= max_steps:
+            timeout = True
+            print("Timeout")
         print("Could not solve task!")
     
     return {
@@ -254,6 +261,7 @@ def repeated_a_star(search, stats, max_steps=20, heuristic=None):
         "object_mapping": object_mapping,
         "goal_state": goal_state,
         "success": success,
+        "timeout": timeout,
     }
 
 

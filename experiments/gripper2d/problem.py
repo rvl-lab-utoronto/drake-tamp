@@ -135,8 +135,9 @@ def generate_scene(block_heights=None, region_widths=None, height=10):
     if block_heights is None:
         num_blocks = np.random.randint(2, 5)
         heights = [[np.random.randint(1, 4) for block in range(num_blocks)]]
-
     region_widths = [5, 1, 4] if region_widths is None else region_widths
+
+    assert len(block_heights) == (len(region_widths) + 1) // 2
     
     WORLD = {
         "height": height,
