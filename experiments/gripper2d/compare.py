@@ -39,8 +39,8 @@ def run_adaptive(scene, goal, logpath):
 
     with open(logpath + "stats.json") as f:
         stats = json.load(f)
-    stats = stats["fd_stats"]
-    solved_stats_list = [s for s in stats if s.get("solved", False)]
+    fd_stats = stats["fd_stats"]
+    solved_stats_list = [s for s in fd_stats if s.get("solved", False)]
     solved_stats = solved_stats_list[-1] if solved_stats_list else None
 
     return {
@@ -50,11 +50,11 @@ def run_adaptive(scene, goal, logpath):
         "expanded": solved_stats["expanded"] if solved_stats else None,
         "evaluated": solved_stats["evaluated"] if solved_stats else None,
         "search_time": solved_stats["search_time"] if solved_stats else None,
-        "total_expanded": sum([s["expanded"] for s in stats if "expanded" in s]),
-        "total_evaluated": sum([s["evaluated"] for s in stats if "evaluated" in s]),
-        "total_search_time": sum([s["search_time"] for s in stats if "search_time" in s]),
-        "attempts": len([s for s in stats if "expanded" in s]),
-        "timeout": solved_stats["timeout"] if solved_stats else None,
+        "total_expanded": sum([s["expanded"] for s in fd_stats if "expanded" in s]),
+        "total_evaluated": sum([s["evaluated"] for s in fd_stats if "evaluated" in s]),
+        "total_search_time": sum([s["search_time"] for s in fd_stats if "search_time" in s]),
+        "attempts": stats["summary"]["iterations"],
+        "timeout": stats["summary"]["timeout"],
         "skeleton_length": len(plan) if plan else None,
     }
 
