@@ -292,7 +292,10 @@ class ActionStreamSearch:
             for effect in action.effects:
                 self.fluent_predicates.add(effect.literal.predicate)
 
-        id_key = tuple(sorted(f for f in init if f.predicate in self.fluent_predicates))
+        id_key = tuple(sorted(
+            (f.predicate, tuple(f.args))
+            for f in init if f.predicate in self.fluent_predicates
+        ))
         self.init = SearchState(
             init, {o: None for o in self.init_objects}, set(), id_key, is_init=True
         )

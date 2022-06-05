@@ -66,7 +66,7 @@ def run_lifted(scene, goal):
     start = time.time()
     search = ActionStreamSearch(initial_state, goal, externals, actions)
     stats = {}
-    result = repeated_a_star(search, stats=stats, max_steps=50, heuristic=heuristic)
+    result = repeated_a_star(search, stats=stats, max_attempts=50, heuristic=heuristic)
     end = time.time()
     return {
         "algo": "lifted",

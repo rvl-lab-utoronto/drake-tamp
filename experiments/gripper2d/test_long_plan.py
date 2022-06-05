@@ -81,7 +81,7 @@ if __name__ == '__main__':
         initial_state, goal, externals, actions, objects = create_problem(scene, goal)
         search = ActionStreamSearch(initial_state, goal, externals, actions)
         stats = {}
-        result = repeated_a_star(search, stats=stats, max_steps=1, heuristic=lambda s,g: 0)
+        result = repeated_a_star(search, stats=stats, max_attempts=1, heuristic=lambda s,g: 0)
         if result["success"]:
             actions_str = "\n".join([str(a) for a in result["action_skeleton"]])
             print(f"Action Skeleton:\n{actions_str}")

@@ -115,15 +115,17 @@ def try_a_star_modified(search, cost, heuristic, max_step=10000):
     return state if found else None
 
 
-def try_a_star_tree(search, cost, heuristic, max_step=10000):
+def try_a_star_tree(search, cost, heuristic, max_steps=10000, closed_exclusion=None):
     start_time = time.time()
     q = PriorityQueue([search.init])
     closed = {search.init}
+    closed_exclusion = closed_exclusion if closed_exclusion is not None else set()
+
     expand_count = 0
     evaluate_count = 0
     found = False
 
-    while q and expand_count < max_step:
+    while q and expand_count < max_steps:
         state = q.pop()
         expand_count += 1
 
@@ -134,14 +136,18 @@ def try_a_star_tree(search, cost, heuristic, max_step=10000):
         for op, child in search.successors(state):
             evaluate_count += 1
 
-            if child not in closed or child in state.ancestors:
+            if child in closed_exclusion or child not in closed or child in state.ancestors:
                 child.parents = {(op, state)}
                 child.ancestors = state.ancestors | {state}
                 child.start_distance = state.start_distance + cost(state, op, child)
                 state.children.add((op, child))
 
                 q.push(child, child.start_distance + heuristic(child, search.goal))
-                closed.add(child)
+
+                if child in closed_exclusion:
+                    closed_exclusion.remove(child)
+                else:
+                    closed.add(child)
 
     time_taken = time.time() - start_time
 
@@ -157,13 +163,20 @@ def try_a_star_tree(search, cost, heuristic, max_step=10000):
         "evaluated": evaluate_count,
         "search_time": time_taken,
         "solved": found,
-        "out_of_budget": expand_count >= max_step,
+        "out_of_budget": expand_count >= max_steps,
     }
 
     return state, result
 
 
-def repeated_a_star(search, stats, max_steps=20, heuristic=None):
+def repeated_a_star(
+    search,
+    stats,
+    max_attempts=20,
+    max_search_steps=10000,
+    max_sampling_steps=100,
+    heuristic=None
+):
 
     # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     def cost(state, op, child, verbose=False):
@@ -195,19 +208,24 @@ def repeated_a_star(search, stats, max_steps=20, heuristic=None):
         heuristic = lambda s, g: 10 * len(g - s.state)
 
     stats_list = []
+    closed_exclusion = set()
     path, object_mapping, goal_state = None, None, None
     success = False
     attempts = 0
-    while attempts < max_steps:
+    while attempts < max_attempts:
         attempts += 1
 
         # goal_state = try_a_star(search, cost, heuristic)
         # goal_state = try_a_star_modified(search, cost, heuristic)
-        goal_state, search_stats = try_a_star_tree(search, cost, heuristic)
+        goal_state, search_stats = try_a_star_tree(
+            search, cost, heuristic, max_search_steps, closed_exclusion
+        )
         stats_list.append(search_stats)
         if not search_stats["solved"]:
             print("Could not find feasable action plan!")
             break
+
+        closed_exclusion |= goal_state.ancestors | {goal_state}
 
         print("Getting path ...")
         path = goal_state.get_shortest_path_to_start()
@@ -229,7 +247,7 @@ def repeated_a_star(search, stats, max_steps=20, heuristic=None):
             for (edge, object_map) in stream_plan
         ]
         object_mapping = ancestral_sampling_by_edge(
-            stream_plan, goal_state, stats, max_steps=100
+            stream_plan, goal_state, stats, max_steps=max_sampling_steps
         )
 
         c = 0
@@ -250,7 +268,7 @@ def repeated_a_star(search, stats, max_steps=20, heuristic=None):
 
     timeout = False
     if not success:
-        if attempts >= max_steps:
+        if attempts >= max_attempts:
             timeout = True
             print("Timeout")
         print("Could not solve task!")
