@@ -575,9 +575,9 @@ def run_blocks_world(
         search_sample_ratio=search_sample_ratio,
         max_planner_time = max_planner_time,
         problem_file_path = problem_file,
-        stream_info = {
-            'find-ik': StreamInfo(use_unique=True)
-        },
+        # stream_info = {
+        #     'find-ik': StreamInfo(use_unique=False)
+        # },
     )
     print(f"\n\n{algorithm} solution:")
     print_solution(solution)
