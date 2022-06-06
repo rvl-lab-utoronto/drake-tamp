@@ -106,36 +106,48 @@ class State:
     def transition(self, action):
         action = parse_action_name(action)
         operator = action[0]
-        new_state = self.copy()
+        blocks = self.blocks.copy()
+        regions = self.regions
         if operator == 'pick':
             operator, block, region = action
-            new_state.blocks[block]['held'] = True
-            new_state.blocks[block]['region'] = None
+            blocks[block] = blocks[block].copy()
+            blocks[block]['held'] = True
+            blocks[block]['region'] = None
     
         elif operator == 'place':
             operator, block, region = action
-            new_state.blocks[block]['held'] = False
-            new_state.blocks[block]['region'] = region
+            blocks[block] = blocks[block].copy()
+            blocks[block]['held'] = False
+            blocks[block]['region'] = region
 
-            new_state.blocks[block]['x'] = new_state.regions[region]['x']
-            new_state.blocks[block]['x_uncertainty'] = new_state.regions[region]['size'] / 2
+            blocks[block]['x'] = regions[region]['x']
+            blocks[block]['x_uncertainty'] = regions[region]['size'] / 2
 
         elif operator == 'unstack':
             operator, block, lowerblock = action
-            new_state.blocks[block]['held'] = True
-            new_state.blocks[lowerblock]['is_below'] = None
-            new_state.blocks[block]['is_above'] = None
+            blocks[block] = blocks[block].copy()
+            blocks[lowerblock] = blocks[lowerblock].copy()
+
+            blocks[block]['held'] = True
+            blocks[lowerblock]['is_below'] = None
+            blocks[block]['is_above'] = None
     
         elif operator == 'stack':
             operator, block, lowerblock = action
-            new_state.blocks[block]['is_above'] = lowerblock
-            new_state.blocks[lowerblock]['is_below'] = block
-            new_state.blocks[block]['held'] = False
+            blocks[block] = blocks[block].copy()
+            blocks[lowerblock] = blocks[lowerblock].copy()
 
-            new_state.blocks[block]['x'] = new_state.blocks[lowerblock]['x'] + new_state.blocks[lowerblock]['size'] * np.array([0,0,1])
-            new_state.blocks[block]['x_uncertainty'] = new_state.blocks[lowerblock]['x_uncertainty']
+            blocks[block]['is_above'] = lowerblock
+            blocks[lowerblock]['is_below'] = block
+            blocks[block]['held'] = False
+
+            blocks[block]['x'] = blocks[lowerblock]['x'] + blocks[lowerblock]['size'] * np.array([0,0,1])
+            blocks[block]['x_uncertainty'] = blocks[lowerblock]['x_uncertainty']
         else:
             raise ValueError(operator)
+        new_state = State()
+        new_state.blocks = blocks
+        new_state.regions = regions
         return new_state
 
     @property
@@ -426,7 +438,7 @@ def levinTs(state, model):
         if is_goal(state):
             print(history)
             print(f'Found goal in {expansions} expansions')
-            yield state
+            yield history
             continue
         if hash(state) in closed:
             continue
@@ -438,44 +450,415 @@ def levinTs(state, model):
 
         closed.add(hash(state))
 def invoke(state, model):
-    data = get_data(state)
-    p_A = torch.nn.functional.softmax(model(Batch.from_data_list([data])).squeeze(1)).detach().numpy()
+    with torch.no_grad():
+        data = get_data(state)
+        p_A = torch.nn.functional.softmax(model(Batch.from_data_list([data])).squeeze(1)).detach().numpy()
     return list(zip(p_A, data.action_names))
-#%%
-if __name__ == '__main__':
 
-    with open('/home/mohammed/drake-tamp/data/jobs/blocksworld-dset.json', 'r') as f:
-        data_files = json.load(f)["train"]
-
-    all_data, _ = make_dataset(data_files)
-
-
-
-#%%
-    train_loader = DataLoader(all_data, shuffle=True, batch_size=128)
+def load_model(path='policy.pt'):
     model = AttentionPolicy(18,7,10)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+    model.load_state_dict(torch.load(path))
+    return model
 
-    criterion = torch.nn.CrossEntropyLoss(reduction='none')
-    def loss(logits, targets, num_ops):
-        count = 0
-        total = 0
-        s = 0
-        for i, n in enumerate(num_ops):
-            total += criterion(logits[s: s + n].squeeze(1).unsqueeze(0), targets[s:s + n].nonzero().squeeze(0))
-            s += n
-            count += 1
-        return total/count
+from experiments.blocks_world.run_lifted import create_problem
+from lifted.a_star import ActionStreamSearch, repeated_a_star
+from lifted.utils import PriorityQueue
 
-    for i in range(100):
-        for batch in train_loader:
-            pred = model(batch)
-            l = loss(pred, batch.y, batch.num_ops)
-            l.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-        print(l)
+ENABLE_EQUALITY_CHECK = True
+import time
+def try_a_star(search, cost, heuristic, result, max_step=10000, max_time=None, policy_ts=None):
+    q = PriorityQueue([search.init])
+    # assert hasattr(search)
+    closed = set()
+    expand_count = 0
+    evaluate_count = 0
+    found = False
 
+
+    while q and expand_count < max_step and time.time() < max_time:
+        state = q.pop()
+        expand_count += 1
+        if state.id in closed:
+            continue
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        for op, child in search.successors(state):
+            # state.children.append((op, child))
+            if (
+                child.unsatisfiable
+            ):  # or any([search.test_equal(child, node) for node in closed]):
+                continue
+
+            is_unique = True
+            if ENABLE_EQUALITY_CHECK:
+                child_hash = search.get_id(child)
+                child.id = child_hash
+                if child_hash in closed:
+                    is_unique = False
+            else:
+                child.id = expand_count
+
+            if not is_unique:
+                continue
+
+            state.children.add((op, child))
+            evaluate_count += 1
+        for op, child in sorted(state.children, key=lambda x: x[0].name):
+            if policy_ts is not None:
+                q.push(child, policy_ts(state, op, child))
+            else:
+                child.start_distance = state.start_distance + cost(state, op, child)
+                child.cost_to_go = heuristic(child, search.goal)
+                q.push(child, child.start_distance + heuristic(child, search.goal))
+        # if hasattr(state, 'particles'):
+        closed.add(state.id)
+
+    # av_branching_f = evaluate_count / expand_count
+    # approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
+    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
+    # print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    # print(f"Time taken: {(time.time() - start_time)} seconds")
+    # print(f"Solution cost: {state.start_distance}")
+    result.expand_count += expand_count
+    result.evaluate_count += evaluate_count
+    if found:
+        return state
+    else:
+        return None
+#%%
+class Policy:
+    def __init__(self, problem_file, search, model):
+        self.initial_state = State.from_scene(problem_file)
+        self.planning_states = {
+            search.init: self.initial_state
+        }
+        self.cache = {}
+        self.model = model
+
+    def __call__(self, state, op, child):
+        model_state = self.planning_states[state]
+        opname = op.name.split(' ')[0][1:]
+        key = (model_state, opname)
+        if key not in self.cache:
+            for p, op_name in invoke(model_state, self.model):
+                op_key = (model_state, op_name)
+                self.cache[op_key] = p
+        self.planning_states[child] = model_state.transition(opname)
+        return self.cache[key]
+
+# %%
+from functools import partial
+import math
+class Result:
+    solution = None
+    stats = None
+    skeletons = None
+    action_skeleton = None
+    object_mapping = None
+    def __init__(self, stats):
+        self.stats = stats
+        self.skeletons = []
+        self.start_time = time.time()
+        self.expand_count = 0
+        self.evaluate_count = 0
+    def end(self, goal_state, object_mapping):
+        if object_mapping is not None:
+            action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
+            self.action_skeleton = action_skeleton
+            self.object_mapping = object_mapping
+            self.solution = goal_state
+        self.planning_time = time.time() - self.start_time
+
+def default_action_cost(state, op, child, stats={}, verbose=False):
+    s = stats.get(op, None)
+    if s is None:
+        return 1
+    return (
+        (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+    ) ** -1
+
+# %%
+from lifted.sampling import ancestral_sampling_by_edge_seq, extract_stream_plan_from_path
+def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None):
+    def lprint(*args):
+        if debug:
+            print(*args)
+    result = Result(stats)
+
+    if heuristic is None:
+        heuristic = lambda s,g: 0
+    
+    if cost is None:
+        cost = default_action_cost
+    cost = partial(cost, stats=stats)
+
+    max_time = max_time + time.time() if max_time is not None else math.inf
+    for _ in range(max_steps):
+        goal_state = try_a_star(search, cost, heuristic, result=result, max_time = max_time, policy_ts=policy_ts)
+        if goal_state is None:
+            lprint("Could not find feasable action plan!")
+            object_mapping = None
+            break
+
+        lprint("Getting path ...")
+        path = goal_state.get_shortest_path_to_start()
+        c = 0
+        for idx, i in enumerate(path):
+            lprint(idx, i[1])
+            a = cost(*i, verbose=True)
+            lprint("action cost:", a)
+            lprint("cum cost:", a + c)
+            c += a
+
+        action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
+        actions_str = "\n".join([str(a) for a in action_skeleton])
+        print(f"Action Skeleton:\n{actions_str}")
+
+        stream_plan = extract_stream_plan_from_path(path)
+        stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
+        object_mapping = ancestral_sampling_by_edge_seq(stream_plan, goal_state, stats, max_steps=edge_eval_steps)
+
+        path = goal_state.get_shortest_path_to_start()
+        result.skeletons.append(path)
+        c = 0
+        for idx, i in enumerate(path):
+            lprint(idx, i[1])
+            a = cost(*i, verbose=True)
+            lprint("action cost:", a)
+            lprint("cum cost:", a + c)
+            c += a
+
+
+        if object_mapping is not None:
+            break
+        lprint("Could not find object_mapping, retrying with updated costs")
+
+    result.end(goal_state, object_mapping)
+    return result
 
 
 # %%
+def stream_cost(state, op, child, verbose=False,given_stats=dict()):
+    if op in given_stats:
+        return given_stats[op]
+    included = set()
+    c = 1
+    res = {"num_successes": 0,"num_attempts": 0}
+    for obj in child.object_stream_map:
+        stream_action = child.object_stream_map[obj]
+        if stream_action is not None:
+            if stream_action in included:
+                continue
+            cg_key = child.get_object_computation_graph_key(obj)
+            if cg_key in given_stats:
+                s = given_stats[cg_key]
+                comp_cost = (
+                    (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+                )
+                if comp_cost < c:
+                    c = comp_cost
+                    res = s
+            included.add(stream_action)
+    return res
+#%%
+class FeedbackPolicy:
+    def __init__(self, base_policy, cost_fn, stats, initial_state):
+        self._stats = stats
+        self._policy = base_policy
+        self._cost_fn = cost_fn
+        self.store = {initial_state: 1}
+        self.counts = {initial_state: 0}
+    
+    def __call__(self, state, op, child):
+        s = 0
+        m_attempts = lambda a: 10**(1 + a // 10)
+        for a, c in state.children:
+            if self._cost_fn is not None:
+                fa = self._cost_fn(state, a, c, given_stats=self._stats)
+            else:
+                fa = self._stats.get(a, {"num_successes": 0,"num_attempts": 0})
+                
+            
+            fa = (1 + fa["num_successes"]*m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
+
+            pa = self._policy(state, a, c)
+            s += fa * pa
+        
+        
+        if self._cost_fn is not None:
+            fa = self._cost_fn(state, op, child, given_stats=self._stats)
+        else:
+            fa = self._stats.get(op, {"num_successes": 0,"num_attempts": 0})
+        fa = (1 + fa["num_successes"]*m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
+        pa = self._policy(state, op, child) 
+        p_adj = (fa * pa) / s
+
+        self.store[child] = p_adj * self.store[state]
+        self.counts[child] = 1 + self.counts[state]
+        return (1) / self.store[child]
+
+#%%
+if __name__ == '__main__':
+    model_path = 'policy.pt'
+    if not os.path.exists(model_path):
+        with open('/home/mohammed/drake-tamp/data/jobs/blocksworld-dset.json', 'r') as f:
+            data_files = json.load(f)["train"]
+        np.random.shuffle(data_files)
+        all_data, _ = make_dataset(data_files[:])
+        valid_data, _ = make_dataset(data_files[-30:])
+
+        valid_loader = DataLoader(valid_data, shuffle=False, batch_size=128)
+        train_loader = DataLoader(all_data, shuffle=True, batch_size=32)
+        model = AttentionPolicy(18,7,10)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+
+        criterion = torch.nn.CrossEntropyLoss(reduction='none')
+        def loss(logits, targets, num_ops):
+            count = 0
+            total = 0
+            s = 0
+            for i, n in enumerate(num_ops):
+                total += criterion(logits[s: s + n].squeeze(1).unsqueeze(0), targets[s:s + n].nonzero().squeeze(0))
+                s += n
+                count += 1
+            return total/count
+
+        for i in range(350):
+            model.train()
+            train_loss = 0
+            for batch in train_loader:
+                pred = model(batch)
+                l = loss(pred, batch.y, batch.num_ops)
+                train_loss += l.item()
+                l.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+            train_loss = train_loss / len(train_loader)
+            val_loss = 0
+            model.eval()
+            for batch in valid_loader:
+                pred = model(batch)
+                l = loss(pred, batch.y, batch.num_ops)
+                val_loss += l.item()
+            val_loss = val_loss / len(valid_loader)
+            print(i, train_loss, val_loss)
+
+        torch.save(model.state_dict(), model_path)
+    else:
+        model = load_model(model_path)
+        model.eval()
+
+#%%
+    
+# %%
+    # problem_file_path = '/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/random/test/7_5_3_58.yaml'
+    # with open(problem_file_path, 'r') as f:
+    #     problem_file = yaml.full_load(f)
+    # init, goal, externals, actions = create_problem(problem_file_path)
+
+    # search = ActionStreamSearch(init, goal, externals, actions)
+
+    # stats = {}
+    # base_policy = Policy(problem_file, search, model)
+    # policy = FeedbackPolicy(base_policy=base_policy, cost_fn=stream_cost, stats=stats, initial_state=search.init)
+
+    # r = repeated_a_star(search, stats=stats, policy_ts=policy, max_steps=10, edge_eval_steps=30, debug=False, max_time=90)
+
+
+
+    from glob import glob
+    from pddlstream.language.object import Object
+    def extract_labels(path, stats):
+        stream_plan = extract_stream_plan_from_path(path)
+        (_,_,initial_state), _ = stream_plan[0]
+
+
+        path_data = []
+        for (edge, object_map) in stream_plan:
+            action = edge[1]
+            action_feasibility = stats.get(action)
+            if not action_feasibility:
+                break
+
+            action_streams = list({action for action in object_map.values()})
+            stream_feasibility = [stats[edge[2].get_object_computation_graph_key(stream.outputs[0])] for stream in action_streams]
+            path_data.append(dict(
+                action_name=action.name,
+                action_feasibility=action_feasibility,
+                streams=[stream.serialize() for stream in action_streams],
+                stream_feasibility=stream_feasibility
+            ))
+        return path_data
+    problems = glob('/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/5_10_2_26.yaml')
+    data = []
+    for problem_file_path in problems:
+        with open(problem_file_path, 'r') as f:
+            problem_file = yaml.full_load(f)
+
+        if len(problem_file['objects']) == 1:
+            continue # policy expects edges yo!
+
+        init, goal, externals, actions = create_problem(problem_file_path)
+
+        search = ActionStreamSearch(init, goal, externals, actions)
+        if search.test_goal(search.init):
+            continue
+
+        stats = {}
+        base_policy = Policy(problem_file, search, model)
+        policy = FeedbackPolicy(base_policy=base_policy, cost_fn=stream_cost, stats=stats, initial_state=search.init)
+
+        start = time.time()
+        r = repeated_a_star(search, stats=stats, policy_ts=policy, max_steps=10, edge_eval_steps=10, max_time=90)
+        duration = time.time() - start
+        print(os.path.basename(problem_file_path), len(r.action_skeleton or []),  len(r.skeletons), len({s[-1][1] for s in r.skeletons}), duration)
+        path_data = []
+        for path in r.skeletons:
+            path_data.append(extract_labels(path, r.stats))
+
+        objects = ({o_pddl:dict(name=o_pddl,value=Object.from_name(o_pddl).value) for o_pddl in search.init_objects})
+        
+        run = dict(
+            name=os.path.basename(problem_file_path),
+            planning_time=r.planning_time,
+            solved=r.solution is not None,
+            goal=goal,
+            objects=objects,
+            path_data=path_data,
+            expanded=r.expand_count,
+            evaluated=r.evaluate_count,
+        )
+        data.append(run)
+
+
+# %%
+# with open('policy_clutter_test_data_nonlin_nolevin.pkl', 'wb') as f:
+#     pickle.dump(data, f)
+
+# # %%
+# with open('../policy_test_data.pkl', 'rb') as f:
+#     data = pickle.load(f)
+# print(np.sum([r['solved'] for r in data]))
+# print(np.sum([r['planning_time'] for r in data]))
+# print(np.median([r['planning_time'] for r in data]))
+# # %%
+# with open('../policy_test_data_nonlin.pkl', 'rb') as f:
+#     data = pickle.load(f)
+# print(np.sum([r['solved'] for r in data]))
+# print(np.sum([r['planning_time'] for r in data]))
+# print(np.median([r['planning_time'] for r in data]))
+# # %%
+# with open('../policy_test_data_nonlin_nolevin.pkl', 'rb') as f:
+#     data = pickle.load(f)
+# print(np.sum([r['solved'] for r in data]))
+# print(np.sum([r['planning_time'] for r in data]))
+# print(np.median([r['planning_time'] for r in data]))
+# #%%
+
+
+# # %%
+# pfiles = ["4_5_2_27.yaml","7_5_6_7.yaml","7_5_3_58.yaml","5_2_3_52.yaml","7_2_3_91.yaml","7_5_1_25.yaml","6_5_5_32.yaml","7_3_6_55.yaml","7_5_4_70.yaml","2_6_2_41.yaml","5_5_2_22.yaml","4_2_1_2.yaml","5_4_5_46.yaml","7_4_5_37.yaml","7_5_3_31.yaml","7_5_6_73.yaml",]
+# pfiles = ["/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/random/test/" + x for x in pfiles]

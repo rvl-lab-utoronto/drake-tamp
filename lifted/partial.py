@@ -78,6 +78,13 @@ class StreamAction:
     def __repr__(self):
         return f"{self.stream.name}({self.inputs})->({self.outputs}), fluents={self.fluent_facts}"
 
+    def serialize(self):
+        return dict(
+            stream=self.stream.name,
+            inputs=self.inputs,
+            outputs=self.outputs,
+            fluent_facts=self.fluent_facts,
+        )
 
 @dataclass
 class DummyStream:

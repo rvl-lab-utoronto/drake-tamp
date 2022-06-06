@@ -340,6 +340,8 @@ class ActionStreamSearch:
         state = []
         for a in f1:
             f = [a.predicate]
+            if any(o1.startswith(OPT_PREFIX) for o1 in a.args):
+                continue
             for o1 in a.args:
                 if o1.startswith(OPT_PREFIX):
                     o1 = anon.setdefault(o1, len(anon))
@@ -423,5 +425,6 @@ class ActionStreamSearch:
                     except Unsatisfiable:
                         continue
             state.expanded = True
+            state.children = set(successors)
             
             return successors

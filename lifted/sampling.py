@@ -336,3 +336,46 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
 
     
     return particles[-1][0] if len(stream_plan) + 1 == len(particles) and particles[-1] else None
+
+def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30):
+    (_,_,initial_state), _ = stream_plan[0]
+    objects = {k:v for k,v in Object._obj_from_name.items() if k in initial_state.object_stream_map}
+    i = 0
+    particles = [
+        [objects]
+    ] + [[] for _ in range(len(stream_plan))]
+    for k in range(max_steps):
+        for i in range(len(stream_plan)):
+            (_, op, state), step = stream_plan[i]
+            assert len(particles[i]) >= 1, (k, i)
+
+            if step:
+                edge_stats = stats.setdefault(op, {'num_attempts': 0., 'num_successes': 0.}) 
+                to_produce = set({out for s in step for out in s.outputs})
+                prev_particle = particles[i][k % len(particles[i])]
+                # prev_particle = random.choice(particles[i])
+
+                edge_stats["num_attempts"] += 1
+                new_objects, success = ancestral_sampling(step, prev_particle)
+
+                for obj in to_produce:
+                    cg_key = state.get_object_computation_graph_key(obj)
+                    cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
+                    cg_stats['num_attempts'] += 1
+                    if obj in new_objects:
+                        cg_stats['num_successes'] += 1
+                        stats.setdefault(obj, []).append(new_objects[obj])
+
+
+                if success:
+                    edge_stats['num_successes'] += 1
+                    particles[i + 1].append(dict(**prev_particle, **new_objects))
+                if len(particles[i + 1]) == 0:
+                    break
+            else:
+                particles[i + 1] = particles[i]
+        else:
+            return particles[-1][0]
+
+    
+    return None
