@@ -13,39 +13,31 @@ directive: directives/one_arm_blocks_world.yaml
 goal:
 - and
 - - on-table
-  - block0
+  - block1
   - - purple_table
     - base_link
-# - - on-table
-#   - block1
-#   - - purple_table
-#     - base_link
-# - - on-table
-#   - blocker0
-#   - - red_table
-#     - base_link
-# - - on-table
-#   - blocker1
-#   - - red_table
-#     - base_link
-# - - atworldpose
-#   - blocker0
-#   - &id001
-#     - 0.4919972392555238
-#     - 0.33742844719677034
-#     - 0.325
-#     - 0.0
-#     - 0.0
-#     - 0.0
-# - - atworldpose
-#   - blocker1
-#   - &id002
-#     - 0.4252131097531291
-#     - -0.30044591028379647
-#     - 0.325
-#     - 0.0
-#     - 0.0
-#     - 0.0
+- - on-table
+  - block0
+  - - blue_table
+    - base_link
+- - atworldpose
+  - blocker0
+  - &id001
+    - 0.46442414827183837
+    - 0.1222609715409268
+    - 0.325
+    - 0.0
+    - 0.0
+    - 0.0
+- - atworldpose
+  - blocker1
+  - &id002
+    - 0.4176668337211264
+    - -0.092373820254815
+    - 0.325
+    - 0.0
+    - 0.0
+    - 0.0
 main_links:
   blue_table: base_link
   green_table: base_link
@@ -54,8 +46,8 @@ main_links:
 objects:
   block0:
     X_WO:
-    - 0.5419972392555238
-    - 0.33742844719677034
+    - 0.5144241482718384
+    - 0.1222609715409268
     - 0.325
     - 0.0
     - 0.0
@@ -67,8 +59,8 @@ objects:
     path: models/blocks_world/sdf/block0.sdf
   block1:
     X_WO:
-    - 0.47521310975312914
-    - -0.30044591028379647
+    - 0.46766683372112644
+    - -0.092373820254815
     - 0.325
     - 0.0
     - 0.0
@@ -79,26 +71,14 @@ objects:
     - base_link
     path: models/blocks_world/sdf/block1.sdf
   blocker0:
-    X_WO:
-    - 0.4919972392555238
-    - 0.33742844719677034
-    - 0.325
-    - 0.0
-    - 0.0
-    - 0.0
+    X_WO: *id001
     main_link: base_link
     on-table:
     - red_table
     - base_link
     path: models/blocks_world/sdf/blocker_block.sdf
   blocker1:
-    X_WO:
-    - 0.4252131097531291
-    - -0.30044591028379647
-    - 0.325
-    - 0.0
-    - 0.0
-    - 0.0
+    X_WO: *id002
     main_link: base_link
     on-table:
     - red_table
