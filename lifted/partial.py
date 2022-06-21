@@ -367,13 +367,18 @@ def extract_from_partial_plan(
                 act.inputs,
                 act.fluent_facts,
             )
+            ob_anon_cg = anonymise(ob, ob_cg, id_cg_map)
 
             if ob in id_cg_map and id_cg_map[ob] != ob_cg:
                 raise Exception("The same ID shouldn't be used with a differnt CG!")
 
+            if ob_anon_cg in id_anon_cg_map.values():
+                ob_cg = str(ob)
+                ob_anon_cg = str(ob)
+            
             if ob not in id_cg_map:
-                id_cg_map[str(ob)] = ob_cg
-                id_anon_cg_map[str(ob)] = anonymise(ob, id_cg_map)
+                id_cg_map[str(ob)], id_anon_cg_map[str(ob)] = ob_cg, ob_anon_cg
+
 
         if not act.stream.is_fluent:
             new_world_state |= act.eff
@@ -398,7 +403,8 @@ def extract_from_partial_plan(
     ph_obj = Identifiers.next()
     ph_in = tuple(produced - used) # need to define ordering
     object_stream_map[ph_obj] = StreamAction(DummyStream("all"), ph_in, (ph_obj,))
-    id_cg_map[str(ph_obj)] = (0, "all", ph_in, ())
-    id_anon_cg_map[str(ph_obj)] = anonymise(ph_obj, id_cg_map)
+    ph_obj_cg = (0, "all", ph_in, ())
+    id_cg_map[str(ph_obj)] = ph_obj_cg
+    id_anon_cg_map[str(ph_obj)] = anonymise(ph_obj, ph_obj_cg, id_cg_map)
 
     return new_world_state, object_stream_map, missing, id_cg_map, id_anon_cg_map

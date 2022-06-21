@@ -167,16 +167,18 @@ class PropositionalAction:
         print("cost:", self.cost)
 
 
-def anonymise(obj, id_cg_map):
+def anonymise(orig_obj, orig_obj_cg, id_cg_map):
     counter = itertools.count()
-    stack = [obj]
+    stack = [orig_obj]
     edges = set()
-    anon = {obj: f"x{next(counter)}"}
+    anon = {orig_obj: f"x{next(counter)}"}
 
     while stack:
         obj = stack.pop(0)
 
-        if obj in id_cg_map:
+        if obj == orig_obj:
+            idx, stream_name, inputs, fluents = orig_obj_cg
+        elif obj in id_cg_map and id_cg_map[obj] != obj:
             idx, stream_name, inputs, fluents = id_cg_map[obj]
         else:
             continue
