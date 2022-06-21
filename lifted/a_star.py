@@ -135,15 +135,13 @@ def try_a_star_tree(search, cost, heuristic, max_steps=10000, closed_exclusion=N
 
         for op, child in search.successors(state):
             evaluate_count += 1
+            child.parents = {(op, state)}
+            child.ancestors = state.ancestors | {state}
+            child.start_distance = state.start_distance + cost(state, op, child)
+            state.children.add((op, child))
 
             if child in closed_exclusion or child not in closed or child in state.ancestors:
-                child.parents = {(op, state)}
-                child.ancestors = state.ancestors | {state}
-                child.start_distance = state.start_distance + cost(state, op, child)
-                state.children.add((op, child))
-
                 q.push(child, child.start_distance + heuristic(child, search.goal))
-
                 if child in closed_exclusion:
                     closed_exclusion.remove(child)
                 else:
