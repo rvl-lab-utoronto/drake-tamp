@@ -1,6 +1,7 @@
 
 # %%
 from glob import glob
+import itertools
 import json
 import pickle
 import os
@@ -311,7 +312,7 @@ class AttentionPolicy(torch.nn.Module):
 
         num_heads = 4
         action_embed_dim = 32
-        self.action_encoder = MLP([16, action_embed_dim], action_dim + node_encoder_dim * 2)
+        self.action_encoder = MLP([16, action_embed_dim], action_dim + node_encoder_dim * 2 + node_dim*2)
         self.att = GATv2Conv(in_channels=node_encoder_dim,
                  out_channels=int(node_encoder_dim / 2), heads = 2)
         self.output = MLP([16, 1], action_embed_dim)
@@ -322,8 +323,13 @@ class AttentionPolicy(torch.nn.Module):
 
         target_1_enc = node_enc[B.t1_index]
         target_2_enc = node_enc[B.t2_index]
+        target_2_enc[B.t2_index == -1] = 0
 
-        action_enc = self.action_encoder(torch.cat([B.ops, target_1_enc, target_2_enc], dim=1))
+        target_1_enc_res = B.x[B.t1_index]
+        target_2_enc_res = B.x[B.t2_index]
+        target_2_enc_res[B.t2_index == -1] = 0
+
+        action_enc = self.action_encoder(torch.cat([B.ops, target_1_enc, target_1_enc_res, target_2_enc, target_2_enc_res], dim=1))
         starting_points = []
         end_points = []
         num_copies_sum = 0
@@ -370,6 +376,7 @@ def get_data(state):
     t1 = torch.tensor(t1, dtype=torch.long)
     t2 = torch.tensor(t2, dtype=torch.long)
     return Data(
+        nodes=nodes,
         x=node_features,
         edge_index=edge_index,
         edge_attr=edge_attributes,
@@ -431,9 +438,9 @@ def levinTs(state, model):
     closed = set()
     while queue:
         expansions += 1
-        if expansions % 100 == 0:
-            print(expansions, len(closed))
         _, _, state, p, history = heapq.heappop(queue)
+        if expansions % 100 == 0:
+            print(expansions, len(closed), len(history), p)
         
         if is_goal(state):
             print(history)
@@ -449,10 +456,10 @@ def levinTs(state, model):
             counter += 1
 
         closed.add(hash(state))
-def invoke(state, model):
+def invoke(state, model, temperature=1):
     with torch.no_grad():
         data = get_data(state)
-        p_A = torch.nn.functional.softmax(model(Batch.from_data_list([data])).squeeze(1)).detach().numpy()
+        p_A = torch.nn.functional.softmax(model(Batch.from_data_list([data])).squeeze(1)/temperature).detach().numpy()
     return list(zip(p_A, data.action_names))
 
 def load_model(path='policy.pt'):
@@ -528,6 +535,69 @@ def try_a_star(search, cost, heuristic, result, max_step=10000, max_time=None, p
         return state
     else:
         return None
+
+def try_mqs(search, heuristic, result, max_step=10000, max_time=None, policy_ts=None,cost=None):
+    q_p = PriorityQueue([search.init])
+    q_h = PriorityQueue([search.init])
+    # assert hasattr(search)
+    closed = set()
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+
+    while (q_h or q_p) and expand_count < max_step and time.time() < max_time:
+        if expand_count % 2 == 0:
+            q = q_h
+        else:
+            q = q_p
+        state = q.pop()
+        expand_count += 1
+        if state.id in closed:
+            continue
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        for op, child in search.successors(state):
+            # state.children.append((op, child))
+            if (
+                child.unsatisfiable
+            ):  # or any([search.test_equal(child, node) for node in closed]):
+                continue
+
+            is_unique = True
+            if ENABLE_EQUALITY_CHECK:
+                child_hash = search.get_id(child)
+                child.id = child_hash
+                if child_hash in closed:
+                    is_unique = False
+            else:
+                child.id = expand_count
+
+            if not is_unique:
+                continue
+
+            state.children.add((op, child))
+            evaluate_count += 1
+        for op, child in sorted(state.children, key=lambda x: x[0].name):
+            q_p.push(child, policy_ts(state, op, child))
+            q_h.push(child, cost(state, op, child) + heuristic(child, search.goal))
+        closed.add(state.id)
+
+    # av_branching_f = evaluate_count / expand_count
+    # approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
+    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
+    # print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    # print(f"Time taken: {(time.time() - start_time)} seconds")
+    # print(f"Solution cost: {state.start_distance}")
+    result.expand_count += expand_count
+    result.evaluate_count += evaluate_count
+    if found:
+        return state
+    else:
+        return None
 #%%
 class Policy:
     def __init__(self, problem_file, search, model):
@@ -589,7 +659,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None,
     result = Result(stats)
 
     if heuristic is None:
-        heuristic = lambda s,g: 0
+        heuristic = lambda s,g: len(g - s.state)
     
     if cost is None:
         cost = default_action_cost
@@ -597,7 +667,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None,
 
     max_time = max_time + time.time() if max_time is not None else math.inf
     for _ in range(max_steps):
-        goal_state = try_a_star(search, cost, heuristic, result=result, max_time = max_time, policy_ts=policy_ts)
+        goal_state = try_mqs(search, cost=cost, heuristic=heuristic, result=result, max_time = max_time, policy_ts=policy_ts)
         if goal_state is None:
             lprint("Could not find feasable action plan!")
             object_mapping = None
@@ -615,7 +685,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None,
 
         action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
         actions_str = "\n".join([str(a) for a in action_skeleton])
-        print(f"Action Skeleton:\n{actions_str}")
+        lprint(f"Action Skeleton:\n{actions_str}")
 
         stream_plan = extract_stream_plan_from_path(path)
         stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
@@ -644,24 +714,31 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None,
 def stream_cost(state, op, child, verbose=False,given_stats=dict()):
     if op in given_stats:
         return given_stats[op]
-    included = set()
     c = 1
     res = {"num_successes": 0,"num_attempts": 0}
-    for obj in child.object_stream_map:
-        stream_action = child.object_stream_map[obj]
-        if stream_action is not None:
-            if stream_action in included:
-                continue
-            cg_key = child.get_object_computation_graph_key(obj)
-            if cg_key in given_stats:
-                s = given_stats[cg_key]
-                comp_cost = (
-                    (s["num_successes"] + 1) / (s["num_attempts"] + 1)
-                )
-                if comp_cost < c:
-                    c = comp_cost
-                    res = s
-            included.add(stream_action)
+    included = set()
+    for stream_action in {v for v in child.object_stream_map.values() if v is not None}:
+        obj = stream_action.outputs[0]
+        cg_key = child.get_object_computation_graph_key(obj)
+        if cg_key in given_stats:
+            included.add(cg_key)
+            s = given_stats[cg_key]
+            comp_cost = (
+                (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+            )
+            if comp_cost < c:
+                c = comp_cost
+                res = s
+    for i, j in itertools.combinations(included, 2):
+        cg_key = frozenset([i, j])
+        if cg_key in given_stats.get("pairs", {}):
+            s = given_stats["pairs"][cg_key]
+            comp_cost = (
+                (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+            )
+            if comp_cost < c:
+                c = comp_cost
+                res = s
     return res
 #%%
 class FeedbackPolicy:
@@ -682,7 +759,7 @@ class FeedbackPolicy:
                 fa = self._stats.get(a, {"num_successes": 0,"num_attempts": 0})
                 
             
-            fa = (1 + fa["num_successes"]*m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
+            fa = (1 + fa["num_successes"] * m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
 
             pa = self._policy(state, a, c)
             s += fa * pa
@@ -702,8 +779,9 @@ class FeedbackPolicy:
 
 #%%
 if __name__ == '__main__':
-    model_path = 'policy.pt'
+    model_path = '/home/mohammed/drake-tamp/policy.pt'
     if not os.path.exists(model_path):
+        print('Trainin model')
         with open('/home/mohammed/drake-tamp/data/jobs/blocksworld-dset.json', 'r') as f:
             data_files = json.load(f)["train"]
         np.random.shuffle(data_files)
@@ -753,8 +831,10 @@ if __name__ == '__main__':
 
 #%%
     
-# %%
-    # problem_file_path = '/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/random/test/7_5_3_58.yaml'
+#%%
+    # import sys 
+    # # # problem_file_path = '/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/distractors/test/2_10_1_57.yaml'
+    # problem_file_path = '/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/10_0_1_100.yaml'
     # with open(problem_file_path, 'r') as f:
     #     problem_file = yaml.full_load(f)
     # init, goal, externals, actions = create_problem(problem_file_path)
@@ -765,10 +845,10 @@ if __name__ == '__main__':
     # base_policy = Policy(problem_file, search, model)
     # policy = FeedbackPolicy(base_policy=base_policy, cost_fn=stream_cost, stats=stats, initial_state=search.init)
 
-    # r = repeated_a_star(search, stats=stats, policy_ts=policy, max_steps=10, edge_eval_steps=30, debug=False, max_time=90)
-
-
-
+    # r = repeated_a_star(search, stats=stats, policy_ts=policy, max_steps=5, edge_eval_steps=10, debug=False, max_time=90)
+    # print(r.solution, r.planning_time, r.expand_count)
+    # sys.exit(0)
+#%%
     from glob import glob
     from pddlstream.language.object import Object
     def extract_labels(path, stats):
@@ -792,7 +872,7 @@ if __name__ == '__main__':
                 stream_feasibility=stream_feasibility
             ))
         return path_data
-    problems = glob('/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/5_10_2_26.yaml')
+    problems = sorted(glob('/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/sorting/test/*.yaml'))
     data = []
     for problem_file_path in problems:
         with open(problem_file_path, 'r') as f:
@@ -810,9 +890,14 @@ if __name__ == '__main__':
         stats = {}
         base_policy = Policy(problem_file, search, model)
         policy = FeedbackPolicy(base_policy=base_policy, cost_fn=stream_cost, stats=stats, initial_state=search.init)
+        m_attempts = lambda a: 10**(1 + a // 10)
+        def stream_cost_fn(s, o, c, stats=stats, verbose=False):
+            fa = stream_cost(s, o, c, given_stats=stats)
+            fa = (1 + fa["num_successes"] * m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
+            return 1/fa
 
         start = time.time()
-        r = repeated_a_star(search, stats=stats, policy_ts=policy, max_steps=10, edge_eval_steps=10, max_time=90)
+        r = repeated_a_star(search, stats=stats, policy_ts=policy, cost=stream_cost_fn,max_steps=100, edge_eval_steps=50, max_time=90)
         duration = time.time() - start
         print(os.path.basename(problem_file_path), len(r.action_skeleton or []),  len(r.skeletons), len({s[-1][1] for s in r.skeletons}), duration)
         path_data = []
@@ -834,9 +919,9 @@ if __name__ == '__main__':
         data.append(run)
 
 
-# %%
-# with open('policy_clutter_test_data_nonlin_nolevin.pkl', 'wb') as f:
-#     pickle.dump(data, f)
+
+    with open('policy_sorting_test_3.pkl', 'wb') as f:
+        pickle.dump(data, f)
 
 # # %%
 # with open('../policy_test_data.pkl', 'rb') as f:
@@ -861,4 +946,59 @@ if __name__ == '__main__':
 
 # # %%
 # pfiles = ["4_5_2_27.yaml","7_5_6_7.yaml","7_5_3_58.yaml","5_2_3_52.yaml","7_2_3_91.yaml","7_5_1_25.yaml","6_5_5_32.yaml","7_3_6_55.yaml","7_5_4_70.yaml","2_6_2_41.yaml","5_5_2_22.yaml","4_2_1_2.yaml","5_4_5_46.yaml","7_4_5_37.yaml","7_5_3_31.yaml","7_5_6_73.yaml",]
-# pfiles = ["/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/random/test/" + x for x in pfiles]
+# pfiles = ["/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/random/test/" + x for x in pfiles]model = load_model()
+# #%%
+# problem_file_path = "/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/stacking/test/7_0_6_15.yaml"
+# with open(problem_file_path, 'r') as f:
+#     problem_file = yaml.full_load(f)
+
+# state = State.from_scene(problem_file)
+# model = load_model(model_path)
+# list(invoke(state, model, .01))
+# # %%
+# list(invoke(
+#     state \
+#         .transition('pick(panda,green_block0,blue_table)')
+#         .transition('place(panda,green_block0,green_table)')
+#         .transition('pick(panda,green_block1,blue_table)')
+#         .transition('place(panda,green_block1,green_table)')
+#         .transition('pick(panda,green_block3,purple_table)')
+#         .transition('place(panda,green_block3,green_table)')
+#         .transition('pick(panda,green_block2,blue_table)')
+#         .transition('place(panda,green_block2,green_table)')
+#         .transition('pick(panda,green_block4,purple_table)')
+#         .transition('place(panda,green_block4,green_table)')
+#         .transition('pick(panda,red_block0,blue_table)')
+#         .transition('place(panda,red_block0,red_table)')
+#         .transition('pick(panda,red_block1,blue_table)')
+#         .transition('place(panda,red_block1,red_table)')
+#         .transition('pick(panda,red_block3,blue_table)')
+#         .transition('place(panda,red_block3,red_table)')
+#         .transition('pick(panda,red_block2,blue_table)')
+#         .transition('place(panda,red_block2,red_table)')
+#         .transition('pick(panda,red_block4,blue_table)')
+#         .transition('place(panda,red_block4,red_table)')
+# , model))
+# # %%
+# is_goal(state \
+#         .transition('pick(panda,green_block0,blue_table)')
+#         .transition('place(panda,green_block0,green_table)')
+#         .transition('pick(panda,green_block1,blue_table)')
+#         .transition('place(panda,green_block1,green_table)')
+#         .transition('pick(panda,green_block3,purple_table)')
+#         .transition('place(panda,green_block3,green_table)')
+#         .transition('pick(panda,green_block2,blue_table)')
+#         .transition('place(panda,green_block2,green_table)')
+#         .transition('pick(panda,green_block4,purple_table)')
+#         .transition('place(panda,green_block4,green_table)')
+#         .transition('pick(panda,red_block0,blue_table)')
+#         .transition('place(panda,red_block0,red_table)')
+#         .transition('pick(panda,red_block1,blue_table)')
+#         .transition('place(panda,red_block1,red_table)')
+#         .transition('pick(panda,red_block3,blue_table)')
+#         .transition('place(panda,red_block3,red_table)')
+#         .transition('pick(panda,red_block2,blue_table)')
+#         .transition('place(panda,red_block2,red_table)')
+#         .transition('pick(panda,red_block4,blue_table)')
+#         .transition('place(panda,red_block4,red_table)'))
+# %%
