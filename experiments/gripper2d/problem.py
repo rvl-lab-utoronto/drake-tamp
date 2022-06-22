@@ -130,18 +130,23 @@ def set_placements(region, blocks):
         min_required = min_required - blocks[block]['width']
 
 
-def generate_scene(heights=None):
-    WORLD = {
-        "height": 10,
-        "width": 10,
-    }
-    if heights is None:
-        num_blocks = np.random.randint(2, 5)
-        heights = [np.random.randint(1, 4) for block in range(num_blocks)]
+def generate_scene(block_heights=None, region_widths=None, height=10):
 
+    if block_heights is None:
+        num_blocks = np.random.randint(2, 5)
+        heights = [[np.random.randint(1, 4) for block in range(num_blocks)]]
+    region_widths = [5, 1, 4] if region_widths is None else region_widths
+
+    assert len(block_heights) == (len(region_widths) + 1) // 2
+    
+    WORLD = {
+        "height": height,
+        "width": sum(region_widths),
+    }    
+    
     REGIONS = frozendict({
-        "r1": {"width": 5, "x": 0, "y": -0.3, "height": .3},
-        "r2": {"width": 4, "x": 6, "y": -0.3, "height": .3}
+        f"r{int(i/2)+1}": {"width": w, "x": sum(region_widths[:i]), "y": -0.3, "height": .3}
+        for i, w in enumerate(region_widths) if i%2 == 0
     })
 
     GRIPPERS = {
@@ -150,15 +155,23 @@ def generate_scene(heights=None):
 
 
     colors = plt.get_cmap("tab10")
-    BLOCKS = {
-        f"b{i}": {
-            "width": 1,
-            "y": 0,
-            "height": height,
-            "color": colors(i)
-        } for i, height in enumerate(heights)
-    }
-    set_placements(REGIONS['r1'], BLOCKS)
+    
+    BLOCKS = {}
+    block_counter = 0
+    for i, regional_block_heights in enumerate(block_heights):
+        region = f"r{i+1}"
+        _BLOCKS = {
+            f"b{block_counter + j}": {
+                "width": 1,
+                "y": 0,
+                "height": height,
+                "color": colors(block_counter + j),
+                "on": region
+            } for j, height in enumerate(regional_block_heights)
+        }
+        block_counter += len(regional_block_heights)
+        set_placements(REGIONS[region], _BLOCKS)
+        BLOCKS.update(_BLOCKS)
 
     return (WORLD, GRIPPERS, REGIONS, BLOCKS)
 

@@ -1,8 +1,12 @@
 import math
+import copy
+import time
 
 from pddlstream.language.conversion import fact_from_evaluation
 
+
 import sys
+
 sys.path.insert(
     0,
     "/home/mohammed/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/",
@@ -11,16 +15,13 @@ sys.path.insert(
     0, "/home/atharv/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/"
 )
 from pddl.conditions import Atom
-import time
+
 from lifted.utils import PriorityQueue
 from lifted.search import ActionStreamSearch
-from lifted.sampling import (
-    extract_stream_plan_from_path,
-    sample_depth_first_with_costs,
-    extract_stream_ordering,
-    ancestral_sampling_by_edge
-)
-ENABLE_EQUALITY_CHECK = True
+from lifted.sampling import extract_stream_plan_from_path, ancestral_sampling_by_edge
+
+ENABLE_EQUALITY_CHECK = False
+
 
 def try_a_star(search, cost, heuristic, max_step=10000):
     start_time = time.time()
@@ -32,37 +33,25 @@ def try_a_star(search, cost, heuristic, max_step=10000):
 
     while q and expand_count < max_step:
         state = q.pop()
-        if ENABLE_EQUALITY_CHECK and state.id in closed:
+
+        if hash(state) in closed:
             continue
+
         expand_count += 1
 
         if search.test_goal(state):
             found = True
             break
 
-        for op, child in search.successors(state):
-            # state.children.append((op, child))
-            if (
-                child.unsatisfiable
-            ):  # or any([search.test_equal(child, node) for node in closed]):
-                continue
-
-            is_unique = True
-            if ENABLE_EQUALITY_CHECK:
-                child_id = search.get_id(child)
-                child.id = child_id
-                if child_id in closed:
-                    is_unique = False
-
-            if not is_unique:
-                continue
+        successors = search.successors(state)
+        for op, child in successors:
+            child.parents = {(op, state)}
+            child.start_distance = state.start_distance + cost(state, op, child)
             state.children.add((op, child))
             evaluate_count += 1
-            child.start_distance = state.start_distance + cost(state, op, child)
             q.push(child, child.start_distance + heuristic(child, search.goal))
 
-        if ENABLE_EQUALITY_CHECK:
-            closed[state.id] = state
+        closed[hash(state)] = state
 
     av_branching_f = evaluate_count / expand_count
     approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
@@ -71,13 +60,121 @@ def try_a_star(search, cost, heuristic, max_step=10000):
     print(f"Time taken: {(time.time() - start_time)} seconds")
     print(f"Solution cost: {state.start_distance}")
 
-    if found:
-        return state
-    else:
-        return None
+    return state if found else None
 
 
-def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
+def try_a_star_modified(search, cost, heuristic, max_step=10000):
+    start_time = time.time()
+    q = PriorityQueue([search.init])
+    closed = {}
+    generated = {hash(search.init): search.init}
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+    while q and expand_count < max_step:
+        state = q.pop()
+
+        if hash(state) in closed:
+            continue
+
+        expand_count += 1
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        successors = search.successors(state)
+        for op, child in successors:
+
+            if hash(child) in generated:
+                node = generated[hash(child)]
+                node.parents.add((op, state))
+                node.start_distance = min(
+                    node.start_distance, state.start_distance + cost(state, op, node)
+                )
+                state.children.add((op, node))
+                continue
+
+            generated[hash(child)] = child
+            child.parents = {(op, state)}
+            child.start_distance = state.start_distance + cost(state, op, child)
+            state.children.add((op, child))
+            evaluate_count += 1
+            q.push(child, child.start_distance + heuristic(child, search.goal))
+
+        closed[hash(state)] = state
+
+    av_branching_f = evaluate_count / expand_count
+    approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
+    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
+    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    print(f"Time taken: {(time.time() - start_time)} seconds")
+    print(f"Solution cost: {state.start_distance}")
+
+    return state if found else None
+
+
+def try_a_star_tree(search, cost, heuristic, max_steps=10000, closed_exclusion=None):
+    start_time = time.time()
+    q = PriorityQueue([search.init])
+    closed = {search.init}
+    closed_exclusion = closed_exclusion if closed_exclusion is not None else set()
+
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+    while q and expand_count < max_steps:
+        state = q.pop()
+        expand_count += 1
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        for op, child in search.successors(state):
+            evaluate_count += 1
+            child.parents = {(op, state)}
+            child.ancestors = state.ancestors | {state}
+            child.start_distance = state.start_distance + cost(state, op, child)
+            state.children.add((op, child))
+
+            if child in closed_exclusion or child not in closed or child in state.ancestors:
+                q.push(child, child.start_distance + heuristic(child, search.goal))
+                if child in closed_exclusion:
+                    closed_exclusion.remove(child)
+                else:
+                    closed.add(child)
+
+    time_taken = time.time() - start_time
+
+    av_branching_f = evaluate_count / expand_count
+    approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
+    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
+    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    print(f"Time taken: {time_taken} seconds")
+    print(f"Solution cost: {state.start_distance}")
+
+    result = {
+        "expanded": expand_count,
+        "evaluated": evaluate_count,
+        "search_time": time_taken,
+        "solved": found,
+        "out_of_budget": expand_count >= max_steps,
+    }
+
+    return state, result
+
+
+def repeated_a_star(
+    search,
+    stats,
+    max_attempts=20,
+    max_search_steps=10000,
+    max_sampling_steps=100,
+    heuristic=None
+):
 
     # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
     def cost(state, op, child, verbose=False):
@@ -88,7 +185,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             if stream_action is not None:
                 if stream_action in included:
                     continue
-                cg_key = child.get_object_computation_graph_key(obj)
+                cg_key = child.id_anon_cg_map[obj]
                 if cg_key in stats:
                     s = stats[cg_key]
                     comp_cost = (
@@ -105,14 +202,28 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
         return max(1, c)
 
     if heuristic is None:
-        heuristic = lambda s,g: 0
+        # heuristic = lambda s,g: 0
+        heuristic = lambda s, g: 10 * len(g - s.state)
 
-    stats = {}
-    for _ in range(max_steps):
-        goal_state = try_a_star(search, cost, heuristic)
-        if goal_state is None:
+    stats_list = []
+    closed_exclusion = set()
+    path, object_mapping, goal_state = None, None, None
+    success = False
+    attempts = 0
+    while attempts < max_attempts:
+        attempts += 1
+
+        # goal_state = try_a_star(search, cost, heuristic)
+        # goal_state = try_a_star_modified(search, cost, heuristic)
+        goal_state, search_stats = try_a_star_tree(
+            search, cost, heuristic, max_search_steps, closed_exclusion
+        )
+        stats_list.append(search_stats)
+        if not search_stats["solved"]:
             print("Could not find feasable action plan!")
             break
+
+        closed_exclusion |= goal_state.ancestors | {goal_state}
 
         print("Getting path ...")
         path = goal_state.get_shortest_path_to_start()
@@ -124,15 +235,19 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             print("cum cost:", a + c)
             c += a
 
-        action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
+        action_skeleton = [a for _, a, _ in path]
         actions_str = "\n".join([str(a) for a in action_skeleton])
         print(f"Action Skeleton:\n{actions_str}")
 
         stream_plan = extract_stream_plan_from_path(path)
-        stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
-        object_mapping = ancestral_sampling_by_edge(stream_plan, goal_state, stats, max_steps=30)
+        stream_plan = [
+            (edge, list({action for action in object_map.values()}))
+            for (edge, object_map) in stream_plan
+        ]
+        object_mapping = ancestral_sampling_by_edge(
+            stream_plan, goal_state, stats, max_steps=max_sampling_steps
+        )
 
-        path = goal_state.get_shortest_path_to_start()
         c = 0
         for idx, i in enumerate(path):
             print(idx, i[1])
@@ -141,14 +256,30 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None):
             print("cum cost:", a + c)
             c += a
 
-
         if object_mapping is not None:
+            print("Found a solution!")
+            print(f"Object Mapping:\n{object_mapping}\n")
+            success = True
             break
+
         print("Could not find object_mapping, retrying with updated costs")
 
-    if goal_state is not None:
-        action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
-        return action_skeleton, object_mapping, goal_state
+    timeout = False
+    if not success:
+        if attempts >= max_attempts:
+            timeout = True
+            print("Timeout")
+        print("Could not solve task!")
+    
+    return {
+        "stats": stats_list,
+        "action_skeleton": [a for _, a, _ in path] if path is not None else None,
+        "object_mapping": object_mapping,
+        "goal_state": goal_state,
+        "success": success,
+        "timeout": timeout,
+    }
+
 
 
 if __name__ == "__main__":
@@ -193,15 +324,16 @@ if __name__ == "__main__":
     problem, model_poses = construct_problem_from_sim(sim, station_dict, prob_info)
     evaluations, goal_exp, domain, externals = parse_problem(problem)
 
-
     init = set()
     for evaluation in evaluations:
         x = fact_from_evaluation(evaluation)
+        # init.add(Atom(x[0], [PredicateObject(o.pddl, generated=False) for o in x[1:]]))
         init.add(Atom(x[0], [o.pddl for o in x[1:]]))
 
     goal = set()
     assert goal_exp[0] == "and"
     for x in goal_exp[1:]:
+        # goal.add(Atom(x[0], [PredicateObject(o.pddl, generated=False) for o in x[1:]]))
         goal.add(Atom(x[0], [o.pddl for o in x[1:]]))
 
     print("Initial:", init)
@@ -211,16 +343,18 @@ if __name__ == "__main__":
     search = ActionStreamSearch(init, goal, externals, domain.actions)
 
     from ompl.util import setLogLevel, LogLevel
+
     setLogLevel(LogLevel.LOG_WARN)
 
     if args.profile is not None:
-        import lifted
+        from lifted.search import find_applicable_brute_force
         from line_profiler import LineProfiler
+
         profile = LineProfiler()
         profile.add_function(repeated_a_star)
         profile.add_function(try_a_star)
-        profile.add_function(lifted.find_applicable_brute_force)
-        profile.add_function(ActionStreamSearch.test_equal)
+        profile.add_function(find_applicable_brute_force)
+        profile.add_function(ActionStreamSearch.successors)
         profile.enable()
 
     start_time = time.time()

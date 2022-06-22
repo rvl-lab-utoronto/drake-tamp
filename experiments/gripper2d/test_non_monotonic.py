@@ -68,14 +68,13 @@ initial_state, goal, externals, actions, objects = create_problem(scene, goal)
 #%%
 search = ActionStreamSearch(initial_state, goal, externals, actions)
 stats = {}
-result = repeated_a_star(search, stats=stats, max_steps=50, heuristic=lambda s,g: len(g - s.state)*5)
-if result is not None:
-    action_skeleton, object_mapping, _ = result
-    actions_str = "\n".join([str(a) for a in action_skeleton])
+result = repeated_a_star(search, stats=stats, max_attempts=20, heuristic=lambda s,g: len(g - s.state)*10)
+if result["success"]:
+    actions_str = "\n".join([str(a) for a in result["action_skeleton"]])
     print(f"Action Skeleton:\n{actions_str}")
-    print(f"\nObject mapping: {object_mapping}\n") 
+    print(f"\nObject mapping: {result['object_mapping']}\n") 
 
 # %%
 
-visualize_plan(scene, objects, action_skeleton, object_mapping)
+# visualize_plan(scene, objects, action_skeleton, object_mapping)
 # %%
