@@ -245,6 +245,7 @@ def ancestral_sampling(stream_ordering, objects_from_name=None):
     }
     produced = dict()
     queue = [Binding(0, [start_node], {})]
+    levels = {start_node: 0}
     while queue:
         binding = queue.pop(0)
         stream_action = binding.stream_plan[0]
@@ -279,9 +280,10 @@ def ancestral_sampling(stream_ordering, objects_from_name=None):
         for child in children.get(stream_action, []):
             input_objects = list(child.inputs) + [var_name for f in child.fluent_facts for var_name in f.args]
             if all(obj in produced or obj in objects_from_name for obj in input_objects):
+                levels[child] = levels[stream_action] + 1
                 new_binding = Binding(binding.index + 1, [child], {})
                 queue.append(new_binding)
-    return produced, stats.get(final_node, 0)
+    return produced, stats.get(final_node, 0), levels
 
 def ancestral_sample_with_costs(stream_ordering, final_state, stats={}, max_steps=30, verbose=False):
     to_produce = set({out for s in stream_ordering for out in s.outputs})
@@ -316,7 +318,7 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
             for j in range(max_steps):
                 prev_particle = particles[i][j % len(particles[i])]
 
-                new_objects, success = ancestral_sampling(step, prev_particle)
+                new_objects, success, _ = ancestral_sampling(step, prev_particle)
 
                 for obj in to_produce:
                     cg_key = state.get_object_computation_graph_key(obj)
@@ -324,6 +326,8 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
                     cg_stats['num_attempts'] += 1
                     if obj in new_objects:
                         cg_stats['num_successes'] += 1
+                
+
 
 
                 if success:
@@ -344,6 +348,7 @@ def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30
     particles = [
         [objects]
     ] + [[] for _ in range(len(stream_plan))]
+    z = {}
     for k in range(max_steps):
         for i in range(len(stream_plan)):
             (_, op, state), step = stream_plan[i]
@@ -356,7 +361,7 @@ def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30
                 # prev_particle = random.choice(particles[i])
 
                 edge_stats["num_attempts"] += 1
-                new_objects, success = ancestral_sampling(step, prev_particle)
+                new_objects, success, levels = ancestral_sampling(step, prev_particle)
 
                 for obj in to_produce:
                     cg_key = state.get_object_computation_graph_key(obj)
@@ -365,7 +370,28 @@ def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30
                     if obj in new_objects:
                         cg_stats['num_successes'] += 1
                         stats.setdefault(obj, []).append(new_objects[obj])
+                for index_i, stream_action_i in enumerate(step):
+                    if stream_action_i not in levels:
+                        continue
+                    success_i = any(o in new_objects for o in stream_action_i.outputs)
+                    for _, stream_action_j in enumerate(step[index_i + 1:]):
+                        if stream_action_j not in levels:
+                            continue
+                        success_j = any(o in new_objects for o in stream_action_j.outputs)
+                        
+                        if levels[stream_action_i] == levels[stream_action_j]:
 
+                            if (success_i or success_j):
+                                pair_key = frozenset([
+                                    state.get_object_computation_graph_key(stream_action_i.outputs[0]),
+                                    state.get_object_computation_graph_key(stream_action_j.outputs[0])
+                                ])
+                                kstats = z.setdefault(pair_key, {"num_attempts": 0, "num_successes": 0, "i": 0, "j": 0})
+                                kstats["i"] += success_i
+                                kstats["j"] += success_j
+                                kstats["num_attempts"]+= 1
+                                if success_i and success_j:
+                                    kstats["num_successes"]+= 1
 
                 if success:
                     edge_stats['num_successes'] += 1
@@ -377,5 +403,5 @@ def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30
         else:
             return particles[-1][0]
 
-    
+    stats.setdefault('pairs', {}).update({k:v for k,v in z.items() if v['num_successes'] < min(v['i'], v['j'])})
     return None
