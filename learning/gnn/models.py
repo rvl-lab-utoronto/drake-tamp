@@ -16,6 +16,32 @@ def nPr(n, r):
     assert isinstance(r, int), "r must be an int"
     return factorial(n)//factorial(n-r)
 
+class PLOIAblationModel(nn.Module):
+
+    def __init__(
+        self,
+        model_info,
+        feature_size=16,
+        hidden_size=16,
+    ):
+        super().__init__()
+        self.problem_graph_network = ProblemGraphNetwork(
+            node_feature_size=model_info.problem_graph_node_feature_size,
+            edge_feature_size=model_info.problem_graph_edge_feature_size,
+            hidden_size=feature_size,
+            graph_hidden_size=hidden_size,
+            dropout=.5
+        )
+        self.pg_mlp = MLP([hidden_size, 1], hidden_size, dropout=0.5)
+
+
+    def forward(self, data, object_reps=None, score=False, update_reps=False):
+        rep_x = self.problem_graph_network(data, return_x=True)
+        prob_x = self.pg_mlp(rep_x)
+        return prob_x
+            
+
+
 class HyperClassifier(nn.Module):
     """
     Stream result classifier based on object hypergraph.

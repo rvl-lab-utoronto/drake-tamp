@@ -873,6 +873,55 @@ class TrainingDataset(Dataset):
         print(f"Prepared {self.num_examples} examples.")
 
 
+
+class PLOIAblationDataset(Dataset):
+    def load_pkl(self, file_path):
+        with open(file_path, "rb") as f:
+            data = pickle.load(f)
+        if not data["labels"] or not any(l.label for l in data["labels"]):
+            return
+        model_info = self.model_info_class(**data["model_info"].__dict__)
+        problem_info = data["problem_info"]
+        if self.model_info is None:
+            self.model_info = model_info
+            self.model_info.domain_pddl = data["domain_pddl"]
+            self.model_info.stream_pddl = data["stream_pddl"]
+        else:
+            assert (
+                self.model_info.domain_pddl == data["domain_pddl"]
+                and self.model_info.stream_pddl == data["stream_pddl"]
+            ), "Make sure the model infos in these pkls are identical!"
+
+        self.datastores.append(
+            DataStore(
+                model_info,
+                problem_info,
+                [None],
+            )
+        )
+        init_objects = objects_from_facts(problem_info.initial_facts)
+        positive = set()
+        for label in data["labels"]:
+            if label.label:
+                positive = positive | (get_ancestor_objects(label) & init_objects)
+
+        self.datastores[-1].cache = [ positive ]
+        self.num_examples += 1
+
+    def construct_datum(self, positive, problem_info):
+        data = construct_problem_graph_input(problem_info, self.model_info)
+        data.y = torch.tensor([1 if k in positive else 0 for k in data.nodes], dtype=torch.float)
+        return data
+
+    def __getitem__(self, index):
+        index = (index, 0)
+        data = self.get_dict(index)["data"]
+        data.problem_index = [
+            index[0]
+        ]  # This list crazyness is to prevent torch geometric from batching
+        return data
+
+
 class TrainingDatasetSampler(Sampler):
     def __init__(self, dataset, epoch_size=200, stratify_prop=None):
         self.dataset = dataset

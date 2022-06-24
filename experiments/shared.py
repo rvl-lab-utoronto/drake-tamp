@@ -17,6 +17,8 @@ def construct_oracle(mode, pddl_problem, problem_info, model_poses, **kwargs):
         oracle_class = ora.CachingModel
     elif mode == "multiheadmodel":
         oracle_class = ora.MultiHeadModel
+    elif mode == "ploiablation":
+        oracle_class = ora.PLOIAblation
     elif mode == "complexitycollector":
         oracle_class = ora.ComplexityDataCollector
     elif mode == "complexitoracle":

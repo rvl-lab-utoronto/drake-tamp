@@ -47,7 +47,7 @@ def find_grasp(shape_info):
         z_rot = np.random.uniform(0, 2*np.pi)
     else:
         return None, np.inf
-    h = HAND_HEIGHT + length - np.random.uniform(0.01, 0.03)
+    h = HAND_HEIGHT + length - FINGER_WIDTH/2
     R = RotationMatrix.MakeXRotation(np.pi).multiply(RotationMatrix.MakeZRotation(z_rot))
     return RigidTransform(R, [0, 0, h])
 
@@ -118,6 +118,7 @@ def find_ik_with_handpose(
     object_info,
     X_HI,
     q_initial = Q_NOMINAL,
+    q_nominal = Q_NOMINAL,
     relax = False
 ):
     """
@@ -126,14 +127,23 @@ def find_ik_with_handpose(
     in the world frame).
     """
     plant, plant_context = get_plant_and_context(station, station_context)
-    H = plant.GetFrameByName(HAND_FRAME_NAME, station.get_hand())  # hand frame
-    G = object_info.get_frame()#shape_info.offset_frame  # geometry frasinkme
+    panda = station.get_panda()
+    hand = station.get_hand()
+
+    plant.SetPositions(plant_context, panda, q_nominal)
+    q_nominal = plant.GetPositions(plant_context)
+    
+    plant.SetPositions(plant_context, panda, q_initial)
+    q_initial = plant.GetPositions(plant_context)
+
+    H = plant.GetFrameByName(HAND_FRAME_NAME, hand)  # hand frame
+    G = object_info.get_frame() #shape_info.offset_frame  # geometry frasinkme
     W = plant.world_frame()
     ik = InverseKinematics(plant, plant_context)
     if not relax:
         ik.AddMinimumDistanceConstraint(COL_MARGIN, CONSIDER_MARGIN)
-    lower = X_HI.translation() - 0.005*np.ones(3)
-    upper = X_HI.translation() + 0.005*np.ones(3)
+    lower = X_HI.translation() - np.array([0.001, 0.001, 0.01])
+    upper = X_HI.translation() + np.array([0.001, 0.001, 0.01])
     ik.AddPositionConstraint(
         H,
         np.zeros(3),
@@ -149,23 +159,15 @@ def find_ik_with_handpose(
         R_I,
         THETA_TOL
     )
-    """
-    ik.AddAngleBetweenVectorsConstraint(
-        G, [0, 0, 1], G, R_I.col(2), 0, THETA_TOL
-    )
-    ik.AddAngleBetweenVectorsConstraint(
-        G, [1, 0, 0], G, R_I.col(0), 0, THETA_TOL
-    )
-    """
     prog = ik.prog()
     q = ik.q()
-    prog.AddQuadraticErrorCost(np.identity(len(q)), Q_NOMINAL, q)
+    prog.AddQuadraticErrorCost(np.identity(len(q)), q_nominal, q)
     prog.SetInitialGuess(q, q_initial)
     result = Solve(prog)
     cost = result.get_optimal_cost()
     if not result.is_success():
         cost = np.inf
-    return result.GetSolution(q), cost
+    return plant.GetPositions(plant_context, panda), cost
 
 def check_safe_conf(station, station_context, q):
     """

@@ -11,7 +11,7 @@ from torch_geometric.data.data import Data
 
 from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierV2Info
 from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
+from learning.gnn.models import HyperClassifier, PLOIAblationModel, StreamInstanceClassifier, StreamInstanceClassifierV2
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
 from torch_geometric.data.batch import Batch
@@ -834,3 +834,60 @@ class MultiHeadModel(Oracle):
             return score/(l  + count  - 1)
         else:
             return score/count
+
+class PLOIAblation(MultiHeadModel):
+
+    def load_model(self):
+        print(self.feature_size, self.hidden_size)
+        self.model = PLOIAblationModel(
+            self.model_info, feature_size = self.feature_size, hidden_size = self.hidden_size
+        )
+        self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
+        self.model.eval()
+
+        self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
+        problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
+        probs = torch.nn.functional.sigmoid(self.model(Batch.from_data_list([problem_graph_input]))).detach().numpy().flatten()
+        self.object_reps = {problem_graph_input.nodes[i]:probs[i] for i in range(len(probs))}
+        self.history = {}
+        self.counts = {}
+        self.init_objects = objects_from_facts(self.problem_info.initial_facts)
+    
+    def calculate_result_key(self, result, atom_map):
+        facts = [fact_to_pddl(f) for f in result.get_certified()]
+        domain = [fact_to_pddl(f) for f in result.domain]
+        result_key = tuple()
+        objs = set()
+        for fact in facts:
+            atom_map[fact] = domain
+            anc = ancestors_tuple(fact, atom_map=atom_map)
+            objs |= objects_from_facts(anc)
+            result_key += standardize_facts(anc, self.init_objects)
+        return result_key, objs
+
+    def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        assert l > 0
+
+        if not all([d in node_from_atom for d in result.domain]):
+            assert False, "Cannot use this in unrefined mode."
+
+        result_key, ancestor_objects = self.calculate_result_key(result, atom_map)
+        count = self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        if result_key in self.history:
+            score = self.history[result_key]
+        else:
+            score = 0
+            k = 0
+            for o in ancestor_objects:
+                if o in self.object_reps:
+                    score += self.object_reps[o]
+                    k += 1
+            score = score/k
+            assert score > 0 and score < 1
+            self.history[result_key] = score
+        if self.use_level:
+            # return 1/(l + count - 1)
+            return 1/l
+        # else:
+        # return score/count
