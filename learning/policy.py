@@ -18,6 +18,12 @@ from torch_geometric.loader import DataLoader
 import getpass
 USER = getpass.getuser()
 
+import sys
+sys.path.insert(
+    0,
+    f"/home/{USER}/drake-tamp/pddlstream/FastDownward/builds/release64/bin/translate/",
+)
+
 def parse_action(action, pddl_to_name):
     def to_name(op, arg1, arg2):
         return f"{op}(panda,{pddl_to_name[arg1]},{pddl_to_name[arg2]})"
@@ -555,7 +561,7 @@ def try_mqs(search, heuristic, result, max_step=10000, max_time=None, policy_ts=
             q = q_p
         state = q.pop()
         expand_count += 1
-        if state.id in closed:
+        if state in closed:
             continue
 
         if search.test_goal(state):
@@ -564,29 +570,34 @@ def try_mqs(search, heuristic, result, max_step=10000, max_time=None, policy_ts=
 
         for op, child in search.successors(state):
             # state.children.append((op, child))
-            if (
-                child.unsatisfiable
-            ):  # or any([search.test_equal(child, node) for node in closed]):
-                continue
+
+            # AS: Why is this required?
+            # if (
+            #     child.unsatisfiable
+            # ):  # or any([search.test_equal(child, node) for node in closed]):
+            #     continue
 
             is_unique = True
             if ENABLE_EQUALITY_CHECK:
-                child_hash = search.get_id(child)
-                child.id = child_hash
-                if child_hash in closed:
+                # child_hash = search.get_id(child)
+                # child.id = child_hash
+                if child in closed:
                     is_unique = False
-            else:
-                child.id = expand_count
+            # else:
+            #     child.id = expand_count
 
             if not is_unique:
                 continue
 
+            child.parents = {(op, state)}
+            child.ancestors = state.ancestors | {state}
+            child.start_distance = state.start_distance + cost(state, op, child)
             state.children.add((op, child))
             evaluate_count += 1
         for op, child in sorted(state.children, key=lambda x: x[0].name):
             q_p.push(child, policy_ts(state, op, child))
             q_h.push(child, cost(state, op, child) + heuristic(child, search.goal))
-        closed.add(state.id)
+        closed.add(state)
 
     # av_branching_f = evaluate_count / expand_count
     # approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
@@ -612,7 +623,7 @@ class Policy:
 
     def __call__(self, state, op, child):
         model_state = self.planning_states[state]
-        opname = op.name.split(' ')[0][1:]
+        opname = op.name.split(' ')[0]#[1:]
         key = (model_state, opname)
         if key not in self.cache:
             for p, op_name in invoke(model_state, self.model):
@@ -721,7 +732,7 @@ def stream_cost(state, op, child, verbose=False,given_stats=dict()):
     included = set()
     for stream_action in {v for v in child.object_stream_map.values() if v is not None}:
         obj = stream_action.outputs[0]
-        cg_key = child.get_object_computation_graph_key(obj)
+        cg_key = child.id_anon_cg_map[obj]
         if cg_key in given_stats:
             included.add(cg_key)
             s = given_stats[cg_key]
@@ -866,7 +877,7 @@ if __name__ == '__main__':
                 break
 
             action_streams = list({action for action in object_map.values()})
-            stream_feasibility = [stats[edge[2].get_object_computation_graph_key(stream.outputs[0])] for stream in action_streams]
+            stream_feasibility = [stats[edge[2].id_anon_cg_map[stream.outputs[0]]] for stream in action_streams]
             path_data.append(dict(
                 action_name=action.name,
                 action_feasibility=action_feasibility,
@@ -901,7 +912,7 @@ if __name__ == '__main__':
         start = time.time()
         r = repeated_a_star(search, stats=stats, policy_ts=policy, cost=stream_cost_fn,max_steps=100, edge_eval_steps=50, max_time=90)
         duration = time.time() - start
-        print(os.path.basename(problem_file_path), len(r.action_skeleton or []),  len(r.skeletons), len({s[-1][1] for s in r.skeletons}), duration)
+        print(os.path.basename(t), len(r.action_skeleton or []),  len(r.skeletons), len({s[-1][1] for s in r.skeletons}), duration)
         path_data = []
         for path in r.skeletons:
             path_data.append(extract_labels(path, r.stats))
