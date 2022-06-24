@@ -15,6 +15,8 @@ from torch_geometric.nn import GATv2Conv
 from torch_geometric.data import Batch
 from torch_geometric.loader import DataLoader
 
+import getpass
+USER = getpass.getuser()
 
 def parse_action(action, pddl_to_name):
     def to_name(op, arg1, arg2):
@@ -391,12 +393,12 @@ def make_dataset(data_files):
     states = []
     all_data = []
     for f in data_files:
-        f = f.replace('/jobs/', '/home/mohammed/drake-tamp/data/jobs/')
+        f = f.replace('/jobs/', f"/home/{USER}/drake-tamp/data/jobs/")
         with open(f, 'rb') as fb:
             f_data = pickle.load(fb)
         with open(os.path.join(os.path.dirname(f), 'stats.json'), 'r') as fb:
             stats_data = json.load(fb)
-        with open('/home/mohammed/drake-tamp/' + stats_data['problem_file_path'].split('drake-tamp/')[1], 'r') as fb:
+        with open(f"/home/{USER}/drake-tamp/" + stats_data['problem_file_path'].split('drake-tamp/')[1], 'r') as fb:
             problem_file = yaml.full_load(fb)
 
         if not stats_data['solution']:
@@ -473,7 +475,7 @@ from lifted.utils import PriorityQueue
 
 ENABLE_EQUALITY_CHECK = True
 import time
-def try_a_star(search, cost, heuristic, result, max_step=10000, max_time=None, policy_ts=None):
+def try_a_star(search, cost, heuristic, result, max_step=10001, max_time=None, policy_ts=None):
     q = PriorityQueue([search.init])
     # assert hasattr(search)
     closed = set()
@@ -779,10 +781,10 @@ class FeedbackPolicy:
 
 #%%
 if __name__ == '__main__':
-    model_path = '/home/mohammed/drake-tamp/policy.pt'
+    model_path = f"/home/{USER}/drake-tamp/policy.pt"
     if not os.path.exists(model_path):
         print('Trainin model')
-        with open('/home/mohammed/drake-tamp/data/jobs/blocksworld-dset.json', 'r') as f:
+        with open(f"/home/{USER}/drake-tamp/data/jobs/blocksworld-dset.json", 'r') as f:
             data_files = json.load(f)["train"]
         np.random.shuffle(data_files)
         all_data, _ = make_dataset(data_files[:])
@@ -833,8 +835,8 @@ if __name__ == '__main__':
     
 #%%
     # import sys 
-    # # # problem_file_path = '/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/distractors/test/2_10_1_57.yaml'
-    # problem_file_path = '/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/10_0_1_100.yaml'
+    # # # problem_file_path = f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/distractors/test/2_10_1_57.yaml"
+    # problem_file_path = f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/clutter/test/10_0_1_100.yaml"
     # with open(problem_file_path, 'r') as f:
     #     problem_file = yaml.full_load(f)
     # init, goal, externals, actions = create_problem(problem_file_path)
@@ -872,7 +874,7 @@ if __name__ == '__main__':
                 stream_feasibility=stream_feasibility
             ))
         return path_data
-    problems = sorted(glob('/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/sorting/test/*.yaml'))
+    problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/sorting/test/*.yaml"))
     data = []
     for problem_file_path in problems:
         with open(problem_file_path, 'r') as f:
@@ -946,9 +948,9 @@ if __name__ == '__main__':
 
 # # %%
 # pfiles = ["4_5_2_27.yaml","7_5_6_7.yaml","7_5_3_58.yaml","5_2_3_52.yaml","7_2_3_91.yaml","7_5_1_25.yaml","6_5_5_32.yaml","7_3_6_55.yaml","7_5_4_70.yaml","2_6_2_41.yaml","5_5_2_22.yaml","4_2_1_2.yaml","5_4_5_46.yaml","7_4_5_37.yaml","7_5_3_31.yaml","7_5_6_73.yaml",]
-# pfiles = ["/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/random/test/" + x for x in pfiles]model = load_model()
+# pfiles = [f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/random/test/" + x for x in pfiles]model = load_model()
 # #%%
-# problem_file_path = "/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/stacking/test/7_0_6_15.yaml"
+# problem_file_path = f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/stacking/test/7_0_6_15.yaml"
 # with open(problem_file_path, 'r') as f:
 #     problem_file = yaml.full_load(f)
 
