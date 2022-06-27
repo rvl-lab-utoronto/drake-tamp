@@ -481,7 +481,8 @@ from lifted.utils import PriorityQueue
 
 ENABLE_EQUALITY_CHECK = True
 import time
-def try_a_star(search, cost, heuristic, result, max_step=10001, max_time=None, policy_ts=None):
+def try_a_star(search, cost, heuristic, result, max_steps=10001, max_time=None, policy_ts=None, **kwargs):
+    start_time = time.time()
     q = PriorityQueue([search.init])
     # assert hasattr(search)
     closed = set()
@@ -490,10 +491,10 @@ def try_a_star(search, cost, heuristic, result, max_step=10001, max_time=None, p
     found = False
 
 
-    while q and expand_count < max_step and time.time() < max_time:
+    while q and expand_count < max_steps and (time.time() - start_time) < max_time:
         state = q.pop()
         expand_count += 1
-        if state.id in closed:
+        if state in closed:
             continue
 
         if search.test_goal(state):
@@ -502,23 +503,25 @@ def try_a_star(search, cost, heuristic, result, max_step=10001, max_time=None, p
 
         for op, child in search.successors(state):
             # state.children.append((op, child))
-            if (
-                child.unsatisfiable
-            ):  # or any([search.test_equal(child, node) for node in closed]):
-                continue
+            # if (
+            #     child.unsatisfiable
+            # ):  # or any([search.test_equal(child, node) for node in closed]):
+            #     continue
 
             is_unique = True
             if ENABLE_EQUALITY_CHECK:
-                child_hash = search.get_id(child)
-                child.id = child_hash
-                if child_hash in closed:
+                # child_hash = search.get_id(child)
+                # child.id = child_hash
+                if child in closed:
                     is_unique = False
-            else:
-                child.id = expand_count
+            # else:
+            #     child.id = expand_count
 
             if not is_unique:
                 continue
 
+            child.parents = {(op, state)}
+            child.ancestors = state.ancestors | {state}
             state.children.add((op, child))
             evaluate_count += 1
         for op, child in sorted(state.children, key=lambda x: x[0].name):
@@ -529,7 +532,7 @@ def try_a_star(search, cost, heuristic, result, max_step=10001, max_time=None, p
                 child.cost_to_go = heuristic(child, search.goal)
                 q.push(child, child.start_distance + heuristic(child, search.goal))
         # if hasattr(state, 'particles'):
-        closed.add(state.id)
+        closed.add(state)
 
     # av_branching_f = evaluate_count / expand_count
     # approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
@@ -544,7 +547,64 @@ def try_a_star(search, cost, heuristic, result, max_step=10001, max_time=None, p
     else:
         return None
 
-def try_mqs(search, heuristic, result, max_step=10000, max_time=None, policy_ts=None,cost=None):
+
+def try_a_star_tree(search, cost, heuristic, result, max_steps=10001, max_time=None, policy_ts=None, closed_exclusion=None, **kwargs):
+    start_time = time.time()
+    q = PriorityQueue([search.init])
+    closed = {search.init}
+    closed_exclusion = closed_exclusion if closed_exclusion is not None else set()
+
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+    while q and expand_count < max_steps and (time.time() - start_time) < max_time:
+        state = q.pop()
+        expand_count += 1
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        for op, child in search.successors(state):
+            evaluate_count += 1
+            child.parents = {(op, state)}
+            child.ancestors = state.ancestors | {state}
+            child.start_distance = state.start_distance + cost(state, op, child)
+            state.children.add((op, child))
+
+            if child in closed_exclusion or child not in closed or child in state.ancestors:
+                q.push(child, child.start_distance + heuristic(child, search.goal))
+                if policy_ts is not None:
+                    q.push(child, policy_ts(state, op, child))
+                else:
+                    child.start_distance = state.start_distance + cost(state, op, child)
+                    child.cost_to_go = heuristic(child, search.goal)
+                    q.push(child, child.start_distance + heuristic(child, search.goal))
+                
+                if child in closed_exclusion:
+                    closed_exclusion.remove(child)
+                else:
+                    closed.add(child)
+
+    time_taken = time.time() - start_time
+
+    # av_branching_f = evaluate_count / expand_count
+    # approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
+    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
+    # print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
+    # print(f"Time taken: {time_taken} seconds")
+    # print(f"Solution cost: {state.start_distance}")
+
+    result.expand_count += expand_count
+    result.evaluate_count += evaluate_count
+    if found:
+        return state
+    else:
+        return None
+
+def try_mqs(search, heuristic, result, max_steps=10000, max_time=None, policy_ts=None,cost=None, **kwargs):
+    start_time = time.time()
     q_p = PriorityQueue([search.init])
     q_h = PriorityQueue([search.init])
     # assert hasattr(search)
@@ -554,7 +614,7 @@ def try_mqs(search, heuristic, result, max_step=10000, max_time=None, policy_ts=
     found = False
 
 
-    while (q_h or q_p) and expand_count < max_step and time.time() < max_time:
+    while (q_h or q_p) and expand_count < max_steps and (time.time() - start_time) < max_time:
         if expand_count % 2 == 0:
             q = q_h
         else:
@@ -665,7 +725,7 @@ def default_action_cost(state, op, child, stats={}, verbose=False):
 
 # %%
 from lifted.sampling import ancestral_sampling_by_edge_seq, extract_stream_plan_from_path
-def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None):
+def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None, search_func=try_a_star):
     def lprint(*args):
         if debug:
             print(*args)
@@ -678,13 +738,17 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None,
         cost = default_action_cost
     cost = partial(cost, stats=stats)
 
-    max_time = max_time + time.time() if max_time is not None else math.inf
+    closed_exclusion = set()
+
+    max_time = max_time if max_time is not None else math.inf
     for _ in range(max_steps):
-        goal_state = try_mqs(search, cost=cost, heuristic=heuristic, result=result, max_time = max_time, policy_ts=policy_ts)
+        goal_state = search_func(search, cost=cost, policy_ts=policy_ts, max_time=max_time, heuristic=heuristic, result=result, closed_exclusion=closed_exclusion)
         if goal_state is None:
             lprint("Could not find feasable action plan!")
             object_mapping = None
             break
+
+        closed_exclusion |= goal_state.ancestors | {goal_state}
 
         lprint("Getting path ...")
         path = goal_state.get_shortest_path_to_start()
@@ -793,7 +857,20 @@ class FeedbackPolicy:
 #%%
 if __name__ == '__main__':
     model_path = f"/home/{USER}/drake-tamp/policy.pt"
-    if not os.path.exists(model_path):
+
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output_path", "-o", type=str, default=None)
+    parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking"])
+    parser.add_argument("--search_type", "-s", type=str, default="a_star", choices=["a_star", "tree", "mqs"])
+    parser.add_argument("--disable_policy", action="store_true")
+    args = parser.parse_args()
+
+    output_path = args.output_path if args.output_path is not None else f"policy_{args.problem_type}_{args.search_type}_{time.time()}_output.pkl"
+    search_funcs = {"a_star": try_a_star, "tree": try_a_star_tree, "mqs": try_mqs}
+    search_func = search_funcs[args.search_type]
+
+    if (not args.disable_policy) and (not os.path.exists(model_path)):
         print('Trainin model')
         with open(f"/home/{USER}/drake-tamp/data/jobs/blocksworld-dset.json", 'r') as f:
             data_files = json.load(f)["train"]
@@ -838,9 +915,11 @@ if __name__ == '__main__':
             print(i, train_loss, val_loss)
 
         torch.save(model.state_dict(), model_path)
-    else:
+    elif (not args.disable_policy) and os.path.exists(model_path):
         model = load_model(model_path)
         model.eval()
+    else:
+        model = None
 
 #%%
     
@@ -885,7 +964,7 @@ if __name__ == '__main__':
                 stream_feasibility=stream_feasibility
             ))
         return path_data
-    problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/sorting/test/*.yaml"))
+    problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
     data = []
     for problem_file_path in problems:
         with open(problem_file_path, 'r') as f:
@@ -901,8 +980,11 @@ if __name__ == '__main__':
             continue
 
         stats = {}
-        base_policy = Policy(problem_file, search, model)
-        policy = FeedbackPolicy(base_policy=base_policy, cost_fn=stream_cost, stats=stats, initial_state=search.init)
+        if not args.disable_policy:
+            base_policy = Policy(problem_file, search, model)
+            policy = FeedbackPolicy(base_policy=base_policy, cost_fn=stream_cost, stats=stats, initial_state=search.init)
+        else:
+            policy = None
         m_attempts = lambda a: 10**(1 + a // 10)
         def stream_cost_fn(s, o, c, stats=stats, verbose=False):
             fa = stream_cost(s, o, c, given_stats=stats)
@@ -910,9 +992,9 @@ if __name__ == '__main__':
             return 1/fa
 
         start = time.time()
-        r = repeated_a_star(search, stats=stats, policy_ts=policy, cost=stream_cost_fn,max_steps=100, edge_eval_steps=50, max_time=90)
+        r = repeated_a_star(search, search_func=search_func, stats=stats, policy_ts=policy, cost=stream_cost_fn,max_steps=100, edge_eval_steps=50, max_time=90)
         duration = time.time() - start
-        print(os.path.basename(t), len(r.action_skeleton or []),  len(r.skeletons), len({s[-1][1] for s in r.skeletons}), duration)
+        print(os.path.basename(problem_file_path), len(r.action_skeleton or []),  len(r.skeletons), len({s[-1][1] for s in r.skeletons}), duration)
         path_data = []
         for path in r.skeletons:
             path_data.append(extract_labels(path, r.stats))
@@ -933,7 +1015,7 @@ if __name__ == '__main__':
 
 
 
-    with open('policy_sorting_test_3.pkl', 'wb') as f:
+    with open(output_path, 'wb') as f:
         pickle.dump(data, f)
 
 # # %%
