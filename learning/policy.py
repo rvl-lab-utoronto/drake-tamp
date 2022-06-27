@@ -14,6 +14,7 @@ import torch
 from torch_geometric.nn import GATv2Conv
 from torch_geometric.data import Batch
 from torch_geometric.loader import DataLoader
+import multiprocessing as mp
 
 import getpass
 USER = getpass.getuser()
@@ -964,20 +965,19 @@ if __name__ == '__main__':
                 stream_feasibility=stream_feasibility
             ))
         return path_data
-    problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
-    data = []
-    for problem_file_path in problems:
+
+    def run_problem(problem_file_path, data):
         with open(problem_file_path, 'r') as f:
             problem_file = yaml.full_load(f)
 
         if len(problem_file['objects']) == 1:
-            continue # policy expects edges yo!
+            return # policy expects edges yo!
 
         init, goal, externals, actions = create_problem(problem_file_path)
 
         search = ActionStreamSearch(init, goal, externals, actions)
         if search.test_goal(search.init):
-            continue
+            return
 
         stats = {}
         if not args.disable_policy:
@@ -1001,7 +1001,7 @@ if __name__ == '__main__':
 
         objects = ({o_pddl:dict(name=o_pddl,value=Object.from_name(o_pddl).value) for o_pddl in search.init_objects})
         
-        run = dict(
+        data[problem_file_path] = dict(
             name=os.path.basename(problem_file_path),
             planning_time=r.planning_time,
             solved=r.solution is not None,
@@ -1011,12 +1011,25 @@ if __name__ == '__main__':
             expanded=r.expand_count,
             evaluated=r.evaluate_count,
         )
-        data.append(run)
 
+    problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
+    manager = mp.Manager()
+    data = manager.dict()
+    pool = mp.Pool(processes=mp.cpu_count() - 1)
+    results = []
+    for problem_file_path in problems:
+        results.append(pool.apply_async(run_problem, (problem_file_path, data,)))
+    pool.close()
+    num_jobs = len(results)
+    done_count = 0
+    while done_count < num_jobs:
+        time.sleep(0.1)
+        done_count = sum([r.ready() for r in results])
+    pool.join()
 
-
+    data_dict = {k: v for k, v in data.items()}
     with open(output_path, 'wb') as f:
-        pickle.dump(data, f)
+        pickle.dump(data_dict, f)
 
 # # %%
 # with open('../policy_test_data.pkl', 'rb') as f:
