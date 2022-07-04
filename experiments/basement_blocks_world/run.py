@@ -404,11 +404,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     return PDDLProblem(domain_pddl, {}, stream_pddl, stream_map, init, goal), model_poses
 
 
+
 def make_and_init_simulation(zmq_url, prob):
     """
     Make the simulation, and let it run for 0.2 s to let all the objects
     settle into their stating positions
-    """
+    """ 
 
     builder = pydrake.systems.framework.DiagramBuilder()
     problem_info = ProblemInfo(prob)
@@ -464,6 +465,8 @@ def make_and_init_simulation(zmq_url, prob):
     if meshcat is not None:
         meshcat.start_recording()
     simulator.AdvanceTo(SIM_INIT_TIME)
+    
+
     return simulator, stations, directors, meshcat, problem_info
 
 

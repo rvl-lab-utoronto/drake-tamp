@@ -9,9 +9,9 @@ import numpy as np
 import torch
 from torch_geometric.data.data import Data
 
-from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierV2Info
-from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
+from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierPerceptionInfo, StreamInstanceClassifierV2Info
+from learning.gnn.data import get_perception,construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level, get_perception
+from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierPerception, StreamInstanceClassifierV2
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
 from torch_geometric.data.batch import Batch
@@ -126,6 +126,7 @@ class Oracle:
         self.model_poses = model_poses
         self.run_attr = None
         self.data_collection_mode = data_collection_mode
+        self.perception = None 
 
     def set_infos(self, domain, externals, goal_exp, evaluations):
         self.set_problem_info(goal_exp, evaluations)
@@ -168,6 +169,9 @@ class Oracle:
             stream_domains = [None] + [e["domain"] for e in new_externals],
             domain = domain
         )
+
+    def save_perception(self, perception_data):
+        self.perception = perception_data
 
     def save_labeled(self, stats_path, path=None, save_data_info = False):
         if not os.path.isdir(f"{FILEPATH}/data"):
@@ -214,12 +218,15 @@ class Oracle:
         #data["initial_conditions"] = tuple(self.initial_conditions)
         #data["goal_conditions"] = tuple(self.goal_conditions)
         data["model_info"] = self.model_info
+        self.problem_info.perception = self.perception
         data["problem_info"] = self.problem_info
         self.problem_info.object_mapping = {k:v.value for k,v in Object._obj_from_name.items()}
         self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
+        
         data["num_labels"] = len(self.labels)
         data["data_info"] = self.run_attr
         data["labels"] = self.labels
+        
         with open(path, "wb") as stream:
             pickle.dump(data, stream)
         print('Saved labels to', path)
@@ -774,7 +781,7 @@ class MultiHeadModel(Oracle):
                     "name": external.name,
                 }
             )
-        self.model_info = StreamInstanceClassifierV2Info(
+        self.model_info = StreamInstanceClassifierV2Info( 
             predicates=[p.name for p in domain.predicates],
             streams=[None] + [e["name"] for e in new_externals],
             stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
@@ -796,6 +803,103 @@ class MultiHeadModel(Oracle):
         self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
         problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
         self.object_reps = self.model.get_init_reps(problem_graph_input)
+        self.history = {}
+        self.counts = {}
+        self.init_objects = objects_from_facts(self.problem_info.initial_facts)
+        self.running_average = 0.1
+        self.N = 10
+    
+    def calculate_result_key(self, result, atom_map):
+        facts = [fact_to_pddl(f) for f in result.get_certified()]
+        domain = [fact_to_pddl(f) for f in result.domain]
+        result_key = tuple()
+        for fact in facts:
+            atom_map[fact] = domain
+            result_key += standardize_facts(ancestors_tuple(fact, atom_map=atom_map), self.init_objects)
+        return result_key
+
+    def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        if not all([d in node_from_atom for d in result.domain]):
+            return self.running_average / l
+
+        result_key = self.calculate_result_key(result, atom_map)
+        count = self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        if result_key in self.history:
+            score, reps = self.history[result_key]
+            outputs = tuple()
+            for o, r in zip(map(obj_to_pddl, result.output_objects), reps):
+                self.object_reps[o] = r 
+        else:
+            inputs = tuple(map(obj_to_pddl, result.input_objects))
+            outputs = tuple(map(obj_to_pddl, result.output_objects))
+            data = Data(stream_schedule=[[{"name": result.name, "input_objects": inputs, "output_objects": outputs}]])
+            score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
+            self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
+            self.running_average = (self.running_average*(self.N-1) + score) / self.N
+        if self.use_level:
+            return score/(l  + count  - 1)
+        else:
+            return score/count
+
+
+class MultiHeadModelPerception(Oracle):
+    def __init__(self, *args, **kwargs):
+        model_path = kwargs.pop('model_path')
+        if "feature_size" in kwargs:
+            feature_size = kwargs.pop('feature_size')
+        else:
+            feature_size = 16
+        if "hidden_size"  in kwargs:
+            hidden_size = kwargs.pop('hidden_size')
+        else:
+            hidden_size = 16
+
+        if "use_level" in kwargs:
+            self.use_level = kwargs.pop("use_level")
+        else:
+            self.use_level = True
+
+        super().__init__(*args, **kwargs)
+        self.model_path = model_path
+        self.feature_size = feature_size
+        self.hidden_size = hidden_size
+        self.model = None
+    
+    def set_model_info(self, domain, externals):
+        new_externals = []
+        for external in externals:
+            new_externals.append(
+                {
+                    "certified": external.certified,
+                    "domain": external.domain,
+                    "fluents": external.fluents,
+                    "inputs": external.inputs,
+                    "outputs": external.outputs,
+                    "name": external.name,
+                }
+            )
+        self.model_info = StreamInstanceClassifierPerceptionInfo( 
+            predicates=[p.name for p in domain.predicates],
+            streams=[None] + [e["name"] for e in new_externals],
+            stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
+            stream_num_inputs = [None] + [len(e["inputs"]) for e in new_externals],
+            stream_num_outputs = [None] + [len(e["outputs"]) for e in new_externals],
+            stream_domains = [None] + [e["domain"] for e in new_externals],
+            domain = domain
+        )
+        self.load_model()
+
+    def load_model(self):
+        print(self.feature_size, self.hidden_size)
+        self.model = StreamInstanceClassifierPerception(
+            self.model_info, feature_size = self.feature_size, hidden_size = self.hidden_size
+        )
+        self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
+        self.model.eval()
+        self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
+        problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
+        self.object_reps = self.model.get_init_reps(get_perception(self.perception), problem_graph_input)
         self.history = {}
         self.counts = {}
         self.init_objects = objects_from_facts(self.problem_info.initial_facts)

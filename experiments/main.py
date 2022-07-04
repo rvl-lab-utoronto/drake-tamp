@@ -66,7 +66,8 @@ def make_argument_parser():
             "cachingmodel",
             "multiheadmodel",
             "complexityoracle",
-            "statsablation"
+            "statsablation",
+            "multiheadmodelperception"
         ],
     )
     parser.add_argument(
@@ -105,7 +106,7 @@ def make_argument_parser():
     parser.add_argument(
         '--logpath',
         type=str,
-        default=None,
+        default='logs',
         required=False,
         help="The directory to save the logs"
     )

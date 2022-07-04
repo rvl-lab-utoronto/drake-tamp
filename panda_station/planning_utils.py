@@ -23,6 +23,7 @@ from .grasping_and_placing import (
     is_safe_to_place
 )
 
+img_count = 0 
 
 class ProblemInfo:
     """
@@ -88,6 +89,9 @@ class ProblemInfo:
             (name, main_link) for name, main_link in self.main_links.items()
         ]
 
+        self.rgbd = None  
+        self.color_image = None 
+
     def make_station(
         self,
         weld_to_world,
@@ -117,6 +121,8 @@ class ProblemInfo:
         if planning:
             directive = self.planning_directive
         station.setup_from_file(directive, names_and_links=self.names_and_links)
+        
+        
 
         #arms = []
         #if arm_name is None:
@@ -163,6 +169,8 @@ class ProblemInfo:
                 name=name,
             )
 
+        station.add_cameras()
+        # self.capture_rgbd(station)
         station.finalize()
         return station
 
@@ -254,6 +262,26 @@ class ProblemInfo:
                         arm_name = arm_name
                     )
         return res
+    
+
+    def capture_rgbd(self, station):
+        global img_count 
+        import matplotlib.pyplot as plt 
+        context = station.CreateDefaultContext()
+        station.Publish(context)
+        color_image = station.GetOutputPort("rgb_image").Eval(context)
+        depth_image = station.GetOutputPort("depth_image").Eval(context)
+        #TODO stack the color and depth image to make one 4D image 
+        self.rgbd = np.copy(depth_image.data)
+        self.color_image = np.copy(color_image.data)
+        # plt.subplot(121)
+        # plt.imshow(self.color_image.data)
+        # plt.title('Color image')
+        # plt.subplot(122)
+        # plt.imshow(np.squeeze(self.rgbd.data))
+        # plt.title('Depth image')
+        # plt.savefig('/home/alex/drake-tamp/experiments/rgbd_test_' + '.png')
+
 
     @staticmethod
     def list_to_transform(xyzrpy):

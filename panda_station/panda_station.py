@@ -1,13 +1,30 @@
 """
 A system used for TAMP experiments with the Franka Emika Panda arm and the Franka Emika Gripper
 """
+import colorsys
 import numpy as np
 import pydrake.all
+import os
+import sys
 from . import construction_utils
 from .panda_hand_position_controller import (
     PandaHandPositionController,
     make_multibody_state_to_panda_hand_state_system,
 )
+from pydrake.all import (
+    AddMultibodyPlantSceneGraph, BaseField, CameraInfo, ClippingRange, CsdpSolver, DiagramBuilder, DepthImageToPointCloud, DepthRange, DepthRenderCamera, FindResourceOrThrow, ge, MakeRenderEngineVtk, Parser, RenderCameraCore, RenderEngineVtkParams, RgbdSensor, RigidTransform, RollPitchYaw, RotationMatrix)
+
+from pydrake.all import (
+    AbstractValue, Adder, AddMultibodyPlantSceneGraph, BallRpyJoint, BaseField,
+    Box, CameraInfo, ClippingRange, CoulombFriction, Cylinder, Demultiplexer,
+    DiagramBuilder, DepthRange, DepthImageToPointCloud, DepthRenderCamera,
+    FindResourceOrThrow, GeometryInstance, InverseDynamicsController,
+    LeafSystem, MakeMultibodyStateToWsgStateSystem,
+    MakePhongIllustrationProperties, MakeRenderEngineVtk, ModelInstanceIndex,
+    MultibodyPlant, Parser, PassThrough, PrismaticJoint, RenderCameraCore,
+    RenderEngineVtkParams, RevoluteJoint, Rgba, RigidTransform, RollPitchYaw,
+    RotationMatrix, RgbdSensor, SchunkWsgPositionController, SpatialInertia,
+    Sphere, StateInterpolatorWithDiscreteDerivative, UnitInertia) 
 
 HAND_FRAME_NAME = "panda_hand"
 ARM_LINK_PREFIX = "panda_link"
@@ -47,6 +64,8 @@ class PandaStation(pydrake.systems.framework.Diagram):
         # (panda_model_index, hand_model_index, X_WB, name, weld_fingers)
         self.panda_infos = {}
         self.frame_groups = {}
+
+        self.rgbd = None
 
     def fix_collisions(self):
         """
@@ -128,7 +147,8 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self,
         weld_fingers=False,
         blocked = False,
-        q_initial=np.array([0.0, 0.1, 0, -1.2, 0, 1.6, np.pi/4]),
+        q_initial=np.array([0.0, -0.7, 0, -1.2, 0, 1.9, np.pi/4]),
+        #q_initial=np.array([0.0, -0.1, 0, 0.2, 0.0, 1.6, np.pi/4]),
         X_WB = pydrake.math.RigidTransform(),
         panda_name = None,
         hand_name = None
@@ -161,6 +181,223 @@ class PandaStation(pydrake.systems.framework.Diagram):
             panda, hand, panda_name, hand_name, X_WB, weld_fingers or blocked
         )
         return self.panda_infos[panda_name]
+
+
+    def add_rgbd_sensor(builder,
+                    scene_graph,
+                    X_PC,
+                    depth_camera=None,
+                    renderer=None,
+                    parent_frame_id=None):
+        """
+        Adds a RgbdSensor to to the scene_graph at (fixed) pose X_PC relative to
+        the parent_frame.  If depth_camera is None, then a default camera info will
+        be used.  If renderer is None, then we will assume the name 'my_renderer',
+        and create a VTK renderer if a renderer of that name doesn't exist.  If
+        parent_frame is None, then the world frame is used.
+        """
+        # if sys.platform == "linux" and os.getenv("DISPLAY") is None:
+        #     from pyvirtualdisplay import Display
+        #     virtual_display = Display(visible=0, size=(1400, 900))
+        #     virtual_display.start()
+        #     #https://stackoverflow.com/questions/32173839/easyprocess-easyprocesscheckinstallederror-cmd-xvfb-help-oserror-errno
+
+        if not renderer:
+            renderer = "my_renderer"
+
+        if not parent_frame_id:
+            parent_frame_id = scene_graph.world_frame_id()
+
+        if not scene_graph.HasRenderer(renderer):
+            scene_graph.AddRenderer(renderer,
+                                    MakeRenderEngineVtk(RenderEngineVtkParams()))
+
+        if not depth_camera:
+            depth_camera = DepthRenderCamera(
+                RenderCameraCore(
+                    renderer, CameraInfo(width=800, height=800, fov_y=np.pi / 3),
+                    ClippingRange(near=1.5, far=2), RigidTransform()),
+                DepthRange(1.5, 2))
+
+        rgbd = builder.AddSystem(
+            RgbdSensor(parent_id=parent_frame_id,
+                    X_PB=X_PC,
+                    depth_camera=depth_camera,
+                    show_window=False))
+
+        builder.Connect(scene_graph.get_query_output_port(),
+                        rgbd.query_object_input_port())
+
+        return rgbd
+
+
+    #TODO move these helper functions to a utils file 
+    def add_rgbd_sensors(builder,
+                    plant,
+                    scene_graph,
+                    also_add_point_clouds=True,
+                    model_instance_prefix="camera",
+                    depth_camera=None,
+                    renderer=None):
+        """
+        Adds a RgbdSensor to every body in the plant with a name starting with
+        body_prefix.  If depth_camera is None, then a default camera info will be
+        used.  If renderer is None, then we will assume the name 'my_renderer', and
+        create a VTK renderer if a renderer of that name doesn't exist.
+        """
+        if sys.platform == "linux" and os.getenv("DISPLAY") is None:
+            from pyvirtualdisplay import Display
+            virtual_display = Display(visible=0, size=(1400, 900))
+            virtual_display.start()
+
+        if not renderer:
+            renderer = "my_renderer"
+
+        if not scene_graph.HasRenderer(renderer):
+            scene_graph.AddRenderer(renderer,
+                                    MakeRenderEngineVtk(RenderEngineVtkParams()))
+
+        if not depth_camera:
+            depth_camera = DepthRenderCamera(
+                RenderCameraCore(
+                    renderer, CameraInfo(width=640, height=640, fov_y=np.pi / 4.0),
+                    ClippingRange(near=0.1, far=10.0), RigidTransform()),
+                DepthRange(0.1, 10.0))
+
+        for index in range(plant.num_model_instances()):
+            model_instance_index = ModelInstanceIndex(index)
+            model_name = plant.GetModelInstanceName(model_instance_index)
+
+            if model_name.startswith(model_instance_prefix):
+                body_index = plant.GetBodyIndices(model_instance_index)[0]
+                rgbd = builder.AddSystem(
+                    RgbdSensor(parent_id=plant.GetBodyFrameIdOrThrow(body_index),
+                            X_PB=RigidTransform(),
+                            depth_camera=depth_camera,
+                            show_window=False))
+                rgbd.set_name(model_name)
+
+                builder.Connect(scene_graph.get_query_output_port(),
+                                rgbd.query_object_input_port())
+
+                # Export the camera outputs
+                builder.ExportOutput(rgbd.color_image_output_port(),
+                                    f"{model_name}_rgb_image")
+                builder.ExportOutput(rgbd.depth_image_32F_output_port(),
+                                    f"{model_name}_depth_image")
+                builder.ExportOutput(rgbd.label_image_output_port(),
+                                    f"{model_name}_label_image")
+
+                if also_add_point_clouds:
+                    # Add a system to convert the camera output into a point cloud
+                    to_point_cloud = builder.AddSystem(
+                        DepthImageToPointCloud(camera_info=rgbd.depth_camera_info(),
+                                            fields=BaseField.kXYZs
+                                            | BaseField.kRGBs))
+                    builder.Connect(rgbd.depth_image_32F_output_port(),
+                                    to_point_cloud.depth_image_input_port())
+                    builder.Connect(rgbd.color_image_output_port(),
+                                    to_point_cloud.color_image_input_port())
+
+                    class ExtractBodyPose(LeafSystem):
+
+                        def __init__(self, body_index):
+                            LeafSystem.__init__(self)
+                            self.body_index = body_index
+                            self.DeclareAbstractInputPort(
+                                "poses",
+                                plant.get_body_poses_output_port().Allocate())
+                            self.DeclareAbstractOutputPort(
+                                "pose",
+                                lambda: AbstractValue.Make(RigidTransform()),
+                                self.CalcOutput)
+
+                        def CalcOutput(self, context, output):
+                            poses = self.EvalAbstractInput(context, 0).get_value()
+                            pose = poses[int(self.body_index)]
+                            output.get_mutable_value().set(pose.rotation(),
+                                                        pose.translation())
+
+                    camera_pose = builder.AddSystem(ExtractBodyPose(body_index))
+                    builder.Connect(plant.get_body_poses_output_port(),
+                                    camera_pose.get_input_port())
+                    builder.Connect(camera_pose.get_output_port(),
+                                    to_point_cloud.GetInputPort("camera_pose"))
+
+                    # Export the point cloud output.
+                    builder.ExportOutput(to_point_cloud.point_cloud_output_port(),
+                                        f"{model_name}_point_cloud")
+
+    def add_triad(source_id,
+             frame_id,
+             scene_graph,
+             length=.25,
+             radius=0.01,
+             opacity=1.,
+             X_FT=RigidTransform(),
+             name="frame"):
+        """
+        Adds illustration geometry representing the coordinate frame, with the
+        x-axis drawn in red, the y-axis in green and the z-axis in blue. The axes
+        point in +x, +y and +z directions, respectively.
+        Args:
+        source_id: The source registered with SceneGraph.
+        frame_id: A geometry::frame_id registered with scene_graph.
+        scene_graph: The SceneGraph with which we will register the geometry.
+        length: the length of each axis in meters.
+        radius: the radius of each axis in meters.
+        opacity: the opacity of the coordinate axes, between 0 and 1.
+        X_FT: a RigidTransform from the triad frame T to the frame_id frame F
+        name: the added geometry will have names name + " x-axis", etc.
+        """
+        # x-axis
+        X_TG = RigidTransform(RotationMatrix.MakeYRotation(np.pi / 2),
+                            [length / 2., 0, 0])
+        geom = GeometryInstance(X_FT.multiply(X_TG), Cylinder(radius, length),
+                                name + " x-axis")
+        geom.set_illustration_properties(
+            MakePhongIllustrationProperties([1, 0, 0, opacity]))
+        scene_graph.RegisterGeometry(source_id, frame_id, geom)
+
+        # y-axis
+        X_TG = RigidTransform(RotationMatrix.MakeXRotation(np.pi / 2),
+                            [0, length / 2., 0])
+        geom = GeometryInstance(X_FT.multiply(X_TG), Cylinder(radius, length),
+                                name + " y-axis")
+        geom.set_illustration_properties(
+            MakePhongIllustrationProperties([0, 1, 0, opacity]))
+        scene_graph.RegisterGeometry(source_id, frame_id, geom)
+
+        # z-axis
+        X_TG = RigidTransform([0, 0, length / 2.])
+        geom = GeometryInstance(X_FT.multiply(X_TG), Cylinder(radius, length),
+                                name + " z-axis")
+        geom.set_illustration_properties(
+            MakePhongIllustrationProperties([0, 0, 1, opacity]))
+        scene_graph.RegisterGeometry(source_id, frame_id, geom)
+
+
+    def add_multi_body_triad(frame, scene_graph, length=.25, radius=0.01, opacity=1.):
+        plant = frame.GetParentPlant()
+        PandaStation.add_triad(plant.get_source_id(),
+                plant.GetBodyFrameIdOrThrow(frame.body().index()), scene_graph,
+                length, radius, opacity, frame.GetFixedPoseInBodyFrame())
+    
+    def add_camera(self, X_Camera):
+        self.rgbd = PandaStation.add_rgbd_sensor(self.builder, self.scene_graph, X_Camera)
+        parser = pydrake.multibody.parsing.Parser(self.plant)
+        camera_instance = parser.AddModelFromFile(construction_utils.find_resource("models/camera.sdf"))
+        camera = self.plant.GetBodyByName("base", camera_instance)    
+        self.plant.WeldFrames(self.plant.world_frame(), camera.body_frame(), X_Camera)
+        PandaStation.add_multi_body_triad(camera.body_frame(), self.scene_graph, length=.1, radius=0.005)
+    
+    def add_cameras(self):
+        #TODO make this adjustable slider in the meschat simuilator or just domain specific 
+        X_Camera = RigidTransform(
+        RollPitchYaw(np.math.pi, 0, 0).ToRotationMatrix().multiply(
+            RollPitchYaw(0, 0, 0).ToRotationMatrix()),
+        [0, 0, 2])
+        self.add_camera(X_Camera)
 
     def setup_from_file(self, filename, names_and_links=None):
         """
@@ -553,6 +790,12 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 )
 
         # TODO(agro): cameras if needed
+        self.builder.ExportOutput(self.rgbd.color_image_output_port(),
+                                 "rgb_image")
+        self.builder.ExportOutput(self.rgbd.depth_image_32F_output_port(),
+                                "depth_image")
+        self.builder.ExportOutput(self.rgbd.label_image_output_port(),
+                                "label_image")
 
         # export cheat ports
         self.builder.ExportOutput(

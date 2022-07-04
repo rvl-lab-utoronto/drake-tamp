@@ -321,14 +321,16 @@ if __name__ == '__main__':
     #data_adaptive = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/save/', 'adaptive')
     #data_informed = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/kitchen_less_axioms_logs/informed/', 'informed')
     #table_compare(data_adaptive)# + data_informed)
-    #box_plot_compare("test_box_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
+    
     #bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
     #runtime_breakdown("breakdown_hanoi.png", data_adaptive + data_informed, "num_discs")
     
-    ada = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/blocks_world_move_fix/save/', 'adaptive')
-    ora = load_results_from_stats(f'/home/agrobenj/drake-tamp/experiments/blocks_world_move_fix/oracle/', 'oracle')
+    #ada = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test/', 'oracle')
+    ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
+    rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test-3/', 'rgb')
+    #box_plot_compare("test_box_plot.png", ora, "num_goal", "run_time", bar_width = 0.25)
     table_compare(ora)
-    table_compare(ada)
+    table_compare(rgb)
     #bar_plot_compare("test_plot.png", ora + ada, "num_blocks", "run_time", agg = "sum")
-    runtime_breakdown("breakdown_new.png", ada + ora, "num_blocks")
+    #runtime_breakdown("breakdown_vanilla-2.png", ora, "num_blocks")
     

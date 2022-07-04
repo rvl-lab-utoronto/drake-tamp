@@ -49,6 +49,8 @@ RUN apt-get -y install ffmpeg
 RUN apt-get -y install xdg-utils
 RUN apt-get -y install liboctomap-dev libfcl-dev
 
+RUN apt-get -y install xvfb
+
 RUN apt-get -y install apt-transport-https gnupg
 RUN curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
 RUN mv bazel.gpg /etc/apt/trusted.gpg.d/ 
@@ -82,26 +84,31 @@ ENV PATH="/python_venvs/tamp/bin:$PATH"
 USER $user
 
 WORKDIR /home/$user/
+
 # mujoco
-RUN wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco.zip
-RUN unzip mujoco.zip -d .mujoco
-RUN mv .mujoco/mujoco200_linux .mujoco/mujoco200
-# add mujoco to LD_LIBRARY_PATH
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin
+# RUN wget https://www.roboti.us/download/mujoco200_linux.zip -O mujoco.zip
+# RUN unzip mujoco.zip -d .mujoco
+# RUN mv .mujoco/mujoco200_linux .mujoco/mujoco200
+# # add mujoco to LD_LIBRARY_PATH
+# ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin
 
 WORKDIR /home/$user/
 # start ikea specific stuff #
-RUN git clone https://github.com/BenAgro314/furniture.git
-WORKDIR /home/$user/furniture
-RUN git fetch origin aug2020_fixes:aug2020_fixes
-RUN git checkout aug2020_fixes
-RUN ln -s /home/$user/.mujoco/mujoco200 /home/$user/.mujoco/mujoco200_linux
-#RUN pip install --upgrade pip
-RUN pip3 install scikit-build
-RUN pip3 install glfw>=1.4.0 numpy>=1.19.5 Cython>=0.27.2 imageio>=2.1.2 cffi>=1.10 fasteners~=0.15 lockfile
+# RUN git clone https://github.com/BenAgro314/furniture.git
+# WORKDIR /home/$user/furniture
+# RUN git fetch origin aug2020_fixes:aug2020_fixes
+# RUN git checkout aug2020_fixes
+#RUN ln -s /home/$user/.mujoco/mujoco200 /home/$user/.mujoco/mujoco200_linux
+# RUN pip install --upgrade pip setuptools wheel
+# RUN pip3 install scikit-build
+# RUN pip3 install glfw>=1.4.0 numpy>=1.19.5 Cython>=0.27.2 imageio>=2.1.2 cffi>=1.10 fasteners~=0.15 lockfile
+
 # copy mujoco license key `mjkey.txt` 
-COPY mjkey.txt /home/$user/.mujoco/mjkey.txt
-RUN pip3 install -r requirements.txt
+# COPY mjkey.txt /home/$user/.mujoco/mjkey.txt
+# //mujoco no longer requires a key
+
+#RUN git config --global url."https://github.com/".insteadOf 'git://github.com/'
+#RUN pip3 install -r requirements.txt 
 
 WORKDIR /home/$user/
 # other requirements
@@ -114,7 +121,7 @@ ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddl
 RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
 RUN echo "export  USER=$user" >> ~/.bashrc
 RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/experiments/ikea_induction/:/home/$user/drake-tamp/pddlstream/examples/pybullet/utils/" >> ~/.bashrc
-RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin" >> ~/.bashrc
+#RUN echo "export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/$user/.mujoco/mujoco200/bin" >> ~/.bashrc
 
 ARG gitname 
 ARG gitemail 

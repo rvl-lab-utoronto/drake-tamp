@@ -98,6 +98,16 @@ class StreamInstanceClassifierV2Info(ModelInfo):
     def problem_graph_edge_feature_size(self):
         return self.num_predicates + 1
 
+class StreamInstanceClassifierPerceptionInfo(ModelInfo):
+
+    @property
+    def problem_graph_node_feature_size(self):
+        return 3 + 1 #xyz + a boolean
+    
+    @property
+    def problem_graph_edge_feature_size(self):
+        return self.num_predicates + 1
+
 
 
 @dataclass
@@ -107,6 +117,7 @@ class ProblemInfo:
     model_poses: list
     problem_graph: Data = None
     object_mapping: dict = None
+    perception = None
 
     def __eq__(self, other):
         if self.goal_facts != other.goal_facts:

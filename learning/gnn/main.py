@@ -2,8 +2,8 @@ import argparse
 import json
 import os
 
-from torch_geometric.data.dataloader import DataLoader
-from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierV2Info
+from torch_geometric.loader import DataLoader
+from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierV2Info, StreamInstanceClassifierPerceptionInfo
 from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
     EvaluationDatasetSampler,
@@ -14,10 +14,11 @@ from learning.gnn.data import (
     Dataset,
     construct_hypermodel_input_faster,
     construct_stream_classifier_input_v2,
+    construct_stream_classifier_input_v2_rgbd,
     construct_with_problem_graph,
     get_base_datapath,
 )
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2
+from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2, StreamInstanceClassifierPerception
 from learning.gnn.train import evaluate_model, train_model_graphnetwork
 from functools import partial
 import torch
@@ -37,7 +38,7 @@ def make_argument_parser():
         help = "If you only want to test a model (not end-to-end)"
     )
     parser.add_argument(
-        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2"], default="hyper",
+        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2", "streamclassv2_rgbd"], default="hyper",
         help = "The type of model you want to train. See learning/gnn/models.py for more information"
     )
     parser.add_argument(
@@ -133,6 +134,11 @@ if __name__ == "__main__":
         input_fn = construct_stream_classifier_input_v2
         model_info_class = StreamInstanceClassifierV2Info
         model_fn = lambda model_info: StreamInstanceClassifierV2(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
+    elif args.model == "streamclassv2_rgbd":
+        assert args.batch_size == 1, "Batching not yet supported for StreamInstanceClassifierV2Info"
+        input_fn = construct_stream_classifier_input_v2_rgbd
+        model_info_class = StreamInstanceClassifierPerceptionInfo
+        model_fn = lambda model_info: StreamInstanceClassifierPerception(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
     else:
         raise ValueError
 

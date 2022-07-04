@@ -73,14 +73,56 @@ def get_stream_schedule(invocation, roots):
         assert obj_to_compute in computed_objects
     stream_schedule.append(candidate)
     return stream_schedule #, roots
-
+    
 def construct_stream_classifier_input_v2(invocation, problem_info, model_info):
     data = Data(x=torch.tensor([1]))
     roots = objects_from_facts(problem_info.initial_facts)
     data.stream_schedule = get_stream_schedule(invocation, roots)
     data.problem_graph = construct_problem_graph_input(problem_info, model_info)
-
     return data
+
+def construct_stream_classifier_input_v2_rgbd(invocation, problem_info, model_info):
+    data = Data(x=torch.tensor([1]))
+    roots = objects_from_facts(problem_info.initial_facts)
+    data.stream_schedule = get_stream_schedule(invocation, roots)
+    data.problem_graph = construct_problem_graph_input(problem_info, model_info)
+    data.perception = get_perception(problem_info.perception)
+    return data 
+
+def get_perception(perception_raw):
+    # import matplotlib.pyplot as plt 
+    # plt.subplot(121)
+    # plt.imshow(problem_info.perception['color'])
+    # plt.title('Color image')
+    # plt.subplot(122)
+    # plt.imshow(np.squeeze(problem_info.perception['depth']))
+    # plt.title('Depth image')
+    # plt.savefig('/home/alex/drake-tamp/learning/gnn/test_rgbd_0.png')
+    
+    #TODO do clipping and normalization
+    from numpy import inf 
+    #the 4th channel is alpha we don't care 
+    col = perception_raw['color'][:, :, :3]
+    dep = perception_raw['depth'][:, :, ]
+
+    #change everything at infinite distance to just be the ground 
+    dep[dep == inf] = np.max(dep[dep < 1000])
+
+    #stack the depth and rgb data
+    perception = torch.from_numpy(np.concatenate((col, dep), axis=2))
+
+    #normalizing
+    input = torch.reshape(perception, (640000, 4))
+    means = torch.mean(input, axis=0)
+    std = torch.std(input, dim=0)
+    normalized = (input - means)/std
+    input = torch.reshape(normalized, (800, 800, 4))
+
+    #reshaping to NCWH format for convolution 
+    perception = input.permute(2, 0, 1)
+    perception = perception.reshape([1, 4, 800, 800])
+    perception = torch.nn.functional.interpolate(perception, (200, 200))
+    return perception
 
 def construct_scene_graph(model_poses):
     """

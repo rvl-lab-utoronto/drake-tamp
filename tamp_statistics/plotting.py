@@ -5,6 +5,7 @@ import sys
 import json
 import pickle
 import numpy as np
+
 import matplotlib.pyplot as plt
 
 
@@ -13,7 +14,6 @@ RESOLUTION = 0.1
 
 def fix_time(times, start_time):
     return np.array(times) - np.ones(len(times)) * start_time
-
 
 def make_plot(filepath, save_path=None, show=False):
     """
