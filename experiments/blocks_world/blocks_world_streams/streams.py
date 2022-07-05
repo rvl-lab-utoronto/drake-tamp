@@ -62,14 +62,14 @@ def find_table_place(station, station_context, shape_info, surface):
         border = max(shape_info.shape.width(), shape_info.shape.depth())/2
     if isinstance(shape_info.shape, Cylinder):
         border = shape_info.shape.radius()
-    border = np.ones(3)*border 
+    border = np.ones(3)*border
     lower = surface.bb_min + border
     upper = surface.bb_max - border
     plant, plant_context = get_plant_and_context(station, station_context)
     S = surface.shape_info.offset_frame
     #TODO(agro): make this random choice smarter
     p_SI_S = np.random.uniform(lower,upper)
-    p_SI_S[2] = surface.bb_min[2] + 1e-3
+    p_SI_S[2] = surface.bb_min[2] + 5e-3
     X_WS = plant.CalcRelativeTransform(plant_context, plant.world_frame(), S)
     p_WS_W = X_WS.translation()
     R_WS = X_WS.rotation()
@@ -101,10 +101,10 @@ def find_ik_with_relaxed(
     q_initial = Q_NOMINAL,
 ):
     """
-    Find a solution to the IK problem that the hand must be at 
+    Find a solution to the IK problem that the hand must be at
     X_HI relative to shape_info (which is already positioned
     in the world frame). This solver will first solve without
-    considering collisions, and then use that as the initial 
+    considering collisions, and then use that as the initial
     solution to solve while considering collisions
     """
     q0, cost = find_ik_with_handpose(
@@ -140,7 +140,7 @@ def find_ik_with_handpose(
     relax = False,
 ):
     """
-    Find a solution to the IK problem that the hand must be at 
+    Find a solution to the IK problem that the hand must be at
     X_HI relative to shape_info (which is already positioned
     in the world frame).
     """
@@ -148,7 +148,7 @@ def find_ik_with_handpose(
 
     plant.SetPositions(plant_context, panda_info.panda, q_nominal)
     q_nominal = plant.GetPositions(plant_context)
-    
+
     plant.SetPositions(plant_context, panda_info.panda, q_initial)
     q_initial = plant.GetPositions(plant_context)
 
@@ -201,7 +201,7 @@ def check_colfree_block(station, station_context, panda_name, q):
         else:
             # this will guarentee no collisions with other panda
             plant.SetPositions(plant_context, panda_info.panda, Q_NOMINAL)
-        
+
     query_object = query_output_port.Eval(scene_graph_context)
     #pairs = query_object.ComputePointPairPenetration()
     #for p in pairs:
