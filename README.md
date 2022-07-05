@@ -42,6 +42,17 @@ Host tamp-workspace
     User <your_username>
 ```
 
+Note: If you are trying to remote from a windows machine, the ProxyCommand is slightly different (see https://blog.because-security.com/t/how-to-use-ssh-proxycommands-on-windows-10-from-powershell/548 for more details):
+
+```
+Host tamp-workspace
+  ProxyCommand ssh.exe -W %h:%p <remote-computer-host>
+  HostName localhost 
+  Port <port>
+  User <your_username>
+  LocalForward 5901 localhost:5901
+```
+
 ## Folders and Files
 
 - `docker_scripts` contains the files for building the docker image and starting the docker container.
