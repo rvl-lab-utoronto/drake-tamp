@@ -1,18 +1,18 @@
 (define (stream blocks_world)
 
-    (:stream find-traj
-        :inputs (?arm ?q1 ?q2) 
-        :fluents (atworldpose athandpose atconf)
-        :domain (and
-            (arm ?arm)
-            (conf ?arm ?q1)  
-            (conf ?arm ?q2)  
-        )
-        :outputs (?traj)
-        :certified (and
-            (motion ?arm ?q1 ?traj ?q2) 
-        )
-    )
+    ; (:stream find-traj
+    ;     :inputs (?arm ?q1 ?q2) 
+    ;     :fluents (atworldpose athandpose atconf)
+    ;     :domain (and
+    ;         (arm ?arm)
+    ;         (conf ?arm ?q1)  
+    ;         (conf ?arm ?q2)  
+    ;     )
+    ;     :outputs (?traj)
+    ;     :certified (and
+    ;         (motion ?arm ?q1 ?traj ?q2) 
+    ;     )
+    ; )
     
     (:stream find-grasp
         :inputs (?block)
