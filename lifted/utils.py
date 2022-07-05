@@ -183,7 +183,7 @@ def anonymise(orig_obj, orig_obj_cg, id_cg_map):
         else:
             continue
 
-        input_objs = inputs + fluents
+        input_objs = inputs + tuple(arg for fluent in fluents for arg in fluent.args)
 
         for parent_obj in input_objs:
             stack.insert(0, parent_obj)
