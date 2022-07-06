@@ -16,6 +16,7 @@ def train_model_graphnetwork(
     datasets,
     criterion,
     optimizer,
+    evaluate_model,
     step_every=10,
     save_every=100,
     save_folder="/tmp",
@@ -23,7 +24,7 @@ def train_model_graphnetwork(
 ):
     since = time.time()
     best_seen_model_weights = None  # as measured over the validation set
-    best_seen_validation_excluded = 0
+    best_seen_validation = -np.inf
 
     trainset, validset = datasets["train"], datasets["val"]
 
@@ -56,15 +57,15 @@ def train_model_graphnetwork(
             torch.save(model.state_dict(), savefile)
             print(f"Saved model checkpoint {savefile}")
 
-            avg_excluded = evaluate_model(model, criterion, validset, save_path = save_folder)
-            print(f"===== [EPOCH {e:03d} / {epochs}] Val Pct Excluded: {avg_excluded:03.5f}")
+            val_eval = evaluate_model(model, criterion, validset, save_path = save_folder)
+            print(f"===== [EPOCH {e:03d} / {epochs}] Val: {val_eval:03.5f}")
 
-            if avg_excluded > best_seen_validation_excluded:
-                best_seen_validation_excluded = avg_excluded
+            if val_eval > best_seen_validation:
+                best_seen_validation = val_eval
                 best_seen_model_weights = model.state_dict()
                 savefile = os.path.join(save_folder, "best.pt")
                 torch.save(best_seen_model_weights, savefile)
-                print(f"Found new best model with avg excluded {avg_excluded} at epoch {e}. Saved!")
+                print(f"Found new best model with val {val_eval} at epoch {e}. Saved!")
 
     time_elapsed = time.time() - since
     print(f"Training complete in {(time_elapsed // 60):.0f} m {(time_elapsed % 60):.0f} sec")
@@ -92,6 +93,20 @@ class StratifiedRandomSampler:
         else:
             return self.neg[np.random.choice(len(self.neg))]
 
+def evaluate_model_loss(model, criterion, dataset, save_path=None):
+    running_loss = 0
+    running_num_samples = 0
+
+    for d in dataset:
+        preds = model(d)
+        preds = model(d)
+        loss = criterion(preds.flatten(), d.y)
+        running_loss += loss.item()
+        running_num_samples += 1
+
+    return -running_loss / running_num_samples
+
+    
 def evaluate_dataset(model, criterion, dataset):
     logits = {}
     labels = {}
@@ -112,7 +127,7 @@ def evaluate_dataset(model, criterion, dataset):
             labels.setdefault(problem_key, []).append(d.y[row_index].detach().cpu().numpy().item())
     return logits, labels, losses
 
-def evaluate_model(model, criterion, dataset, save_path=None):
+def evaluate_model_stream(model, criterion, dataset, save_path=None):
     problem_logits, problem_labels, problem_losses = evaluate_dataset(model, criterion, dataset)
     problem_stats = {}
     pct_excluded = []

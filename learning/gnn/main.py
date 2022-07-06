@@ -7,6 +7,7 @@ from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceCla
 from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
     EvaluationDatasetSampler,
+    PLOIAblationDataset,
     TrainingDatasetSampler,
     construct_input,
     HyperModelInfo,
@@ -18,8 +19,8 @@ from learning.gnn.data import (
     construct_with_problem_graph,
     get_base_datapath,
 )
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierV2, StreamInstanceClassifierPerception
-from learning.gnn.train import evaluate_model, train_model_graphnetwork
+from learning.gnn.models import HyperClassifier, PLOIAblationModel, StreamInstanceClassifier, StreamInstanceClassifierV2, StreamInstanceClassifierPerception
+from learning.gnn.train import evaluate_model_loss, evaluate_model_stream, train_model_graphnetwork
 from functools import partial
 import torch
 
@@ -38,7 +39,7 @@ def make_argument_parser():
         help = "If you only want to test a model (not end-to-end)"
     )
     parser.add_argument(
-        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2", "streamclassv2_rgbd"], default="hyper",
+        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2", "streamclassv2_rgbd", "ploiablation"], default="hyper",
         help = "The type of model you want to train. See learning/gnn/models.py for more information"
     )
     parser.add_argument(
@@ -110,6 +111,7 @@ if __name__ == "__main__":
                 f.write(f"Feature size {args.feature_size}\n")
                 f.write(f"Hidden size {args.hidden_size}\n")
 
+    evaluate_model = evaluate_model_stream
     if args.model == "hyper":
         input_fn = construct_hypermodel_input_faster
         if args.use_problem_graph:
@@ -139,8 +141,18 @@ if __name__ == "__main__":
         input_fn = construct_stream_classifier_input_v2_rgbd
         model_info_class = StreamInstanceClassifierPerceptionInfo
         model_fn = lambda model_info: StreamInstanceClassifierPerception(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
+    elif args.model == "ploiablation":
+        TrainingDataset = PLOIAblationDataset
+        Dataset = PLOIAblationDataset
+        TrainingDatasetSampler = lambda *args, **kwargs: None
+        EvaluationDatasetSampler = lambda *args, **kwargs: None
+        evaluate_model = evaluate_model_loss
+        input_fn = None
+        model_info_class = StreamInstanceClassifierV2Info
+        model_fn = lambda model_info: PLOIAblationModel(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
     else:
         raise ValueError
+
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
@@ -198,6 +210,7 @@ if __name__ == "__main__":
             ),
             criterion=criterion,
             optimizer=optimizer,
+            evaluate_model=evaluate_model,
             step_every=args.gradient_batch_size,
             save_every=args.save_every,
             epochs=args.epochs,
