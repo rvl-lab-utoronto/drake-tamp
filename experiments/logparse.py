@@ -27,7 +27,7 @@ def parse_logs(exp_dir, exp_name):
                 'planning_time': 0,
                 'expanded': float('nan')
             }
-
+           
             data.append(d)
             for line in f.readlines():
                 if line.startswith('Planning'):
@@ -327,10 +327,10 @@ if __name__ == '__main__':
     
     #ada = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test/', 'oracle')
     ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
-    rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test-3/', 'rgb')
+    rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test-3-3-1/', 'rgb')
     #box_plot_compare("test_box_plot.png", ora, "num_goal", "run_time", bar_width = 0.25)
     table_compare(ora)
     table_compare(rgb)
     #bar_plot_compare("test_plot.png", ora + ada, "num_blocks", "run_time", agg = "sum")
-    #runtime_breakdown("breakdown_vanilla-2.png", ora, "num_blocks")
+    #runtime_breakdown("breakdown_rgb-3-2.png", rgb, "num_blocks")
     

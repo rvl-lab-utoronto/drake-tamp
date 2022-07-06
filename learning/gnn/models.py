@@ -427,6 +427,81 @@ class StreamInstanceClassifierPerception(nn.Module):
 
         return out
 
+
+class StreamInstanceClassifierPerceptionV2(nn.Module):
+
+    def __init__(
+        self,
+        model_info,
+        feature_size=16,
+        hidden_size=16,
+    ):
+        super().__init__()
+        self.problem_graph_network = ProblemGraphNetwork(
+            node_feature_size=model_info.problem_graph_node_feature_size,
+            edge_feature_size=model_info.problem_graph_edge_feature_size,
+            hidden_size=feature_size,
+            graph_hidden_size=hidden_size
+        )
+        stream_domains = model_info.stream_domains[1:]
+        stream_num_inputs = model_info.stream_num_inputs[1:]
+        stream_num_outputs = model_info.stream_num_outputs[1:]
+        self.stream_to_index = model_info.stream_to_index
+        assert len(stream_domains) == len(stream_num_inputs), "Inequal number of streams"
+        self.stream_num_inputs = stream_num_inputs
+        self.stream_num_outputs = stream_num_outputs
+
+        self.mlps = []
+        for num_inputs, num_outputs in zip(stream_num_inputs, stream_num_outputs):
+            self.mlps.append(
+                MultiHeadStreamMLP(num_inputs, num_outputs, feature_size=feature_size, hidden_size=hidden_size)
+            )
+
+        for i, mlp in enumerate(self.mlps):
+            setattr(self, f"mlp{i}", mlp)
+
+        self.perception_network = PerceptionNetwork()
+
+
+    def get_init_reps(self, problem_graph):
+        problem_graph = Batch().from_data_list([problem_graph])
+        prob_x = self.problem_graph_network(problem_graph, return_x=True)
+        object_reps = {name: {"rep": prob_x[i], "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
+        return object_reps
+
+    def forward(self, data, object_reps=None, score=False, update_reps=False):
+        stream_schedule = data.stream_schedule
+        if object_reps is None:
+            assert hasattr(data, 'problem_graph')
+            problem_graph = data.problem_graph
+            assert isinstance(problem_graph, list) and len(problem_graph) == 1, "Batching not supported"
+            object_reps = self.get_init_reps(problem_graph[0])
+        else:
+            assert not hasattr(data, 'problem_graph')
+        
+        assert isinstance(stream_schedule, list) and len(stream_schedule) == 1, "Batching not supported"
+        stream_schedule = stream_schedule[0]
+
+        for stream in stream_schedule:
+            stream_index = self.stream_to_index[stream["name"]] - 1
+            stream_mlp = self.mlps[stream_index]
+            
+            stream_inputs = torch.cat([object_reps[n]["rep"] for n in stream["input_objects"]], dim=0)
+            stream_logits = torch.cat([object_reps[n]["logit"] for n in stream["input_objects"]], dim=0)
+            prev_log = (stream_logits*torch.softmax(-stream_logits, dim=0)).sum(0, keepdim=True)
+
+            out, outputs = stream_mlp(stream_inputs)
+            out = out + prev_log - torch.logsumexp(torch.cat([out, prev_log, torch.tensor([1.], device=out.device)], dim=0), dim=0)
+            for out_name, out_rep in zip(stream["output_objects"], outputs):
+                object_reps[out_name] = {"rep": out_rep, "logit": out}
+
+        out = out.unsqueeze(0)
+        # candidate object embeddings, and candidate fact embeddings to mlp
+        if score:
+            return torch.sigmoid(out)
+
+        return out
+
 class StreamInstanceClassifierV2(nn.Module):
 
     def __init__(

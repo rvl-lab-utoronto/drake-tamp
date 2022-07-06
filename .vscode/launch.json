@@ -87,17 +87,17 @@
             ],
         },
         {
-            "name": "run export_data vanilla",
+            "name": "run export_data",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/experiments/export_data.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/experiments",
             "args": [
-                "--experiment_description", "random vanilla",
-                "--split", "-1", 
-                "--experiment_dir", "jobs/random-vanilla",
-                "--export_dir", "${workspaceFolder}/learning/data/experiments/random-vanilla.json"
+                "--experiment_description", "clutter train",
+                "--split", "0.7", 
+                "--experiment_dir", "jobs/clutter/train",
+                "--export_dir", "${workspaceFolder}/learning/data/experiments/clutter-train.json"
             ],
         },
         {
@@ -125,7 +125,7 @@
             ],
         },
         {
-            "name": "run training rgbd random",
+            "name": "run training rgbd",
             "type": "python",
             "python": "/python_venvs/tamp/bin/python",
             "request": "launch",
@@ -133,7 +133,7 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [   
-               "--model-home", "experiments/jobs/model_files/random-model-rgbd-3", 
+               "--model-home", "experiments/jobs/model_files/random-model-rgbd-3-3", 
                "--model", "streamclassv2_rgbd", 
                "--epochs", "1000", 
                "--save-every", "100", 
