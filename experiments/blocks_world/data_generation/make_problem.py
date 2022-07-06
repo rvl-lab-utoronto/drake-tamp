@@ -597,8 +597,170 @@ def make_sorting_problem(num_blocks, num_blockers = None, buffer_radius=0, max_s
 
     return yaml_data
 
+
+def make_distractor_problem(num_blocks, num_blockers, colorize=False, buffer_radius=0, max_start_stack = None, max_goal_stack = None, prioritize_grouping = False, clump = False, grid = False, rand_rotation = True, type = "random"):
+    """
+    buffer_radius is an addition to the minimum distance (in the same units as the extent
+    - for our purposes it is meters)
+    between two objects (which is currently ~1cm).
+    """
+    def pick_random_table_block():
+        return np.random.choice(list(TABLES.keys())[:2])
+    def pick_random_table_blocker():
+        return np.random.choice(list(TABLES.keys())[2:])
+
+    filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
+
+    if grid:
+        rand_rotation = False
+
+    positions = {}
+    samplers= {}
+    for name, item in TABLES.items():
+        if grid:
+            sampler = GridSampler(
+                np.clip(item[1].extent - buffer_radius, 0, np.inf),
+                np.max(BLOCK_DIMS) + buffer_radius,
+                centered=True,
+            )
+        else:
+            sampler = PoissonSampler(
+                np.clip(item[1].extent - buffer_radius, 0, np.inf),
+                item[1].r + buffer_radius,
+                centered=True,
+                clump = clump
+            )
+        samplers[name] = sampler
+        points = sampler.make_samples(num=(num_blocks + num_blockers) * 10, filter = filter)
+        if not prioritize_grouping:
+            np.random.shuffle(points)
+        positions[name] = points
+
+    yaml_data = {
+        "directive": "directives/one_arm_blocks_world.yaml",
+        "planning_directive": "directives/one_arm_blocks_world.yaml",
+        "arms": {
+            "panda": {
+                "panda_name": "panda",
+                "hand_name": "hand",
+                "X_WB": [0, 0, 0, 0, 0, 0],
+            }
+        },
+        "objects": {},
+        "main_links": {
+            "red_table": "base_link",
+            "blue_table": "base_link",
+            "green_table": "base_link",
+            "purple_table": "base_link",
+        },
+        "surfaces": {
+            "red_table": ["base_link"],
+            "green_table": ["base_link"],
+            "blue_table": ["base_link"],
+            "purple_table": ["base_link"],
+        },
+    }
+
+
+    blocks = [f"block{i}" for i in range(num_blocks)]
+    blockers = [f"blocker{i}" for i in range(num_blockers)]
+    stacking = make_random_stacking(blocks, max_stack_num=max_start_stack)
+    max_start_stack = max([len(s) for s in stacking])
+
+
+    for stack in stacking:
+        table = pick_random_table_block()
+        if len(positions[table]) == 0:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
+                continue
+            positions[table] += res
+        point = positions[table].pop(-1) + TABLES[table][0]
+        point = np.append(point, TABLE_HEIGHT)
+        point = np.concatenate((point, np.zeros(3)))
+        if rand_rotation:
+            yaw = np.random.uniform(0, 2 * np.pi)
+        else:
+            yaw = 0
+        point[-1] = yaw
+        block = stack[0]
+        path = TEMPLATE_PATH
+        if colorize:
+            color = np.random.uniform(np.zeros(3), np.ones(3))
+            color = f"{color[0]} {color[1]} {color[2]} 1"
+            path = MODELS_PATH + block + ".sdf"
+            make_block(block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001)
+        yaml_data["objects"][block] = {
+            "path": path,
+            "X_WO": point.tolist(),
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+        prev_block = block
+        for block in stack[1:]:
+            point[2] += BLOCK_DIMS[2] + 1e-3
+            point[-1] = yaw
+            path = TEMPLATE_PATH
+            if colorize:
+                color = np.random.uniform(np.zeros(3), np.ones(3))
+                color = f"{color[0]} {color[1]} {color[2]} 1"
+                path = MODELS_PATH + block + ".sdf"
+                make_block(block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001)
+            yaml_data["objects"][block] = {
+                "path": path,
+                "X_WO": point.tolist(),
+                "main_link": "base_link",
+                "on-block": prev_block,
+            }
+            prev_block = block
+
+    stacking = make_random_stacking(blocks, max_stack_num=max_goal_stack)
+    max_goal_stack = max([len(s) for s in stacking])
+    goal = ["and"]
+    for stack in stacking:
+        table = pick_random_table_block()
+        base_block = stack[0]
+        goal.append(["on-table", base_block, [str(table), "base_link"]])
+        prev_block = base_block
+        for block in stack[1:]:
+            goal.append(["on-block", block, prev_block])
+            prev_block = block
+
+    yaml_data["goal"] = goal
+
+    for blocker in blockers:
+        table = pick_random_table_blocker()
+        if len(positions[table]) == 0:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
+                continue
+            positions[table] += res
+        point = positions[table].pop(-1) + TABLES[table][0]
+        point = np.append(point, TABLE_HEIGHT)
+        point = np.concatenate((point, np.zeros(3)))
+        if rand_rotation:
+            point[-1] = np.random.uniform(0, 2 * np.pi)
+        yaml_data["objects"][blocker] = {
+            "path": "models/blocks_world/sdf/blocker_block.sdf",
+            "X_WO": point.tolist(),
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+
+    yaml_data["run_attr"] = {
+        "num_blocks": num_blocks,
+        "num_blockers": num_blockers,
+        "max_start_stack": max_start_stack,
+        "max_goal_stack": max_goal_stack,
+        "buffer_radius": buffer_radius,
+        "type": type
+    }
+
+    return yaml_data
+
+
 if __name__ == "__main__":
 
-    yaml_data = make_random_problem(3, 3, colorize = True, max_start_stack = 1, max_goal_stack = 2)
-    with open("test_problem.yaml", "w") as stream:
+    yaml_data = make_distractor_problem(2, 50, colorize = True, max_start_stack = 1, max_goal_stack = 1)
+    with open("test_problem_3.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)
