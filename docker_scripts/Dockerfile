@@ -1,6 +1,10 @@
 #FROM ubuntu:18.04
 FROM nvidia/cuda:11.1.1-runtime-ubuntu18.04
 
+#https://github.com/NVIDIA/nvidia-docker/issues/1632 
+RUN rm /etc/apt/sources.list.d/cuda.list
+RUN rm /etc/apt/sources.list.d/nvidia-ml.list
+
 RUN apt-get -y update
 RUN apt-get -y install wget unzip 
 
@@ -18,7 +22,7 @@ RUN apt-get update
 RUN apt-get -y install curl
 RUN apt-get -y install python3-venv
 RUN apt-get -y install ipython
-
+ 
 # drake
 RUN apt-get update
 RUN curl -o drake.tar.gz https://drake-packages.csail.mit.edu/drake/nightly/drake-20210811-bionic.tar.gz
@@ -30,6 +34,10 @@ RUN yes | /python_venvs/tamp/share/drake/setup/install_prereqs
 WORKDIR /python_venvs/
 RUN python3 -m venv tamp --system-site-packages
 WORKDIR /python_venvs/tamp
+
+#perception 
+RUN apt-get -y update 
+RUN apt-get -y install xvfb 
 
 # ompl
 RUN wget https://ompl.kavrakilab.org/install-ompl-ubuntu.sh -O /install-ompl-ubuntu.sh
@@ -49,8 +57,6 @@ RUN apt-get -y install ffmpeg
 RUN apt-get -y install xdg-utils
 RUN apt-get -y install liboctomap-dev libfcl-dev
 
-RUN apt-get -y install xvfb
-
 RUN apt-get -y install apt-transport-https gnupg
 RUN curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
 RUN mv bazel.gpg /etc/apt/trusted.gpg.d/ 
@@ -58,6 +64,7 @@ RUN echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.
 RUN apt-get update
 RUN apt-get -y install bazel
 RUN apt-get -y install jq
+#RUN apt-get -y install xvfb
 
 # pddlstream
 #RUN git clone --recurse-submodules https://github.com/caelan/pddlstream.git pddlstream
@@ -132,6 +139,8 @@ RUN git config --global user.email $gitemail
 WORKDIR /home/$user/drake-tamp
 COPY .tmux.conf /home/$user/.tmux.conf
 COPY .vimrc /home/$user/.vimrc
+
+
 
 COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["bash","/entrypoint.sh"]
