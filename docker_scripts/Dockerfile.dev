@@ -1,0 +1,43 @@
+FROM drake-tamp-base:latest
+
+# arguments when building image
+# login password 
+ARG password 
+# $UID
+ARG id
+# $USER
+ARG user
+ENV PASS=$password
+
+RUN groupadd -g $id $user
+RUN useradd -s /bin/bash -u $id -g $id -m $user && echo "$user:$password" | chpasswd && adduser $user sudo
+RUN chown -R $user /python_venvs 
+ENV PATH="/python_venvs/tamp/bin:$PATH"
+USER $user
+
+# update terminal config
+RUN printf "2\n" | update-alternatives --config x-terminal-emulator
+
+WORKDIR /home/$user/
+
+# other requirements
+ENV PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/furniture/:/home/$user/drake-tamp/experiments/ikea_induction/
+
+RUN echo "source /python_venvs/tamp/bin/activate" >> ~/.bashrc
+RUN echo "export  USER=$user" >> ~/.bashrc
+RUN echo "export  PYTHONPATH=${PYTHONPATH}:/home/$user/drake-tamp/:/home/$user/drake-tamp/pddlstream/:/home/$user/experiments/ikea_induction/:/home/$user/drake-tamp/pddlstream/examples/pybullet/utils/" >> ~/.bashrc
+
+ARG gitname 
+ARG gitemail 
+
+RUN git config --global user.name $gitname
+RUN git config --global user.email $gitemail
+
+WORKDIR /home/$user/drake-tamp
+COPY .tmux.conf /home/$user/.tmux.conf
+COPY .vimrc /home/$user/.vimrc
+
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["bash","/entrypoint.sh"]
+
+CMD ["bash"]
