@@ -13,7 +13,7 @@ import re
 import torch
 from torch_geometric.nn import GATv2Conv
 from torch_geometric.data import Batch
-from torch_geometric.loader import DataLoader
+#from torch_geometric.loader import DataLoader
 import multiprocessing as mp
 
 import getpass
@@ -708,6 +708,7 @@ class Result:
         self.start_time = time.time()
         self.expand_count = 0
         self.evaluate_count = 0
+        self.num_samples = 0
     def end(self, goal_state, object_mapping):
         if object_mapping is not None:
             action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
@@ -767,7 +768,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=None, cost=None,
 
         stream_plan = extract_stream_plan_from_path(path)
         stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
-        object_mapping = ancestral_sampling_by_edge_seq(stream_plan, goal_state, stats, max_steps=edge_eval_steps)
+        object_mapping = ancestral_sampling_by_edge_seq(stream_plan, goal_state, stats, max_steps=edge_eval_steps,result=result)
 
         path = goal_state.get_shortest_path_to_start()
         result.skeletons.append(path)
@@ -1005,31 +1006,22 @@ if __name__ == '__main__':
             name=os.path.basename(problem_file_path),
             planning_time=r.planning_time,
             solved=r.solution is not None,
-            goal=goal,
-            objects=objects,
-            path_data=path_data,
+            #goal=goal,
+            #objects=objects,
+            #path_data=path_data,
             expanded=r.expand_count,
             evaluated=r.evaluate_count,
         )
 
     problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
-    manager = mp.Manager()
-    data = manager.dict()
-    pool = mp.Pool(processes=mp.cpu_count() - 1)
-    results = []
+    data = {}
     for problem_file_path in problems:
-        results.append(pool.apply_async(run_problem, (problem_file_path, data,)))
-    pool.close()
-    num_jobs = len(results)
-    done_count = 0
-    while done_count < num_jobs:
-        time.sleep(0.1)
-        done_count = sum([r.ready() for r in results])
-    pool.join()
+        run_problem(problem_file_path, data)
 
-    data_dict = {k: v for k, v in data.items()}
-    with open(output_path, 'wb') as f:
-        pickle.dump(data_dict, f)
+        with open(output_path, 'a') as f:
+            f.write(json.dumps(data.get(problem_file_path, {})))
+            f.write("\n")
+
 
 # # %%
 # with open('../policy_test_data.pkl', 'rb') as f:

@@ -167,6 +167,7 @@ def ancestral_sampling(stream_ordering, objects_from_name=None):
     produced = dict()
     queue = [Binding(0, [start_node], {})]
     levels = {start_node: 0}
+    attempts = 0
     while queue:
         binding = queue.pop(0)
         stream_action = binding.stream_plan[0]
@@ -193,6 +194,7 @@ def ancestral_sampling(stream_ordering, objects_from_name=None):
                     results = None
             else:
                 results, _ = stream_instance.next_results(verbose=False)
+                attempts += 1
             if not results:
                 continue
             [new_stream_result] = results
@@ -220,7 +222,7 @@ def ancestral_sampling(stream_ordering, objects_from_name=None):
                 levels[child] = levels[stream_action] + 1
                 new_binding = Binding(binding.index + 1, [child], {})
                 queue.append(new_binding)
-    return produced, stats.get(final_node, 0), levels
+    return produced, stats.get(final_node, 0), levels, attempts
 
 
 def ancestral_sample_with_costs(
@@ -287,7 +289,7 @@ def ancestral_sampling_by_edge(stream_plan, final_state, stats, max_steps=30):
     
     return particles[-1][0] if len(stream_plan) + 1 == len(particles) and particles[-1] else None
 
-def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30):
+def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30, result=None):
     (_,_,initial_state), _ = stream_plan[0]
     objects = {k:v for k,v in Object._obj_from_name.items() if k in initial_state.object_stream_map}
     i = 0
@@ -307,15 +309,15 @@ def ancestral_sampling_by_edge_seq(stream_plan, final_state, stats, max_steps=30
                 # prev_particle = random.choice(particles[i])
 
                 edge_stats["num_attempts"] += 1
-                new_objects, success, levels = ancestral_sampling(step, prev_particle)
-
+                new_objects, success, levels, attempts = ancestral_sampling(step, prev_particle)
+                result.num_samples += attempts
                 for obj in to_produce:
                     cg_key = state.id_anon_cg_map[obj]
                     cg_stats = stats.setdefault(cg_key, {'num_attempts': 0., 'num_successes': 0.})
                     cg_stats['num_attempts'] += 1
                     if obj in new_objects:
                         cg_stats['num_successes'] += 1
-                        stats.setdefault(obj, []).append(new_objects[obj])
+                        #stats.setdefault(obj, []).append(new_objects[obj])
                 for index_i, stream_action_i in enumerate(step):
                     if stream_action_i not in levels:
                         continue

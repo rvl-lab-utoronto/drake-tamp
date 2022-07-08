@@ -88,6 +88,7 @@ def instantiate_actions(prob_info):
                     Atom('on-table', (object_pddl, surface_pddl)).negate(),
                     Atom('atworldpose', (object_pddl, '?X_WB')).negate(),
                     Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')),
+                    Atom('grasped', (arm_pddl, object_pddl)),
                 ]
                 actions.append(
                     Action(
@@ -122,6 +123,7 @@ def instantiate_actions(prob_info):
                 preconds = [
                         Atom('ik', (arm_pddl, object_pddl,'?X_WB', '?X_HB', '?pre_q', '?q')),
                         Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')),
+                        Atom('grasped', (arm_pddl, object_pddl)),
                         # Atom('atconf', (arm_pddl, '?pre_q')),
                         Atom('table-support', (object_pddl, '?X_WB', surface_pddl)),
                 ]
@@ -134,6 +136,7 @@ def instantiate_actions(prob_info):
                     Atom('on-table', (object_pddl, surface_pddl)),
                     Atom('atworldpose', (object_pddl, '?X_WB')),
                     Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')).negate(),
+                    Atom('grasped', (arm_pddl, object_pddl)).negate(),
                 ]
                 actions.append(
                     Action(
@@ -186,7 +189,9 @@ def instantiate_actions(prob_info):
                     Atom('on-block', (object_pddl, other_object_pddl)).negate(),
                     Atom('atworldpose', (object_pddl, '?X_WB')).negate(),
                     Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')),
-                    Atom('clear', (other_object_pddl,))
+                    Atom('clear', (other_object_pddl,)),
+                    Atom('grasped', (arm_pddl, object_pddl)),
+
                 ]
                 actions.append(
                     Action(
@@ -225,6 +230,7 @@ def instantiate_actions(prob_info):
                         # Atom('atconf', (arm_pddl, '?pre_q')),
                         Atom('block-support', (object_pddl, '?X_WB', other_object_pddl, f"?X_W{other_object}")),
                         Atom('atworldpose', (other_object_pddl, f"?X_W{other_object}")),
+                        Atom('grasped', (arm_pddl, object_pddl)),
                 ]
                 for other in other_objects:
                     if other == other_object:
@@ -237,7 +243,8 @@ def instantiate_actions(prob_info):
                     Atom('on-block', (object_pddl, other_object_pddl)),
                     Atom('atworldpose', (object_pddl, '?X_WB')),
                     Atom('athandpose', (arm_pddl, object_pddl, '?X_HB')).negate(),
-                    Atom('clear', (other_object_pddl,)).negate()
+                    Atom('clear', (other_object_pddl,)).negate(),
+                    Atom('grasped', (arm_pddl, object_pddl)).negate(),
                 ]
                 actions.append(
                     Action(
@@ -289,7 +296,7 @@ def instantiate_actions(prob_info):
 
 if __name__ == '__main__':
 
-    problem_file = 'experiments/blocks_world/data_generation/non_monotonic/test/2_2_1_0.yaml'
+    problem_file = 'experiments/blocks_world/data_generation/easy_distractors/test/3_23_2_97.yaml'
     init, goal, externals, actions = create_problem(problem_file)
 
     print('Initial:', init)
@@ -313,11 +320,12 @@ if __name__ == '__main__':
         pr = cProfile.Profile()
         pr.enable()
     result = repeated_a_star(search, stats=stats, max_steps=10, heuristic=heuristic)
-    if result is not None:
-        action_skeleton, object_mapping, _ = result
+    if result.solution is not None:
+        action_skeleton, object_mapping = result.action_skeleton, result.object_mapping
         actions_str = "\n".join([str(a) for a in action_skeleton])
         print(f"Action Skeleton:\n{actions_str}")
         print(f"\nObject mapping: {object_mapping}\n") 
+        print("Expanded", result.expand_count)
     if profile:
             pr.disable()
             s = io.StringIO()

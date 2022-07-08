@@ -1,3 +1,5 @@
+from functools import partial
+import itertools
 import math
 import copy
 import time
@@ -18,50 +20,57 @@ from pddl.conditions import Atom
 
 from lifted.utils import PriorityQueue
 from lifted.search import ActionStreamSearch
-from lifted.sampling import extract_stream_plan_from_path, ancestral_sampling_by_edge
+from lifted.sampling import ancestral_sampling_by_edge_seq, extract_stream_plan_from_path, ancestral_sampling_by_edge
 
 ENABLE_EQUALITY_CHECK = False
 
-
-def try_a_star(search, cost, heuristic, max_step=10000):
+def try_a_star(search, cost, heuristic, result, max_steps=10001, max_time=None, **kwargs):
     start_time = time.time()
     q = PriorityQueue([search.init])
-    closed = dict()
+    closed = set()
     expand_count = 0
     evaluate_count = 0
     found = False
 
-    while q and expand_count < max_step:
+    while q and expand_count < max_steps and (time.time() - start_time) < max_time:
         state = q.pop()
 
-        if hash(state) in closed:
+        if state in closed:
             continue
-
-        expand_count += 1
 
         if search.test_goal(state):
             found = True
             break
 
-        successors = search.successors(state)
-        for op, child in successors:
+        expand_count += 1
+
+        for op, child in search.successors(state):
+            is_unique = True
+            if ENABLE_EQUALITY_CHECK:
+                if child in closed:
+                    is_unique = False
+
+            if not is_unique:
+                continue
+
             child.parents = {(op, state)}
-            child.start_distance = state.start_distance + cost(state, op, child)
+            child.ancestors = state.ancestors | {state}
             state.children.add((op, child))
             evaluate_count += 1
+
+        for op, child in sorted(state.children, key=lambda x: x[0].name):
+            child.start_distance = state.start_distance + cost(state, op, child)
+            child.cost_to_go = heuristic(child, search.goal)
             q.push(child, child.start_distance + heuristic(child, search.goal))
 
-        closed[hash(state)] = state
+        closed.add(state)
 
-    av_branching_f = evaluate_count / expand_count
-    approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
-    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
-    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-    print(f"Time taken: {(time.time() - start_time)} seconds")
-    print(f"Solution cost: {state.start_distance}")
-
-    return state if found else None
-
+    result.expand_count += expand_count
+    result.evaluate_count += evaluate_count
+    if found:
+        return state
+    else:
+        return None
 
 def try_a_star_modified(search, cost, heuristic, max_step=10000):
     start_time = time.time()
@@ -167,214 +176,120 @@ def try_a_star_tree(search, cost, heuristic, max_steps=10000, closed_exclusion=N
     return state, result
 
 
-def repeated_a_star(
-    search,
-    stats,
-    max_attempts=20,
-    max_search_steps=10000,
-    max_sampling_steps=100,
-    heuristic=None
-):
+class Result:
+    solution = None
+    stats = None
+    skeletons = None
+    action_skeleton = None
+    object_mapping = None
+    def __init__(self, stats):
+        self.stats = stats
+        self.skeletons = []
+        self.start_time = time.time()
+        self.expand_count = 0
+        self.evaluate_count = 0
+        self.num_samples = 0
+    def end(self, goal_state, object_mapping):
+        if object_mapping is not None:
+            action_skeleton = [a for _, a, _ in goal_state.get_shortest_path_to_start()]
+            self.action_skeleton = action_skeleton
+            self.object_mapping = object_mapping
+            self.solution = goal_state
+        self.planning_time = time.time() - self.start_time
 
-    # cost = lambda state, op, child: 1 / (child.num_successes / child.num_attempts)
-    def cost(state, op, child, verbose=False):
-        included = set()
-        c = 0
-        for obj in child.object_stream_map:
-            stream_action = child.object_stream_map[obj]
-            if stream_action is not None:
-                if stream_action in included:
-                    continue
-                cg_key = child.id_anon_cg_map[obj]
-                if cg_key in stats:
-                    s = stats[cg_key]
-                    comp_cost = (
-                        (s["num_successes"] + 1) / (s["num_attempts"] + 1)
-                    ) ** -1
-                    c += comp_cost
+def default_action_cost(state, op, child, stats={}, verbose=False):
+    s = stats.get(op, None)
+    if s is None:
+        return 1
+    return (
+        (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+    ) ** -1
 
-                else:
-                    comp_cost = 1
-                    c += comp_cost
-                if verbose:
-                    print(stream_action, comp_cost)
-                included.add(stream_action)
-        return max(1, c)
+def stream_cost(state, op, child, verbose=False,given_stats=dict()):
+    if op in given_stats:
+        return given_stats[op]
+    c = 1
+    res = {"num_successes": 0,"num_attempts": 0}
+    included = set()
+    for stream_action in {v for v in child.object_stream_map.values() if v is not None}:
+        obj = stream_action.outputs[0]
+        cg_key = child.id_anon_cg_map[obj]
+        if cg_key in given_stats:
+            included.add(cg_key)
+            s = given_stats[cg_key]
+            comp_cost = (
+                (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+            )
+            if comp_cost < c:
+                c = comp_cost
+                res = s
+    for i, j in itertools.combinations(included, 2):
+        cg_key = frozenset([i, j])
+        if cg_key in given_stats.get("pairs", {}):
+            s = given_stats["pairs"][cg_key]
+            comp_cost = (
+                (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+            )
+            if comp_cost < c:
+                c = comp_cost
+                res = s
+    return res
 
-    if heuristic is None:
-        # heuristic = lambda s,g: 0
-        heuristic = lambda s, g: 10 * len(g - s.state)
+def goalcount_heuristic(s, g):
+    return len(g - s.state)
 
-    stats_list = []
+def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuristic, cost=default_action_cost, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None, search_func=try_a_star):
+    def lprint(*args):
+        if debug:
+            print(*args)
+    result = Result(stats)
+    cost = partial(cost, stats=stats)
+
     closed_exclusion = set()
-    path, object_mapping, goal_state = None, None, None
-    success = False
-    attempts = 0
-    while attempts < max_attempts:
-        attempts += 1
 
-        # goal_state = try_a_star(search, cost, heuristic)
-        # goal_state = try_a_star_modified(search, cost, heuristic)
-        goal_state, search_stats = try_a_star_tree(
-            search, cost, heuristic, max_search_steps, closed_exclusion
-        )
-        stats_list.append(search_stats)
-        if not search_stats["solved"]:
-            print("Could not find feasable action plan!")
+    max_time = max_time if max_time is not None else math.inf
+    for _ in range(max_steps):
+        goal_state = search_func(search, cost=cost, policy_ts=policy_ts, max_time=max_time, heuristic=heuristic, result=result, closed_exclusion=closed_exclusion)
+        if goal_state is None:
+            lprint("Could not find feasable action plan!")
+            object_mapping = None
             break
 
         closed_exclusion |= goal_state.ancestors | {goal_state}
 
-        print("Getting path ...")
+        lprint("Getting path ...")
         path = goal_state.get_shortest_path_to_start()
         c = 0
         for idx, i in enumerate(path):
-            print(idx, i[1])
+            lprint(idx, i[1])
             a = cost(*i, verbose=True)
-            print("action cost:", a)
-            print("cum cost:", a + c)
+            lprint("action cost:", a)
+            lprint("cum cost:", a + c)
             c += a
 
         action_skeleton = [a for _, a, _ in path]
         actions_str = "\n".join([str(a) for a in action_skeleton])
-        print(f"Action Skeleton:\n{actions_str}")
+        lprint(f"Action Skeleton:\n{actions_str}")
 
         stream_plan = extract_stream_plan_from_path(path)
-        stream_plan = [
-            (edge, list({action for action in object_map.values()}))
-            for (edge, object_map) in stream_plan
-        ]
-        object_mapping = ancestral_sampling_by_edge(
-            stream_plan, goal_state, stats, max_steps=max_sampling_steps
-        )
+        stream_plan = [(edge, list({action for action in object_map.values()})) for (edge, object_map) in stream_plan]
+        object_mapping = ancestral_sampling_by_edge_seq(stream_plan, goal_state, stats, max_steps=edge_eval_steps, result=result)
 
+        result.skeletons.append(path)
         c = 0
         for idx, i in enumerate(path):
-            print(idx, i[1])
+            lprint(idx, i[1])
             a = cost(*i, verbose=True)
-            print("action cost:", a)
-            print("cum cost:", a + c)
+            lprint("action cost:", a)
+            lprint("cum cost:", a + c)
             c += a
 
+
         if object_mapping is not None:
-            print("Found a solution!")
-            print(f"Object Mapping:\n{object_mapping}\n")
-            success = True
             break
+        lprint("Could not find object_mapping, retrying with updated costs")
 
-        print("Could not find object_mapping, retrying with updated costs")
-
-    timeout = False
-    if not success:
-        if attempts >= max_attempts:
-            timeout = True
-            print("Timeout")
-        print("Could not solve task!")
-    
-    return {
-        "stats": stats_list,
-        "action_skeleton": [a for _, a, _ in path] if path is not None else None,
-        "object_mapping": object_mapping,
-        "goal_state": goal_state,
-        "success": success,
-        "timeout": timeout,
-    }
+    result.end(goal_state, object_mapping)
+    return result
 
 
-
-if __name__ == "__main__":
-    from experiments.blocks_world_noaxioms.run import *
-    from pddlstream.algorithms.algorithm import parse_problem
-    import argparse
-
-    url = None
-    # url = 'tcp://127.0.0.1:6000'
-
-    # naming scheme: <num_blocks>_<num_blockers>_<maximum_goal_stack_height>_<index>
-    # problem_file = 'experiments/blocks_world/data_generation/random/train/1_0_1_40.yaml'
-    # problem_file = 'experiments/blocks_world/data_generation/random/train/1_1_1_52.yaml'
-    # problem_file = "experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0.yaml"
-    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/1_1_1_0_easy.yaml'
-    # problem_file = 'experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_55.yaml'
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-t", "--task", help="Task description file", required=True, type=str
-    )
-    parser.add_argument(
-        "-s",
-        "--save-cgstats-path",
-        help="Path to save a json of CG stats.",
-        default=None,
-        type=str,
-    )
-    parser.add_argument(
-        "-p", "--profile", help="Path to save a profile.", default=None, type=str
-    )
-    args = parser.parse_args()
-    problem_file = args.task
-
-    (
-        sim,
-        station_dict,
-        traj_directors,
-        meshcat_vis,
-        prob_info,
-    ) = make_and_init_simulation(url, problem_file)
-    problem, model_poses = construct_problem_from_sim(sim, station_dict, prob_info)
-    evaluations, goal_exp, domain, externals = parse_problem(problem)
-
-    init = set()
-    for evaluation in evaluations:
-        x = fact_from_evaluation(evaluation)
-        # init.add(Atom(x[0], [PredicateObject(o.pddl, generated=False) for o in x[1:]]))
-        init.add(Atom(x[0], [o.pddl for o in x[1:]]))
-
-    goal = set()
-    assert goal_exp[0] == "and"
-    for x in goal_exp[1:]:
-        # goal.add(Atom(x[0], [PredicateObject(o.pddl, generated=False) for o in x[1:]]))
-        goal.add(Atom(x[0], [o.pddl for o in x[1:]]))
-
-    print("Initial:", init)
-    print("\n\nGoal:", goal)
-    [pick, move, place, stack, unstack] = domain.actions
-
-    search = ActionStreamSearch(init, goal, externals, domain.actions)
-
-    from ompl.util import setLogLevel, LogLevel
-
-    setLogLevel(LogLevel.LOG_WARN)
-
-    if args.profile is not None:
-        from lifted.search import find_applicable_brute_force
-        from line_profiler import LineProfiler
-
-        profile = LineProfiler()
-        profile.add_function(repeated_a_star)
-        profile.add_function(try_a_star)
-        profile.add_function(find_applicable_brute_force)
-        profile.add_function(ActionStreamSearch.successors)
-        profile.enable()
-
-    start_time = time.time()
-    try:
-        stats = {}
-        result = repeated_a_star(search, stats=stats)
-        if result is not None:
-            action_skeleton, object_mapping, goal_state = result
-            actions_str = "\n".join([str(a) for a in action_skeleton])
-            print(f"Action Skeleton:\n{actions_str}")
-            print(f"\nObject mapping: {object_mapping}\n")
-        if args.save_cgstats_path:
-            with open(args.save_cgstats_path, "w") as f:
-                json.dump(list((tuple(cg), v) for (cg, v) in stats.items()), f)
-
-    except KeyboardInterrupt:
-        print("KeyboardInterrupt while searching.")
-
-    print(f"Total time: {(time.time() - start_time):.4f}")
-
-    if args.profile is not None:
-        profile.print_stats()
-        profile.print_stats(open(args.profile, "w"))
