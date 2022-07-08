@@ -24,157 +24,6 @@ from lifted.sampling import ancestral_sampling_by_edge_seq, extract_stream_plan_
 
 ENABLE_EQUALITY_CHECK = False
 
-def try_a_star(search, cost, heuristic, result, max_steps=10001, max_time=None, **kwargs):
-    start_time = time.time()
-    q = PriorityQueue([search.init])
-    closed = set()
-    expand_count = 0
-    evaluate_count = 0
-    found = False
-
-    while q and expand_count < max_steps and (time.time() - start_time) < max_time:
-        state = q.pop()
-
-        if state in closed:
-            continue
-
-        if search.test_goal(state):
-            found = True
-            break
-
-        expand_count += 1
-
-        for op, child in search.successors(state):
-            is_unique = True
-            if ENABLE_EQUALITY_CHECK:
-                if child in closed:
-                    is_unique = False
-
-            if not is_unique:
-                continue
-
-            child.parents = {(op, state)}
-            child.ancestors = state.ancestors | {state}
-            state.children.add((op, child))
-            evaluate_count += 1
-
-        for op, child in sorted(state.children, key=lambda x: x[0].name):
-            child.start_distance = state.start_distance + cost(state, op, child)
-            child.cost_to_go = heuristic(child, search.goal)
-            q.push(child, child.start_distance + heuristic(child, search.goal))
-
-        closed.add(state)
-
-    result.expand_count += expand_count
-    result.evaluate_count += evaluate_count
-    if found:
-        return state
-    else:
-        return None
-
-def try_a_star_modified(search, cost, heuristic, max_step=10000):
-    start_time = time.time()
-    q = PriorityQueue([search.init])
-    closed = {}
-    generated = {hash(search.init): search.init}
-    expand_count = 0
-    evaluate_count = 0
-    found = False
-
-    while q and expand_count < max_step:
-        state = q.pop()
-
-        if hash(state) in closed:
-            continue
-
-        expand_count += 1
-
-        if search.test_goal(state):
-            found = True
-            break
-
-        successors = search.successors(state)
-        for op, child in successors:
-
-            if hash(child) in generated:
-                node = generated[hash(child)]
-                node.parents.add((op, state))
-                node.start_distance = min(
-                    node.start_distance, state.start_distance + cost(state, op, node)
-                )
-                state.children.add((op, node))
-                continue
-
-            generated[hash(child)] = child
-            child.parents = {(op, state)}
-            child.start_distance = state.start_distance + cost(state, op, child)
-            state.children.add((op, child))
-            evaluate_count += 1
-            q.push(child, child.start_distance + heuristic(child, search.goal))
-
-        closed[hash(state)] = state
-
-    av_branching_f = evaluate_count / expand_count
-    approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
-    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
-    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-    print(f"Time taken: {(time.time() - start_time)} seconds")
-    print(f"Solution cost: {state.start_distance}")
-
-    return state if found else None
-
-
-def try_a_star_tree(search, cost, heuristic, max_steps=10000, closed_exclusion=None):
-    start_time = time.time()
-    q = PriorityQueue([search.init])
-    closed = {search.init}
-    closed_exclusion = closed_exclusion if closed_exclusion is not None else set()
-
-    expand_count = 0
-    evaluate_count = 0
-    found = False
-
-    while q and expand_count < max_steps:
-        state = q.pop()
-        expand_count += 1
-
-        if search.test_goal(state):
-            found = True
-            break
-
-        for op, child in search.successors(state):
-            evaluate_count += 1
-            child.parents = {(op, state)}
-            child.ancestors = state.ancestors | {state}
-            child.start_distance = state.start_distance + cost(state, op, child)
-            state.children.add((op, child))
-
-            if child in closed_exclusion or child not in closed or child in state.ancestors:
-                q.push(child, child.start_distance + heuristic(child, search.goal))
-                if child in closed_exclusion:
-                    closed_exclusion.remove(child)
-                else:
-                    closed.add(child)
-
-    time_taken = time.time() - start_time
-
-    av_branching_f = evaluate_count / expand_count
-    approx_depth = math.log(1e-6 + evaluate_count) / math.log(1e-6 + av_branching_f)
-    print(f"Explored {expand_count}. Evaluated {evaluate_count}")
-    print(f"Av. Branching Factor {av_branching_f:.2f}. Approx Depth {approx_depth:.2f}")
-    print(f"Time taken: {time_taken} seconds")
-    print(f"Solution cost: {state.start_distance}")
-
-    result = {
-        "expanded": expand_count,
-        "evaluated": evaluate_count,
-        "search_time": time_taken,
-        "solved": found,
-        "out_of_budget": expand_count >= max_steps,
-    }
-
-    return state, result
-
 
 class Result:
     solution = None
@@ -196,6 +45,113 @@ class Result:
             self.object_mapping = object_mapping
             self.solution = goal_state
         self.planning_time = time.time() - self.start_time
+
+def bfs(search, priority, result, max_steps=math.inf, max_time=None, **kwargs):
+    start_time = time.time()
+    q = PriorityQueue([search.init])
+    closed = set()
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+    while q and expand_count < max_steps and (time.time() - start_time) < max_time:
+        state = q.pop()
+
+        if state in closed:
+            continue
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        expand_count += 1
+
+        for op, child in search.successors(state):
+            child.parents = {(op, state)}
+            state.children.add((op, child))
+            evaluate_count += 1
+
+        for op, child in sorted(state.children, key=lambda x: x[0].name):
+            is_unique = True
+            if ENABLE_EQUALITY_CHECK:
+                if child in closed:
+                    is_unique = False
+
+            if not is_unique:
+                continue
+
+            q.push(child, priority(state, op, child))
+
+        closed.add(state)
+
+    result.expand_count += expand_count
+    result.evaluate_count += evaluate_count
+    if found:
+        return state
+    else:
+        return None
+
+def bfs_exclusion(search, priority, result, max_steps=10001, max_time=None, closed_exclusion=None, **kwargs):
+    start_time = time.time()
+    q = PriorityQueue([search.init])
+    closed = {search.init}
+    closed_exclusion = closed_exclusion if closed_exclusion is not None else set()
+
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+    while q and expand_count < max_steps and (time.time() - start_time) < max_time:
+        state = q.pop()
+        expand_count += 1
+
+        if search.test_goal(state):
+            found = True
+            break
+
+        for op, child in search.successors(state):
+            evaluate_count += 1
+            child.parents = {(op, state)}
+            state.children.add((op, child))
+
+            if child in closed_exclusion or child not in closed:
+                q.push(child, priority(state, op, child))
+                if child in closed_exclusion:
+                    closed_exclusion.remove(child)
+                else:
+                    closed.add(child)
+
+    time_taken = time.time() - start_time
+
+    result.expand_count += expand_count
+    result.evaluate_count += evaluate_count
+
+    if found:
+        return state
+    return None
+
+def try_a_star(search, cost, heuristic, result, **kwargs):
+    def priority(state, op, child):
+        child.start_distance = state.start_distance + cost(state, op, child)
+        child.cost_to_go = heuristic(child, search.goal)
+        return child.start_distance + child.cost_to_go
+
+    return bfs(search, priority, result, **kwargs)
+    
+def try_policy_guided(search, policy_ts, result, **kwargs):
+    return bfs(search, policy_ts, result, **kwargs)
+
+def try_a_star_exclusion(search, cost, heuristic, result, **kwargs):
+    def priority(state, op, child):
+        child.start_distance = state.start_distance + cost(state, op, child)
+        child.cost_to_go = heuristic(child, search.goal)
+        return child.start_distance + child.cost_to_go
+
+    return bfs_exclusion(search, priority, result, **kwargs)
+    
+def try_policy_guided_exclusion(search, policy_ts, result, **kwargs):
+    return bfs_exclusion(search, policy_ts, result, **kwargs)
+
 
 def default_action_cost(state, op, child, stats={}, verbose=False):
     s = stats.get(op, None)
@@ -249,16 +205,24 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
 
     max_time = max_time if max_time is not None else math.inf
     for _ in range(max_steps):
-        goal_state = search_func(search, cost=cost, policy_ts=policy_ts, max_time=max_time, heuristic=heuristic, result=result, closed_exclusion=closed_exclusion)
+        goal_state = search_func(
+            search,
+            cost=cost,
+            policy_ts=policy_ts,
+            max_time=max_time,
+            heuristic=heuristic,
+            result=result,
+            closed_exclusion=closed_exclusion
+        )
         if goal_state is None:
             lprint("Could not find feasable action plan!")
             object_mapping = None
             break
 
-        closed_exclusion |= goal_state.ancestors | {goal_state}
-
         lprint("Getting path ...")
         path = goal_state.get_shortest_path_to_start()
+        closed_exclusion |= {s for s, _, _ in path} | {goal_state}
+
         c = 0
         for idx, i in enumerate(path):
             lprint(idx, i[1])

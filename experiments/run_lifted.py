@@ -16,7 +16,7 @@ sys.path.insert(
 
 from experiments.blocks_world.run_lifted import create_problem
 from lifted.a_star import ActionStreamSearch, repeated_a_star, stream_cost
-
+from learning.policy import make_policy, load_model
 
 
 #%%
@@ -26,12 +26,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_path", "-o", type=str, default=None)
     parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking", "easy_distractors"])
+    parser.add_argument("--use_policy", action="store_true")
     args = parser.parse_args()
 
-    output_path = args.output_path if args.output_path is not None else f"lifted_{args.problem_type}_astar_{time.time()}_output.json"
+    output_path = args.output_path if args.output_path is not None else f"lifted{'_policy' if args.use_policy else ''}_{args.problem_type}_astar_{time.time()}_output.json"
 
     model = None
 
+    if args.use_policy:
+        model = load_model()
 
     def run_problem(problem_file_path, data):
         with open(problem_file_path, 'r') as f:
@@ -45,7 +48,7 @@ if __name__ == '__main__':
             return
 
         stats = {}
-        policy = None
+        policy = make_policy(problem_file, search, model, stats) if args.use_policy else None
         m_attempts = lambda a: 10**(1 + a // 10)
         def stream_cost_fn(s, o, c, stats=stats, verbose=False):
             fa = stream_cost(s, o, c, given_stats=stats)
