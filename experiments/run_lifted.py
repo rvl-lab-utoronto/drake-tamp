@@ -60,7 +60,7 @@ if __name__ == '__main__':
             fa = (1 + fa["num_successes"] * m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
             return 1/fa
 
-        r = repeated_a_star(search, search_func=search_func, stats=stats, policy_ts=policy, cost=stream_cost_fn, max_steps=100, edge_eval_steps=50, max_time=90)
+        r = repeated_a_star(search, search_func=search_func, stats=stats, policy_ts=policy, cost=stream_cost_fn, max_steps=100, edge_eval_steps=10, max_time=90)
 
 
         data[problem_file_path] = dict(

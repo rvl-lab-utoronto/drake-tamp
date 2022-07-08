@@ -202,6 +202,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
     cost = partial(cost, stats=stats)
 
     closed_exclusion = set()
+    start_time = time.time()
 
     max_time = max_time if max_time is not None else math.inf
     for _ in range(max_steps):
@@ -209,7 +210,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
             search,
             cost=cost,
             policy_ts=policy_ts,
-            max_time=max_time,
+            max_time=max_time - (time.time() - start_time),
             heuristic=heuristic,
             result=result,
             closed_exclusion=closed_exclusion
