@@ -15,7 +15,7 @@ sys.path.insert(
 )
 
 from experiments.blocks_world.run_lifted import create_problem
-from lifted.a_star import ActionStreamSearch, repeated_a_star, stream_cost
+from lifted.a_star import ActionStreamSearch, repeated_a_star, stream_cost, try_policy_guided, try_a_star
 from learning.policy import make_policy, load_model
 
 
@@ -28,6 +28,11 @@ if __name__ == '__main__':
     parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking", "easy_distractors"])
     parser.add_argument("--use_policy", action="store_true")
     args = parser.parse_args()
+
+    if args.use_policy:
+        search_func = try_policy_guided
+    else:
+        search_func = try_a_star
 
     output_path = args.output_path if args.output_path is not None else f"lifted{'_policy' if args.use_policy else ''}_{args.problem_type}_astar_{time.time()}_output.json"
 
@@ -55,7 +60,7 @@ if __name__ == '__main__':
             fa = (1 + fa["num_successes"] * m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
             return 1/fa
 
-        r = repeated_a_star(search, stats=stats, policy_ts=policy, cost=stream_cost_fn, max_steps=100, edge_eval_steps=50, max_time=90)
+        r = repeated_a_star(search, search_func=search_func, stats=stats, policy_ts=policy, cost=stream_cost_fn, max_steps=100, edge_eval_steps=50, max_time=90)
 
 
         data[problem_file_path] = dict(

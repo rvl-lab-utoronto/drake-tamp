@@ -491,20 +491,20 @@ class Policy:
     def __init__(self, problem_file, search, model):
         self.initial_state = State.from_scene(problem_file)
         self.planning_states = {
-            search.init: self.initial_state
+            id(search.init): self.initial_state
         }
         self.cache = {}
         self.model = model
 
     def __call__(self, state, op, child):
-        model_state = self.planning_states[state]
+        model_state = self.planning_states[id(state)]
         opname = op.name.split(' ')[0]#[1:]
         key = (model_state, opname)
         if key not in self.cache:
             for p, op_name in invoke(model_state, self.model):
                 op_key = (model_state, op_name)
                 self.cache[op_key] = p
-        self.planning_states[child] = model_state.transition(opname)
+        self.planning_states[id(child)] = model_state.transition(opname)
         return self.cache[key]
 
 
