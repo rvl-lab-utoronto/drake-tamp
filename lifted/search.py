@@ -16,7 +16,7 @@ from lifted.utils import (
 )
 from lifted.partial import certify, extract_from_partial_plan
 
-REUSE_INITIAL_CERTIFIABLE_OBJECTS = True
+REUSE_INITIAL_CERTIFIABLE_OBJECTS = False
 
 
 def combinations(candidates):
