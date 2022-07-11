@@ -46,6 +46,66 @@ class Result:
             self.solution = goal_state
         self.planning_time = time.time() - self.start_time
 
+
+def beam(search, priority, result, beam_size, max_steps=math.inf, max_time=None, **kwargs):
+    start_time = time.time()
+    beam = [search.init]
+    closed = set()
+    expand_count = 0
+    evaluate_count = 0
+    found = False
+
+    while beam and expand_count < max_steps and (time.time() - start_time) < max_time:
+        q = PriorityQueue()
+        for state in beam:
+            if state in closed:
+                continue
+
+            expand_count += 1
+
+            for op, child in search.successors(state):
+                child.parents = {(op, state)}
+                state.children.add((op, child))
+                evaluate_count += 1
+
+            for op, child in sorted(state.children, key=lambda x: x[0].name):
+   
+                if search.test_goal(child):
+                    state = child
+                    found = True
+                    break
+
+                is_unique = True
+                if ENABLE_EQUALITY_CHECK:
+                    if child in closed:
+                        is_unique = False
+
+                if not is_unique:
+                    continue
+                
+                q.push(child, priority(state, op, child))
+
+            if found:
+                break
+
+            closed.add(state)
+
+        if found:
+            break
+
+        beam = []
+        while len(beam) < beam_size and len(q) > 0:
+            beam.append(q.pop())
+    
+    result.expand_count += expand_count
+    result.evaluate_count += evaluate_count
+
+    if found:
+        return state
+    else:
+        return None
+
+
 def bfs(search, priority, result, max_steps=math.inf, max_time=None, **kwargs):
     start_time = time.time()
     q = PriorityQueue([search.init])
@@ -152,6 +212,17 @@ def try_a_star_exclusion(search, cost, heuristic, result, **kwargs):
 def try_policy_guided_exclusion(search, policy_ts, result, **kwargs):
     return bfs_exclusion(search, policy_ts, result, **kwargs)
 
+def try_beam(search, cost, heuristic, result, beam_size, **kwargs):
+    def priority(state, op, child):
+        child.start_distance = state.start_distance + cost(state, op, child)
+        child.cost_to_go = heuristic(child, search.goal)
+        return child.start_distance + child.cost_to_go
+
+    return beam(search, priority, result, beam_size, **kwargs)
+
+def try_policy_guided_beam(search, policy_ts, result, beam_size, **kwargs):
+    return beam(search, policy_ts, result, beam_size, **kwargs)
+
 
 def default_action_cost(state, op, child, stats={}, verbose=False):
     s = stats.get(op, None)
@@ -161,7 +232,8 @@ def default_action_cost(state, op, child, stats={}, verbose=False):
         (s["num_successes"] + 1) / (s["num_attempts"] + 1)
     ) ** -1
 
-def stream_cost(state, op, child, verbose=False,given_stats=dict()):
+def _stream_cost(state, op, child, verbose=False,stats=dict()):
+    given_stats = stats
     if op in given_stats:
         return given_stats[op]
     c = 1
@@ -191,10 +263,16 @@ def stream_cost(state, op, child, verbose=False,given_stats=dict()):
                 res = s
     return res
 
+def stream_cost(state, op, child, verbose=False,stats=dict()):
+    s = _stream_cost(state, op, child, verbose, stats)
+    return (
+        (s["num_successes"] + 1) / (s["num_attempts"] + 1)
+    ) ** -1
+
 def goalcount_heuristic(s, g):
     return len(g - s.state)
 
-def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuristic, cost=default_action_cost, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None, search_func=try_a_star):
+def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuristic, cost=stream_cost, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None, beam_size=20, search_func=try_a_star):
     def lprint(*args):
         if debug:
             print(*args)
@@ -213,7 +291,8 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
             max_time=max_time - (time.time() - start_time),
             heuristic=heuristic,
             result=result,
-            closed_exclusion=closed_exclusion
+            closed_exclusion=closed_exclusion,
+            beam_size=beam_size
         )
         if goal_state is None:
             lprint("Could not find feasable action plan!")

@@ -25,8 +25,8 @@ sys.path.insert(
 )
 
 from experiments.blocks_world.run_lifted import create_problem
-from lifted.a_star import extract_stream_plan_from_path
-from lifted.a_star import ActionStreamSearch, repeated_a_star, try_policy_guided, stream_cost
+from lifted.a_star import extract_stream_plan_from_path, try_policy_guided_beam
+from lifted.a_star import ActionStreamSearch, repeated_a_star, try_policy_guided, stream_cost, _stream_cost
 from lifted.utils import PriorityQueue
 from pddlstream.language.object import Object
 from torch_geometric.data import Batch, Data
@@ -491,20 +491,20 @@ class Policy:
     def __init__(self, problem_file, search, model):
         self.initial_state = State.from_scene(problem_file)
         self.planning_states = {
-            id(search.init): self.initial_state
+            search.init: self.initial_state
         }
         self.cache = {}
         self.model = model
 
     def __call__(self, state, op, child):
-        model_state = self.planning_states[id(state)]
+        model_state = self.planning_states[state]
         opname = op.name.split(' ')[0]#[1:]
         key = (model_state, opname)
         if key not in self.cache:
             for p, op_name in invoke(model_state, self.model):
                 op_key = (model_state, op_name)
                 self.cache[op_key] = p
-        self.planning_states[id(child)] = model_state.transition(opname)
+        self.planning_states[child] = model_state.transition(opname)
         return self.cache[key]
 
 
@@ -522,7 +522,7 @@ class FeedbackPolicy:
         m_attempts = lambda a: 10**(1 + a // 10)
         for a, c in state.children:
             if self._cost_fn is not None:
-                fa = self._cost_fn(state, a, c, given_stats=self._stats)
+                fa = self._cost_fn(state, a, c, stats=self._stats)
             else:
                 fa = self._stats.get(a, {"num_successes": 0,"num_attempts": 0})
                 
@@ -534,7 +534,7 @@ class FeedbackPolicy:
         
         
         if self._cost_fn is not None:
-            fa = self._cost_fn(state, op, child, given_stats=self._stats)
+            fa = self._cost_fn(state, op, child, stats=self._stats)
         else:
             fa = self._stats.get(op, {"num_successes": 0,"num_attempts": 0})
         fa = (1 + fa["num_successes"]*m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
@@ -614,7 +614,7 @@ def train_model(dataset_json_path, model_path):
 
 def make_policy(problem_file, search, model, stats):
     base_policy = Policy(problem_file, search, model)
-    policy = FeedbackPolicy(base_policy=base_policy, cost_fn=stream_cost, stats=stats, initial_state=search.init)
+    policy = FeedbackPolicy(base_policy=base_policy, cost_fn=_stream_cost, stats=stats, initial_state=search.init)
     return policy
 
 def run_problem(problem_file_path, model_path):
@@ -629,7 +629,7 @@ def run_problem(problem_file_path, model_path):
         return
     stats = {}
     policy = make_policy(problem_file, search, model, stats)
-    r = repeated_a_star(search, search_func=try_policy_guided, stats=stats, policy_ts=policy, max_steps=100, edge_eval_steps=50, max_time=90)
+    r = repeated_a_star(search, search_func=try_policy_guided_beam, stats=stats, policy_ts=policy, max_steps=100, edge_eval_steps=50, max_time=90, beam_size=1, debug=False)
     path_data = []
     for path in r.skeletons:
         path_data.append(extract_labels(path, r.stats))
@@ -667,4 +667,6 @@ if __name__ == '__main__':
         with open(output_path, 'a') as f:
             f.write(json.dumps(data.get(problem_file_path, {})))
             f.write("\n")
+        
+    print(f"Output saved to {output_path}")
 
