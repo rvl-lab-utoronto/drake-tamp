@@ -196,11 +196,11 @@ class PandaStation(pydrake.systems.framework.Diagram):
         and create a VTK renderer if a renderer of that name doesn't exist.  If
         parent_frame is None, then the world frame is used.
         """
-        # if sys.platform == "linux" and os.getenv("DISPLAY") is None:
-        #     from pyvirtualdisplay import Display
-        #     virtual_display = Display(visible=0, size=(1400, 900))
-        #     virtual_display.start()
-        #     #https://stackoverflow.com/questions/32173839/easyprocess-easyprocesscheckinstallederror-cmd-xvfb-help-oserror-errno
+        if sys.platform == "linux" and os.getenv("DISPLAY") is None:
+            from pyvirtualdisplay import Display
+            virtual_display = Display(visible=0, size=(1400, 900))
+            virtual_display.start()
+            #https://stackoverflow.com/questions/32173839/easyprocess-easyprocesscheckinstallederror-cmd-xvfb-help-oserror-errno
 
         if not renderer:
             renderer = "my_renderer"
