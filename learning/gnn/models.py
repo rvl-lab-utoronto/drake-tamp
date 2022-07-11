@@ -357,7 +357,7 @@ class PerceptionNetwork(nn.Module):
         x = self.fc3(x)
         return x 
 
-class StreamInstanceClassifierPerception(nn.Module):
+class StreamInstanceClassifierPerception(nn.Module):   
 
     def __init__(
         self,
@@ -469,7 +469,7 @@ class StreamInstanceClassifierPerceptionV2(nn.Module):
         object_reps = {name: {"rep": prob_x[i], "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
         return object_reps
 
-    def forward(self, data, object_reps=None, score=False, update_reps=False):
+    def forward(self, data, object_reps=None, score=False, update_reps=False, perception_reps=None):
         stream_schedule = data.stream_schedule
         if object_reps is None:
             assert hasattr(data, 'problem_graph')
@@ -478,6 +478,9 @@ class StreamInstanceClassifierPerceptionV2(nn.Module):
             object_reps = self.get_init_reps(problem_graph[0])
         else:
             assert not hasattr(data, 'problem_graph')
+
+        if perception_reps is None: 
+            perception_reps = self.perception_network(data.perception)
         
         assert isinstance(stream_schedule, list) and len(stream_schedule) == 1, "Batching not supported"
         stream_schedule = stream_schedule[0]
