@@ -25,6 +25,8 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--output_path", "-o", type=str, default=None)
+    parser.add_argument("--problem_file", "-f", type=str, default=None)
+    parser.add_argument("--profile", type=str, default=None)
     parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking", "easy_distractors"])
     parser.add_argument("--use_policy", action="store_true")
     args = parser.parse_args()
@@ -60,7 +62,7 @@ if __name__ == '__main__':
             fa = (1 + fa["num_successes"] * m_attempts(fa["num_attempts"])) / (1 +  fa["num_attempts"]*m_attempts(fa["num_attempts"]))
             return 1/fa
 
-        r = repeated_a_star(search, search_func=search_func, stats=stats, policy_ts=policy, cost=stream_cost_fn, max_steps=100, edge_eval_steps=10, max_time=90)
+        r = repeated_a_star(search, search_func=search_func, stats=stats, policy_ts=policy, cost=stream_cost_fn, max_steps=100, edge_eval_steps=10, max_time=120, debug=args.problem_file is not None)
 
 
         data[problem_file_path] = dict(
@@ -75,8 +77,15 @@ if __name__ == '__main__':
             evaluated=r.evaluate_count,
             skeletons=len(r.skeletons)
         )
+    if args.problem_file:
+        problems = [args.problem_file]
+    else:
+        problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
 
-    problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
+    if args.profile:
+        import cProfile, pstats, io
+        pr = cProfile.Profile()
+        pr.enable()
     data = {}
     for problem_file_path in problems:
         run_problem(problem_file_path, data)
@@ -84,4 +93,10 @@ if __name__ == '__main__':
         with open(output_path, 'a') as f:
             f.write(json.dumps(data[problem_file_path]))
             f.write("\n")
+    if args.profile:
+            pr.disable()
+            s = io.StringIO()
+            ps = pstats.Stats(pr, stream=s)
+            ps.print_stats()
+            ps.dump_stats(args.profile)   
 
