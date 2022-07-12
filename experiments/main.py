@@ -67,7 +67,7 @@ def make_argument_parser():
             "multiheadmodel",
             "complexityoracle",
             "statsablation",
-            "multiheadmodelperception"
+            "multiheadmodelperception",
             "ploiablation"
         ],
     )
