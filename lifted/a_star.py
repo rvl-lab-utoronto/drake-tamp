@@ -22,8 +22,6 @@ from lifted.utils import PriorityQueue
 from lifted.search import ActionStreamSearch
 from lifted.sampling import ancestral_sampling_by_edge_seq, extract_stream_plan_from_path, ancestral_sampling_by_edge
 
-ENABLE_EQUALITY_CHECK = False
-
 
 class Result:
     solution = None
@@ -75,12 +73,7 @@ def beam(search, priority, result, beam_size, max_steps=math.inf, max_time=None,
                     found = True
                     break
 
-                is_unique = True
-                if ENABLE_EQUALITY_CHECK:
-                    if child in closed:
-                        is_unique = False
-
-                if not is_unique:
+                if child in closed:
                     continue
                 
                 q.push(child, priority(state, op, child))
@@ -132,12 +125,7 @@ def bfs(search, priority, result, max_steps=math.inf, max_time=None, **kwargs):
             evaluate_count += 1
 
         for op, child in sorted(state.children, key=lambda x: x[0].name):
-            is_unique = True
-            if ENABLE_EQUALITY_CHECK:
-                if child in closed:
-                    is_unique = False
-
-            if not is_unique:
+            if child in closed:
                 continue
 
             q.push(child, priority(state, op, child))
@@ -163,6 +151,10 @@ def bfs_exclusion(search, priority, result, max_steps=10001, max_time=None, clos
 
     while q and expand_count < max_steps and (time.time() - start_time) < max_time:
         state = q.pop()
+
+        if (id(state) not in closed_exclusion) and (state in closed):
+            continue
+
         expand_count += 1
 
         if search.test_goal(state):
@@ -173,15 +165,12 @@ def bfs_exclusion(search, priority, result, max_steps=10001, max_time=None, clos
             evaluate_count += 1
             child.parents = {(op, state)}
             state.children.add((op, child))
-
-            if child in closed_exclusion or child not in closed:
+        
+        for op, child in sorted(state.children, key=lambda x: x[0].name):
+            if (id(child) in closed_exclusion) or (child not in closed):
                 q.push(child, priority(state, op, child))
-                if child in closed_exclusion:
-                    closed_exclusion.remove(child)
-                else:
-                    closed.add(child)
 
-    time_taken = time.time() - start_time
+        closed.add(state)
 
     result.expand_count += expand_count
     result.evaluate_count += evaluate_count
@@ -301,7 +290,7 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
 
         lprint("Getting path ...")
         path = goal_state.get_shortest_path_to_start()
-        closed_exclusion |= {s for s, _, _ in path} | {goal_state}
+        closed_exclusion |= {id(s) for s, _, _ in path} | {id(goal_state)}
 
         c = 0
         for idx, i in enumerate(path):
