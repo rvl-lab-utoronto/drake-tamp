@@ -489,6 +489,7 @@ def load_model(path='policy.pt'):
 #%%
 class Policy:
     def __init__(self, problem_file, search, model):
+        self.initial_search_state = search.init
         self.initial_state = State.from_scene(problem_file)
         self.planning_states = {
             search.init: self.initial_state
@@ -497,8 +498,12 @@ class Policy:
         self.model = model
 
     def __call__(self, state, op, child):
-        model_state = self.planning_states[state]
-        opname = op.name.split(' ')[0]#[1:]
+        if state is self.initial_search_state:
+            # the inital state's hash could change as a result of SearchState.make_unique()
+            model_state = self.initial_state
+        else:
+            model_state = self.planning_states[state]
+        opname = op.name.split(' ')[0]
         key = (model_state, opname)
         if key not in self.cache:
             for p, op_name in invoke(model_state, self.model):
@@ -514,8 +519,10 @@ class FeedbackPolicy:
         self._stats = stats
         self._policy = base_policy
         self._cost_fn = cost_fn
-        self.store = {initial_state: 1}
-        self.counts = {initial_state: 0}
+        # We use id(state) as a key in these data structures because
+        # they store path (not state) dependent quantities.
+        self.path_prob = {id(initial_state): 1}
+        self.path_length = {id(initial_state): 0}
     
     def __call__(self, state, op, child):
         s = 0
@@ -541,9 +548,9 @@ class FeedbackPolicy:
         pa = self._policy(state, op, child) 
         p_adj = (fa * pa) / s
 
-        self.store[child] = p_adj * self.store[state]
-        self.counts[child] = 1 + self.counts[state]
-        return (1) / self.store[child]
+        self.path_prob[id(child)] = p_adj * self.path_prob[id(state)]
+        self.path_length[id(child)] = 1 + self.path_length[id(state)]
+        return (1) / self.path_prob[id(child)]
 
 def extract_labels(path, stats):
     stream_plan = extract_stream_plan_from_path(path)

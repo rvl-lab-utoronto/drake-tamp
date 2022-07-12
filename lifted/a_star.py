@@ -139,46 +139,6 @@ def bfs(search, priority, result, max_steps=math.inf, max_time=None, **kwargs):
     else:
         return None
 
-def bfs_exclusion(search, priority, result, max_steps=10001, max_time=None, closed_exclusion=None, **kwargs):
-    start_time = time.time()
-    q = PriorityQueue([search.init])
-    closed = {search.init}
-    closed_exclusion = closed_exclusion if closed_exclusion is not None else set()
-
-    expand_count = 0
-    evaluate_count = 0
-    found = False
-
-    while q and expand_count < max_steps and (time.time() - start_time) < max_time:
-        state = q.pop()
-
-        if (id(state) not in closed_exclusion) and (state in closed):
-            continue
-
-        expand_count += 1
-
-        if search.test_goal(state):
-            found = True
-            break
-
-        for op, child in search.successors(state):
-            evaluate_count += 1
-            child.parents = {(op, state)}
-            state.children.add((op, child))
-        
-        for op, child in sorted(state.children, key=lambda x: x[0].name):
-            if (id(child) in closed_exclusion) or (child not in closed):
-                q.push(child, priority(state, op, child))
-
-        closed.add(state)
-
-    result.expand_count += expand_count
-    result.evaluate_count += evaluate_count
-
-    if found:
-        return state
-    return None
-
 def try_a_star(search, cost, heuristic, result, **kwargs):
     def priority(state, op, child):
         child.start_distance = state.start_distance + cost(state, op, child)
@@ -189,17 +149,6 @@ def try_a_star(search, cost, heuristic, result, **kwargs):
     
 def try_policy_guided(search, policy_ts, result, **kwargs):
     return bfs(search, policy_ts, result, **kwargs)
-
-def try_a_star_exclusion(search, cost, heuristic, result, **kwargs):
-    def priority(state, op, child):
-        child.start_distance = state.start_distance + cost(state, op, child)
-        child.cost_to_go = heuristic(child, search.goal)
-        return child.start_distance + child.cost_to_go
-
-    return bfs_exclusion(search, priority, result, **kwargs)
-    
-def try_policy_guided_exclusion(search, policy_ts, result, **kwargs):
-    return bfs_exclusion(search, policy_ts, result, **kwargs)
 
 def try_beam(search, cost, heuristic, result, beam_size, **kwargs):
     def priority(state, op, child):
@@ -261,14 +210,13 @@ def stream_cost(state, op, child, verbose=False,stats=dict()):
 def goalcount_heuristic(s, g):
     return len(g - s.state)
 
-def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuristic, cost=stream_cost, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None, beam_size=20, search_func=try_a_star):
+def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuristic, cost=stream_cost, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None, beam_size=20, search_func=try_a_star, exclude_sampled_states_from_closed_list=False):
     def lprint(*args):
         if debug:
             print(*args)
     result = Result(stats)
     cost = partial(cost, stats=stats)
 
-    closed_exclusion = set()
     start_time = time.time()
 
     max_time = max_time if max_time is not None else math.inf
@@ -280,7 +228,6 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
             max_time=max_time - (time.time() - start_time),
             heuristic=heuristic,
             result=result,
-            closed_exclusion=closed_exclusion,
             beam_size=beam_size
         )
         if goal_state is None:
@@ -290,7 +237,6 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
 
         lprint("Getting path ...")
         path = goal_state.get_shortest_path_to_start()
-        closed_exclusion |= {id(s) for s, _, _ in path} | {id(goal_state)}
 
         c = 0
         for idx, i in enumerate(path):
@@ -321,6 +267,15 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
         if object_mapping is not None:
             break
         lprint("Could not find object_mapping, retrying with updated costs")
+
+        if exclude_sampled_states_from_closed_list:
+            search.init.make_unique()
+            for _, op, c in path:
+                if op in stats:
+                    c.make_unique()
+                else:
+                    break
+
 
     result.end(goal_state, object_mapping)
     return result

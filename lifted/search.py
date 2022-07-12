@@ -274,6 +274,11 @@ class SearchState:
 
         return path
 
+    def make_unique(self):
+        # this could be anything that uniquely identifies a node in the tree
+        # opting to use the path to the node.
+        self.id_key = tuple(op.name for _, op, _ in self.get_shortest_path_to_start())
+
 
 class ActionStreamSearch:
     def __init__(self, init, goal, externals, actions):
