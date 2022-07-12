@@ -31,6 +31,7 @@ from lifted.utils import PriorityQueue
 from pddlstream.language.object import Object
 from torch_geometric.data import Batch, Data
 from torch_geometric.nn import GATv2Conv
+from torch_geometric.loader import DataLoader
 
 
 def parse_action(action, pddl_to_name):
@@ -306,14 +307,10 @@ def get_model_input(state, action_name):
 def MLP(layers, input_dim):
     mlp_layers = [torch.nn.Linear(input_dim, layers[0])]
 
-
     for layer_num in range(0, len(layers) - 1):
         mlp_layers.append(torch.nn.ReLU())
         mlp_layers.append(torch.nn.Linear(layers[layer_num],
                                       layers[layer_num + 1]))
-    # if len(layers) > 1:
-    #     mlp_layers.append(torch.nn.LayerNorm(
-    #         mlp_layers[-1].weight.size()[:-1]))  # type: ignore
 
     return torch.nn.Sequential(*mlp_layers)
 
@@ -325,13 +322,13 @@ class AttentionPolicy(torch.nn.Module):
         self.node_encoder = MLP([16, node_encoder_dim], node_dim)
 
         self.encoder = GATv2Conv(in_channels=node_encoder_dim,
-                 out_channels=int(node_encoder_dim / 2), heads = 2, edge_dim=edge_dim)
+                 out_channels=int(node_encoder_dim / 2), heads = 2, edge_dim=edge_dim, dropout=0.5)
 
         num_heads = 4
         action_embed_dim = 32
         self.action_encoder = MLP([16, action_embed_dim], action_dim + node_encoder_dim * 2 + node_dim*2)
         self.att = GATv2Conv(in_channels=node_encoder_dim,
-                 out_channels=int(node_encoder_dim / 2), heads = 2)
+                 out_channels=int(node_encoder_dim / 2), heads = 2, dropout=0.5)
         self.output = MLP([16, 1], action_embed_dim)
 
     def forward(self, B):
@@ -409,7 +406,6 @@ def make_dataset(data_files):
     states = []
     all_data = []
     for f in data_files:
-        f = f.replace('/jobs/', f"/home/{USER}/drake-tamp/data/jobs/")
         with open(f, 'rb') as fb:
             f_data = pickle.load(fb)
         with open(os.path.join(os.path.dirname(f), 'stats.json'), 'r') as fb:
@@ -419,11 +415,9 @@ def make_dataset(data_files):
 
         if not stats_data['solution']:
             continue
-        if 'non_monotonic' in stats_data['problem_file_path']:
-            continue
+
         # for plan in stats_data['action_plans'][-1:]:
         for plan in [stats_data['solution']]:
-            # plan = stats_data['solution']
             problem_info = f_data['problem_info']
             state = State.from_scene(problem_file)
             pddl_to_name = problem_info.object_mapping
@@ -481,6 +475,7 @@ def invoke(state, model, temperature=1):
 def load_model(path='policy.pt'):
     model = AttentionPolicy(18,7,10)
     model.load_state_dict(torch.load(path))
+    model.eval()
     return model
 
 
@@ -574,12 +569,9 @@ def extract_labels(path, stats):
         ))
     return path_data        
 
-def train_model(dataset_json_path, model_path):
-    with open(dataset_json_path, 'r') as f:
-        data_files = json.load(f)["train"]
-    np.random.shuffle(data_files)
-    all_data, _ = make_dataset(data_files[:])
-    valid_data, _ = make_dataset(data_files[-30:])
+def train_model(train_files, valid_files, model_path):
+    all_data, _ = make_dataset(train_files)
+    valid_data, _ = make_dataset(valid_files)
 
     valid_loader = DataLoader(valid_data, shuffle=False, batch_size=128)
     train_loader = DataLoader(all_data, shuffle=True, batch_size=32)
@@ -626,6 +618,9 @@ def make_policy(problem_file, search, model, stats):
 
 def run_problem(problem_file_path, model_path):
     model = load_model(model_path)
+    with open(problem_file_path, 'r') as f:
+        problem_file = yaml.full_load(f)
+
     init, goal, externals, actions = create_problem(problem_file_path)
 
     if len(problem_file['objects']) == 1:
@@ -651,29 +646,18 @@ def run_problem(problem_file_path, model_path):
         expanded=r.expand_count,
         evaluated=r.evaluate_count,
     )
-#%%
+
 if __name__ == '__main__':
-    model_path = f"/home/{USER}/drake-tamp/policy.pt"
-    dataset_json_path = f"/home/{USER}/drake-tamp/data/jobs/blocksworld-dset.json"
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--dataset_json_path", type=str, default=None)
+    args = parser.parse_args()
     
-
-    if not os.path.exists(model_path):
+    if not os.path.exists(args.model_path):
         print('Training model')
-        model = train_model(model_path, dataset_json_path)
-
-    problem_type = "random"
-    output_path = f"policy_{problem_type}_{time.time()}_output.pkl"
-    problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{problem_type}/test/*.yaml"))
-    data = {}
-    for problem_file_path in problems:
-        with open(problem_file_path, 'r') as f:
-            problem_file = yaml.full_load(f)
-
-        data[problem_file_path] = run_problem(problem_file_path, model_path)
-
-        with open(output_path, 'a') as f:
-            f.write(json.dumps(data.get(problem_file_path, {})))
-            f.write("\n")
-        
-    print(f"Output saved to {output_path}")
-
+        with open(args.dataset_json_path, "r") as f:
+            all_files = json.load(f)
+        train_files = all_files["train"]
+        valid_files = all_files["validation"]
+        model = train_model(train_files, valid_files, args.model_path)
