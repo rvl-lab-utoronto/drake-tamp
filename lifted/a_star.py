@@ -45,7 +45,7 @@ class Result:
         self.planning_time = time.time() - self.start_time
 
 
-def beam(search, priority, result, beam_size, max_steps=math.inf, max_time=None, **kwargs):
+def beam(search, priority, result, beam_size, max_steps=math.inf, max_time=None, use_closed=True, **kwargs):
     start_time = time.time()
     beam = [search.init]
     closed = set()
@@ -63,7 +63,6 @@ def beam(search, priority, result, beam_size, max_steps=math.inf, max_time=None,
 
             for op, child in search.successors(state):
                 child.parents = {(op, state)}
-                state.children.add((op, child))
                 evaluate_count += 1
 
             for op, child in sorted(state.children, key=lambda x: x[0].name):
@@ -80,8 +79,8 @@ def beam(search, priority, result, beam_size, max_steps=math.inf, max_time=None,
 
             if found:
                 break
-
-            closed.add(state)
+            if use_closed:
+                closed.add(state)
 
         if found:
             break
@@ -99,7 +98,7 @@ def beam(search, priority, result, beam_size, max_steps=math.inf, max_time=None,
         return None
 
 
-def bfs(search, priority, result, max_steps=math.inf, max_time=None, **kwargs):
+def bfs(search, priority, result, max_steps=math.inf, max_time=None, use_closed=True, **kwargs):
     start_time = time.time()
     q = PriorityQueue([search.init])
     closed = set()
@@ -121,7 +120,6 @@ def bfs(search, priority, result, max_steps=math.inf, max_time=None, **kwargs):
 
         for op, child in search.successors(state):
             child.parents = {(op, state)}
-            state.children.add((op, child))
             evaluate_count += 1
 
         for op, child in sorted(state.children, key=lambda x: x[0].name):
@@ -130,7 +128,8 @@ def bfs(search, priority, result, max_steps=math.inf, max_time=None, **kwargs):
 
             q.push(child, priority(state, op, child))
 
-        closed.add(state)
+        if use_closed:
+            closed.add(state)
 
     result.expand_count += expand_count
     result.evaluate_count += evaluate_count
@@ -210,7 +209,21 @@ def stream_cost(state, op, child, verbose=False,stats=dict()):
 def goalcount_heuristic(s, g):
     return len(g - s.state)
 
-def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuristic, cost=stream_cost, debug=False, edge_eval_steps=30, max_time=None, policy_ts=None, beam_size=20, search_func=try_a_star, exclude_sampled_states_from_closed_list=False):
+def repeated_a_star(
+    search,
+    max_steps=1000,
+    stats={},
+    heuristic=goalcount_heuristic,
+    cost=stream_cost,
+    debug=False,
+    edge_eval_steps=30,
+    max_time=None,
+    policy_ts=None,
+    beam_size=20,
+    search_func=try_a_star,
+    exclude_sampled_states_from_closed_list=False,
+    use_closed=True
+    ):
     def lprint(*args):
         if debug:
             print(*args)
@@ -228,7 +241,8 @@ def repeated_a_star(search, max_steps=1000, stats={}, heuristic=goalcount_heuris
             max_time=max_time - (time.time() - start_time),
             heuristic=heuristic,
             result=result,
-            beam_size=beam_size
+            beam_size=beam_size,
+            use_closed=use_closed
         )
         if goal_state is None:
             lprint("Could not find feasable action plan!")
