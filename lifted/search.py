@@ -351,14 +351,17 @@ class ActionStreamSearch:
                         state_id_key = tuple(sorted(
                             (
                                 f.predicate,
-                                tuple(
-                                    new_id_anon_cg_map.get(x, x) 
-                                    if x in object_stream_map else "?"
-                                    for x in f.args
-                                ),
+                                f.args
+                                # tuple(
+                                #     # x
+                                #     new_id_anon_cg_map.get(x, x)
+                                #     if x in object_stream_map else "?"
+                                #     for x in f.args
+                                # ),
                             )
                             for f in new_logical_world_state
                             if f.predicate in self.fluent_predicates
+                            and not any(arg.startswith(OPT_PREFIX) for arg in f.args)
                         ))
 
                         op_state = SearchState(
