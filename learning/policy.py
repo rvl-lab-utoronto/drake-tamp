@@ -25,7 +25,7 @@ sys.path.insert(
 )
 
 from experiments.blocks_world.run_lifted import create_problem
-from lifted.a_star import extract_stream_plan_from_path, try_policy_guided_beam
+from lifted.a_star import extract_stream_plan_from_path, try_a_star, try_policy_guided_beam
 from lifted.a_star import ActionStreamSearch, repeated_a_star, try_policy_guided, stream_cost, _stream_cost
 from lifted.utils import PriorityQueue
 from pddlstream.language.object import Object
@@ -316,19 +316,19 @@ def MLP(layers, input_dim):
 
 
 class AttentionPolicy(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, action_dim, N=30):
+    def __init__(self, node_dim, edge_dim, action_dim, N=30, dropout=0):
         super().__init__()
         node_encoder_dim = 32
         self.node_encoder = MLP([16, node_encoder_dim], node_dim)
 
         self.encoder = GATv2Conv(in_channels=node_encoder_dim,
-                 out_channels=int(node_encoder_dim / 2), heads = 2, edge_dim=edge_dim, dropout=0.5)
+                 out_channels=int(node_encoder_dim / 2), heads = 2, edge_dim=edge_dim, dropout=dropout)
 
         num_heads = 4
         action_embed_dim = 32
         self.action_encoder = MLP([16, action_embed_dim], action_dim + node_encoder_dim * 2 + node_dim*2)
         self.att = GATv2Conv(in_channels=node_encoder_dim,
-                 out_channels=int(node_encoder_dim / 2), heads = 2, dropout=0.5)
+                 out_channels=int(node_encoder_dim / 2), heads = 2, dropout=dropout)
         self.output = MLP([16, 1], action_embed_dim)
 
     def forward(self, B):
@@ -430,6 +430,33 @@ def make_dataset(data_files):
                 action = f'{operator}(panda,{arg1},{arg2})'
                 y = [action in action_name for action_name in data.action_names]
                 assert any(y)
+                data.y = torch.tensor(y, dtype=torch.long)
+                all_data.append(data)
+                state = state.transition(action)
+    return all_data, states
+
+def make_dataset_lifted(probs):
+    states = []
+    all_data = []
+    for f,d in probs.items():
+        f = f.replace('../', '')
+        with open(f, 'r') as fb:
+            problem_file = yaml.full_load(fb)
+
+        if not d or not d['solved']:
+            continue
+
+        for plan in [d["path_data"][-1]]:
+            state = State.from_scene(problem_file)
+            demonstration = [a['action_name'] for a in plan]
+
+            for action in filter(bool, demonstration):
+                states.append(state)
+                data = get_data(state)
+                operator, arg1, arg2 = parse_action_name(action)
+                action = f'{operator}(panda,{arg1},{arg2})'
+                y = [action in action_name for action_name in data.action_names]
+                assert sum(y) == 1
                 data.y = torch.tensor(y, dtype=torch.long)
                 all_data.append(data)
                 state = state.transition(action)
@@ -569,13 +596,10 @@ def extract_labels(path, stats):
         ))
     return path_data        
 
-def train_model(train_files, valid_files, model_path):
-    all_data, _ = make_dataset(train_files)
-    valid_data, _ = make_dataset(valid_files)
+def train_model(model, train_dataset, valid_dataset, model_path):
 
-    valid_loader = DataLoader(valid_data, shuffle=False, batch_size=128)
-    train_loader = DataLoader(all_data, shuffle=True, batch_size=32)
-    model = AttentionPolicy(18,7,10)
+    valid_loader = DataLoader(valid_dataset, shuffle=False, batch_size=128)
+    train_loader = DataLoader(train_dataset, shuffle=True, batch_size=32)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
     criterion = torch.nn.CrossEntropyLoss(reduction='none')
@@ -616,8 +640,7 @@ def make_policy(problem_file, search, model, stats):
     policy = FeedbackPolicy(base_policy=base_policy, cost_fn=_stream_cost, stats=stats, initial_state=search.init)
     return policy
 
-def run_problem(problem_file_path, model_path):
-    model = load_model(model_path)
+def run_problem(problem_file_path, model):
     with open(problem_file_path, 'r') as f:
         problem_file = yaml.full_load(f)
 
@@ -631,7 +654,7 @@ def run_problem(problem_file_path, model_path):
         return
     stats = {}
     policy = make_policy(problem_file, search, model, stats)
-    r = repeated_a_star(search, search_func=try_policy_guided_beam, stats=stats, policy_ts=policy, max_steps=100, edge_eval_steps=50, max_time=90, beam_size=1, debug=False)
+    r = repeated_a_star(search, search_func=try_policy_guided, stats=stats, policy_ts=policy, max_steps=100, edge_eval_steps=10, max_time=90, debug=False)
     path_data = []
     for path in r.skeletons:
         path_data.append(extract_labels(path, r.stats))
@@ -640,24 +663,49 @@ def run_problem(problem_file_path, model_path):
         name=os.path.basename(problem_file_path),
         planning_time=r.planning_time,
         solved=r.solution is not None,
-        # goal=goal,
-        # objects=objects,
-        # path_data=path_data,
+        goal=goal,
+        objects=objects,
+        path_data=path_data,
         expanded=r.expand_count,
         evaluated=r.evaluate_count,
     )
+
+def split_data(data, portion=.9):
+    keys = list(data.keys())
+    np.random.shuffle(keys)
+    total = len(keys)
+    split = int(total * portion)
+    train = keys[:split]
+    valid = keys[split:]
+    return {k:data[k] for k in train}, {k:data[k] for k in valid}
+
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--dropout", type=float, default=0)
     parser.add_argument("--dataset_json_path", type=str, default=None)
+    parser.add_argument("--dataset_pkl_paths", type=str, default=None)
     args = parser.parse_args()
-    
-    if not os.path.exists(args.model_path):
-        print('Training model')
+
+    if args.dataset_json_path:
         with open(args.dataset_json_path, "r") as f:
             all_files = json.load(f)
-        train_files = all_files["train"]
-        valid_files = all_files["validation"]
-        model = train_model(train_files, valid_files, args.model_path)
+        train_dset, _ = make_dataset(all_files["train"])
+        val_dset, _ = make_dataset(all_files["validation"])
+    elif args.dataset_pkl_paths:
+        pkl_paths = args.dataset_pkl_paths.split(',')
+        data = {}
+        for pkl_path in pkl_paths:
+            with open(pkl_path, 'rb') as f:
+                data.update(pickle.load(f))
+        train_data, val_data = split_data(data, .90)
+        print(len(train_data), len(val_data))
+        train_dset, _ = make_dataset_lifted(train_data)
+        val_dset, _ = make_dataset_lifted(val_data)
+    else:
+        raise ValueError("Did not pass a datset option.")
+    print('Training model')
+    model = AttentionPolicy(18,7,10, dropout=args.dropout)
+    train_model(model, train_dset, val_dset, args.model_path)

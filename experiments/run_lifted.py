@@ -4,6 +4,7 @@ from glob import glob
 import json
 import os
 import yaml
+import pickle
 
 import getpass
 USER = getpass.getuser()
@@ -16,7 +17,8 @@ sys.path.insert(
 
 from experiments.blocks_world.run_lifted import create_problem
 from lifted.a_star import ActionStreamSearch, repeated_a_star, stream_cost, try_a_star, try_beam, try_policy_guided_beam, try_policy_guided
-from learning.policy import make_policy, load_model
+from learning.policy import make_policy, load_model, extract_labels
+from pddlstream.language.object import Object
 
 
 #%%
@@ -37,6 +39,7 @@ if __name__ == '__main__':
     parser.add_argument("--no_closed_list", action="store_true")
     parser.add_argument("--use_policy", action="store_true")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--save_label_path", type=str, default=None)
 
     args = parser.parse_args()
 
@@ -52,7 +55,7 @@ if __name__ == '__main__':
     if args.use_policy:
         model = load_model(args.policy_path)
 
-    def run_problem(problem_file_path, data):
+    def run_problem(problem_file_path):
         with open(problem_file_path, 'r') as f:
             problem_file = yaml.safe_load(f)
 
@@ -60,8 +63,7 @@ if __name__ == '__main__':
 
         search = ActionStreamSearch(init, goal, externals, actions)
         if search.test_goal(search.init):
-            data[problem_file_path] = {"solved": True, "expand_count": 0}
-            return
+            return {"solved": True, "expand_count": 0}
 
         stats = {}
         policy = make_policy(problem_file, search, model, stats) if args.use_policy else None
@@ -80,18 +82,29 @@ if __name__ == '__main__':
             exclude_sampled_states_from_closed_list=not args.no_exclusion,
             use_closed=not args.no_closed_list,
         )
+        if args.save_label_path:
+            path_data = []
+            for path in r.skeletons:
+                path_data.append(extract_labels(path, r.stats))
+            objects = ({
+                o_pddl: dict(name=o_pddl,value=Object.from_name(o_pddl).value) 
+                for o_pddl in search.init_objects
+            })
+        else:
+            objects = None
+            path_data = None
 
-        data[problem_file_path] = dict(
+        return dict(
             name=os.path.basename(problem_file_path),
             planning_time=r.planning_time,
             solved=r.solution is not None,
-            # goal=goal,
-            # objects=objects,
-            # path_data=path_data,
             num_samples=r.num_samples,
             expanded=r.expand_count,
             evaluated=r.evaluate_count,
-            skeletons=len(r.skeletons)
+            skeletons=len(r.skeletons),
+            # training data things
+            objects=objects,
+            path_data=path_data,
         )
     if args.problem_file:
         problems = [args.problem_file]
@@ -102,15 +115,22 @@ if __name__ == '__main__':
         import cProfile, pstats, io
         pr = cProfile.Profile()
         pr.enable()
+
+    def exclude_keys(dictionary, exclude=["objects", "path_data"]):
+        return {k:v for k,v in dictionary.items() if k not in exclude}
+
     data = {}
     for problem_file_path in problems:
-        run_problem(problem_file_path, data)
+        data[problem_file_path] = run_problem(problem_file_path)
         if args.output_path:
             with open(args.output_path, 'a') as f:
-                f.write(json.dumps(data[problem_file_path]))
+                f.write(json.dumps(exclude_keys(data[problem_file_path])))
                 f.write("\n")
         else:
-            print(json.dumps(data[problem_file_path]))
+            print(json.dumps(exclude_keys(data[problem_file_path])))
+    if args.save_label_path:
+        with open(args.save_label_path, 'wb') as f:
+            pickle.dump(data, f)
     if args.profile:
             pr.disable()
             s = io.StringIO()
