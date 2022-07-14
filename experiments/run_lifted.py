@@ -102,6 +102,8 @@ if __name__ == '__main__':
             expanded=r.expand_count,
             evaluated=r.evaluate_count,
             skeletons=len(r.skeletons),
+            plan_length=len(r.action_skeleton) if r.solution is not None else None,
+            skeleton_lengths=[len(skeleton) for skeleton in r.skeletons],
             # training data things
             objects=objects,
             path_data=path_data,
