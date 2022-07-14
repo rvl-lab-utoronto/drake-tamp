@@ -411,11 +411,10 @@ def make_dataset(data_files):
         with open(os.path.join(os.path.dirname(f), 'stats.json'), 'r') as fb:
             stats_data = json.load(fb)
         with open(f"/home/{USER}/drake-tamp/" + stats_data['problem_file_path'].split('drake-tamp/')[1], 'r') as fb:
-            problem_file = yaml.full_load(fb)
+            problem_file = yaml.safe_load(fb)
 
         if not stats_data['solution']:
             continue
-
         # for plan in stats_data['action_plans'][-1:]:
         for plan in [stats_data['solution']]:
             problem_info = f_data['problem_info']
@@ -596,7 +595,7 @@ def extract_labels(path, stats):
         ))
     return path_data        
 
-def train_model(model, train_dataset, valid_dataset, model_path):
+def train_model(model, train_dataset, valid_dataset, model_path, epochs):
 
     valid_loader = DataLoader(valid_dataset, shuffle=False, batch_size=128)
     train_loader = DataLoader(train_dataset, shuffle=True, batch_size=32)
@@ -613,7 +612,7 @@ def train_model(model, train_dataset, valid_dataset, model_path):
             count += 1
         return total/count
 
-    for i in range(350):
+    for i in range(epochs):
         model.train()
         train_loss = 0
         for batch in train_loader:
@@ -685,6 +684,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--dropout", type=float, default=0)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--dataset_json_path", type=str, default=None)
     parser.add_argument("--dataset_pkl_paths", type=str, default=None)
     args = parser.parse_args()
@@ -708,4 +708,4 @@ if __name__ == '__main__':
         raise ValueError("Did not pass a datset option.")
     print('Training model')
     model = AttentionPolicy(18,7,10, dropout=args.dropout)
-    train_model(model, train_dset, val_dset, args.model_path)
+    train_model(model, train_dset, val_dset, args.model_path, args.epochs)
