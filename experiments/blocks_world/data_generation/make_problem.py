@@ -758,9 +758,143 @@ def make_distractor_problem(num_blocks, num_blockers, colorize=False, buffer_rad
 
     return yaml_data
 
+def make_non_monotonic_problem_v2(num_blocks, clump = False, buffer_radius = 0, prioritize_grouping = False, colorize = False, max_goal_stack = 1):
+    
+    num_blockers = num_blocks
+    filter = lambda point: np.linalg.norm((point + item[0]) - ARM_POS) > MAX_ARM_REACH
+
+    positions = {}
+    samplers= {}
+    for name, item in TABLES.items():
+        sampler = PoissonSampler(
+            np.clip(item[1].extent - BLOCK_DIMS.max()/2, 0, np.inf),
+            2*item[1].r + buffer_radius,
+            centered=True,
+            clump = clump
+        )
+        samplers[name] = sampler
+        points = sampler.make_samples(num=num_blocks * 10, filter = filter)
+        if not prioritize_grouping:
+            np.random.shuffle(points)
+        positions[name] = points
+
+    yaml_data = {
+        "directive": "directives/one_arm_blocks_world.yaml",
+        "planning_directive": "directives/one_arm_blocks_world.yaml",
+        "arms": {
+            "panda": {
+                "panda_name": "panda",
+                "hand_name": "hand",
+                "X_WB": [0, 0, 0, 0, 0, 0],
+            }
+        },
+        "objects": {},
+        "main_links": {
+            "red_table": "base_link",
+            "blue_table": "base_link",
+            "green_table": "base_link",
+            "purple_table": "base_link",
+        },
+        "surfaces": {
+            "red_table": ["base_link"],
+            "green_table": ["base_link"],
+            "blue_table": ["base_link"],
+            "purple_table": ["base_link"],
+        },
+    }
+
+
+    blocks = [f"block{i}" for i in range(num_blocks)]
+    blockers = [f"blocker{i}" for i in range(num_blockers)]
+    blocker_points = {}
+
+    start_tables = ["blue_table", "purple_table","red_table","green_table"]
+    goal = ["and"]
+    for i, (block, blocker) in enumerate(zip(blocks, blockers)):
+        table = np.random.choice(start_tables) 
+        if len(positions[table]) == 0:
+            res = samplers[table].make_samples(filter = filter)
+            if len(res) == 0:
+                continue
+            positions[table] += res
+        point = positions[table].pop(-1) + TABLES[table][0]
+        point = np.append(point, TABLE_HEIGHT)
+        point = np.concatenate((point, np.zeros(3)))
+        path = TEMPLATE_PATH
+        if colorize:
+            color = np.random.uniform(np.zeros(3), np.ones(3))
+            color = f"{color[0]} {color[1]} {color[2]} 1"
+            path = MODELS_PATH + block + ".sdf"
+            make_block(block_name=block, color=color, size=BLOCK_DIMS, buffer=0.001)
+
+        block_point = point.copy()
+        blocker_point = point.copy()
+
+        base_angle = np.random.choice([0, 90, 180, 270])
+        random_angle = 60 * (np.random.random() - 0.5)
+        angle = np.deg2rad(random_angle + base_angle)
+
+        min_distance = BLOCK_DIMS.max()/np.cos(np.deg2rad(random_angle))
+        max_distance = (BLOCK_DIMS.max()+0.01)/np.cos(np.deg2rad(random_angle))
+        distance = np.random.random()*(max_distance - min_distance) + min_distance
+        displacement = np.array([distance*np.cos(angle), distance*np.sin(angle)])
+        # print('angle', random_angle, 'distance', distance)
+
+        # print(max(np.abs(displacement[0]) - BLOCK_DIMS.max(), np.abs(displacement[1]) - BLOCK_DIMS.max()))
+
+        blocker_point[0] += displacement[0]/2
+        blocker_point[1] += displacement[1]/2
+        block_point[0] -= displacement[0]/2
+        block_point[1] -= displacement[1]/2
+
+        block_point = block_point.tolist()
+        blocker_point = blocker_point.tolist()
+        blocker_points[i] = blocker_point
+
+        yaml_data["objects"][block] = {
+            "path": path,
+            "X_WO": block_point,
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+        yaml_data["objects"][blocker] = {
+            "path": "models/blocks_world/sdf/blocker_block.sdf",
+            "X_WO": blocker_point,
+            "main_link": "base_link",
+            "on-table": [str(table), "base_link"],
+        }
+        goal.append(["on-table", blocker, [str(table), "base_link"]])
+
+    end_tables = ["blue_table", "purple_table","red_table","green_table"]
+
+    
+
+    stacking = make_random_stacking(blocks, max_stack_num=max_goal_stack)
+    for stack in stacking:
+        table = np.random.choice(end_tables)
+        base_block = stack[0]
+        goal.append(["on-table", base_block, [str(table), "base_link"]])
+        prev_block = base_block
+        for block in stack[1:]:
+            goal.append(["on-block", block, prev_block])
+            prev_block = block
+
+    yaml_data["goal"] = goal
+
+    yaml_data["run_attr"] = {
+        "num_blocks": num_blocks,
+        "num_blockers": num_blockers,
+        "max_start_stack": 1,
+        "max_goal_stack": max_goal_stack,
+        "buffer_radius": buffer_radius,
+        "type": "non_monotonic"
+    }
+
+    return yaml_data
+
 
 if __name__ == "__main__":
 
-    yaml_data = make_distractor_problem(2, 50, colorize = True, max_start_stack = 1, max_goal_stack = 1)
+    yaml_data = make_non_monotonic_problem_v2(10, buffer_radius=0, colorize=True)
     with open("test_problem_3.yaml", "w") as stream:
         yaml.dump(yaml_data, stream, default_flow_style=False)

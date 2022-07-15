@@ -162,3 +162,22 @@ if __name__ == '__main__':
             with open(outpath, "w") as stream:
                 yaml.dump(yaml_data, stream, default_flow_style=False)
             print('Written', outpath)
+
+    # grid
+    # num_blocks: [1,3]
+    # repeat each 33 times
+    glob_index = 0
+
+    for num_blocks in tqdm(range(1, 3 + 1)):
+
+        for i in range(33):
+            yaml_data = make_problem.make_non_monotonic_problem_v2(
+                num_blocks=num_blocks,
+                buffer_radius=0,
+                colorize = True,
+            )
+            outpath = f"{FILEPATH}/non_monotonic_v2/train/{num_blocks}_{num_blocks}_1_{glob_index}.yaml"
+            glob_index += 1
+            with open(outpath, "w") as stream:
+                yaml.dump(yaml_data, stream, default_flow_style=False)
+            print('Written', outpath)
