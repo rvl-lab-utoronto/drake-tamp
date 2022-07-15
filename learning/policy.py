@@ -316,20 +316,17 @@ def MLP(layers, input_dim):
 
 
 class AttentionPolicy(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, action_dim, N=30, dropout=0):
+    def __init__(self, node_dim, edge_dim, action_dim, N=30, dropout=0, encoder_dim=64, encoder_layers=4, num_heads=4):
         super().__init__()
-        node_encoder_dim = 32
-        self.node_encoder = MLP([16, node_encoder_dim], node_dim)
+        self.node_encoder = MLP([encoder_dim] * encoder_layers, node_dim)
 
-        self.encoder = GATv2Conv(in_channels=node_encoder_dim,
-                 out_channels=int(node_encoder_dim / 2), heads = 2, edge_dim=edge_dim, dropout=dropout)
+        self.encoder = GATv2Conv(in_channels=encoder_dim,
+                 out_channels=int(encoder_dim / num_heads), heads = num_heads, edge_dim=edge_dim, dropout=dropout)
 
-        num_heads = 4
-        action_embed_dim = 32
-        self.action_encoder = MLP([16, action_embed_dim], action_dim + node_encoder_dim * 2 + node_dim*2)
-        self.att = GATv2Conv(in_channels=node_encoder_dim,
-                 out_channels=int(node_encoder_dim / 2), heads = 2, dropout=dropout)
-        self.output = MLP([16, 1], action_embed_dim)
+        self.action_encoder = MLP([encoder_dim] * encoder_layers, action_dim + encoder_dim * 2 + node_dim * 2)
+        self.att = GATv2Conv(in_channels=encoder_dim,
+                 out_channels=int(encoder_dim / num_heads), heads = num_heads, dropout=dropout)
+        self.output = MLP([16, 1], encoder_dim)
 
     def forward(self, B):
         node_enc = self.node_encoder(B.x)
@@ -630,7 +627,8 @@ def train_model(model, train_dataset, valid_dataset, model_path):
             pred = model(batch)
             l = loss(pred, batch.y, batch.num_ops)
             val_loss += l.item()
-        val_loss = val_loss / len(valid_loader)
+        if len(valid_loader):
+            val_loss = val_loss / len(valid_loader)
         print(i, train_loss, val_loss)
 
     torch.save(model.state_dict(), model_path)
