@@ -123,6 +123,7 @@ if __name__ == '__main__':
 
     data = {}
     for problem_file_path in problems:
+        print(f'Running {problem_file_path}')
         data[problem_file_path] = run_problem(problem_file_path)
         if args.output_path:
             with open(args.output_path, 'a') as f:
