@@ -3,7 +3,7 @@ import json
 import os
 
 from torch_geometric.loader import DataLoader
-from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierV2Info, StreamInstanceClassifierPerceptionInfo
+from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierRgbdV2Info, StreamInstanceClassifierV2Info, StreamInstanceClassifierRgbdInfo
 from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
     EvaluationDatasetSampler,
@@ -16,10 +16,11 @@ from learning.gnn.data import (
     construct_hypermodel_input_faster,
     construct_stream_classifier_input_v2,
     construct_stream_classifier_input_v2_rgbd,
+    construct_stream_classifier_input_v2_rgbd_v2,
     construct_with_problem_graph,
     get_base_datapath,
 )
-from learning.gnn.models import HyperClassifier, PLOIAblationModel, StreamInstanceClassifier, StreamInstanceClassifierV2, StreamInstanceClassifierPerception
+from learning.gnn.models import HyperClassifier, PLOIAblationModel, StreamInstanceClassifier, StreamInstanceClassifierRgbdV2, StreamInstanceClassifierV2, StreamInstanceClassifierRgbd
 from learning.gnn.train import evaluate_model_loss, evaluate_model_stream, train_model_graphnetwork
 from functools import partial
 import torch
@@ -39,7 +40,7 @@ def make_argument_parser():
         help = "If you only want to test a model (not end-to-end)"
     )
     parser.add_argument(
-        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2", "streamclassv2_rgbd", "ploiablation"], default="hyper",
+        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2", "streamclassv2_rgbd", "streamclassv2_rgbdv2", "ploiablation"], default="hyper",
         help = "The type of model you want to train. See learning/gnn/models.py for more information"
     )
     parser.add_argument(
@@ -139,8 +140,13 @@ if __name__ == "__main__":
     elif args.model == "streamclassv2_rgbd":
         assert args.batch_size == 1, "Batching not yet supported for StreamInstanceClassifierV2Info"
         input_fn = construct_stream_classifier_input_v2_rgbd
-        model_info_class = StreamInstanceClassifierPerceptionInfo
-        model_fn = lambda model_info: StreamInstanceClassifierPerception(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
+        model_info_class = StreamInstanceClassifierRgbdInfo
+        model_fn = lambda model_info: StreamInstanceClassifierRgbd(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
+    elif args.model == "streamclassv2_rgbdv2":
+        assert args.batch_size == 1, "Batching not yet supported for StreamInstanceClassifierV2Info"
+        input_fn = construct_stream_classifier_input_v2_rgbd_v2
+        model_info_class = StreamInstanceClassifierRgbdV2Info
+        model_fn = lambda model_info: StreamInstanceClassifierRgbdV2(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
     elif args.model == "ploiablation":
         TrainingDataset = PLOIAblationDataset
         Dataset = PLOIAblationDataset

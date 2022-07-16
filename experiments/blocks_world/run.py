@@ -563,6 +563,7 @@ def run_blocks_world(
 
     #save the depth image to the oracle 
     perception = {"color":prob_info.color_image, "depth":prob_info.rgbd}
+    #use the coords of each static:False object in model_poses 
     oracle.save_perception(perception)
 
     print("Initial:", str_from_object(problem.init))

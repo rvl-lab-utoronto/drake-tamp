@@ -9,9 +9,9 @@ import numpy as np
 import torch
 from torch_geometric.data.data import Data
 
-from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierPerceptionInfo, StreamInstanceClassifierV2Info
-from learning.gnn.data import get_perception,construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level, get_perception
-from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierPerception, StreamInstanceClassifierV2, PLOIAblationModel
+from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierRgbdInfo, StreamInstanceClassifierV2Info
+from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level, get_rgbd_stacked
+from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierRgbd, StreamInstanceClassifierV2, PLOIAblationModel
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
 from torch_geometric.data.batch import Batch
@@ -945,7 +945,7 @@ class MultiHeadModelPerception(Oracle):
                     "name": external.name,
                 }
             )
-        self.model_info = StreamInstanceClassifierPerceptionInfo( 
+        self.model_info = StreamInstanceClassifierRgbdInfo( 
             predicates=[p.name for p in domain.predicates],
             streams=[None] + [e["name"] for e in new_externals],
             stream_num_domain_facts=[None] + [len(e["domain"]) for e in new_externals],
@@ -958,14 +958,14 @@ class MultiHeadModelPerception(Oracle):
 
     def load_model(self):
         print(self.feature_size, self.hidden_size)
-        self.model = StreamInstanceClassifierPerception(
+        self.model = StreamInstanceClassifierRgbd(
             self.model_info, feature_size = self.feature_size, hidden_size = self.hidden_size
         )
         self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
         self.model.eval()
         self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
         problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
-        self.object_reps = self.model.get_init_reps(get_perception(self.perception), problem_graph_input)
+        self.object_reps = self.model.get_init_reps(get_rgbd_stacked(self.perception), problem_graph_input)
         self.history = {}
         self.counts = {}
         self.init_objects = objects_from_facts(self.problem_info.initial_facts)

@@ -86,10 +86,47 @@ def construct_stream_classifier_input_v2_rgbd(invocation, problem_info, model_in
     roots = objects_from_facts(problem_info.initial_facts)
     data.stream_schedule = get_stream_schedule(invocation, roots)
     data.problem_graph = construct_problem_graph_input(problem_info, model_info)
-    data.perception = get_perception(problem_info.perception)
+    data.perception = get_rgbd_stacked(problem_info.perception)
     return data 
 
-def get_perception(perception_raw):
+def construct_stream_classifier_input_v2_rgbd_v2(invocation, problem_info, model_info):
+    data = Data(x=torch.tensor([1]))
+    roots = objects_from_facts(problem_info.initial_facts)
+    data.stream_schedule = get_stream_schedule(invocation, roots)
+    data.problem_graph = construct_problem_graph_input(problem_info, model_info)
+    data.perception = get_depth(problem_info.perception)
+    data.object_masks = get_object_masks(problem_info)
+    return data 
+
+def get_object_masks(problem_info):
+    import cv2 
+    #TODO plez move this 
+    def get_object_mask(rgb, coords):
+        mask = np.zeros((rgb.shape[0]+2, rgb.shape[1]+2, 1), np.uint8)
+        retval = cv2.floodFill(rgb, mask, coords, (250, 250, 250))
+        # plt.imshow(mask.squeeze(axis=2))
+        # plt.show()
+        m = torch.from_numpy(mask)
+        m = m.permute(2, 0, 1)
+        m = m.reshape(1, 1, 802, 802)
+        m = torch.nn.functional.interpolate(m, (200, 200))
+        return m
+
+    rgb = problem_info.perception['color'][:, :, :3].copy()
+    inverted_map = {}
+    object_mask_dict = {}
+    for k, v in problem_info.object_mapping.items(): 
+        if type(v) == str:
+            inverted_map[v] = k
+        object_mask_dict[k] = torch.zeros((1, 1, 200, 200))
+            
+    for model in problem_info.model_poses:
+        if not model['static']:
+            object_mask_dict[inverted_map[model['name']]] = get_object_mask(rgb, (200, 200))
+
+    return object_mask_dict 
+
+def get_rgbd_stacked(perception_raw):
     # import matplotlib.pyplot as plt 
     # plt.subplot(121)
     # plt.imshow(problem_info.perception['color'])
@@ -121,6 +158,28 @@ def get_perception(perception_raw):
     #reshaping to NCWH format for convolution 
     perception = input.permute(2, 0, 1)
     perception = perception.reshape([1, 4, 800, 800])
+    perception = torch.nn.functional.interpolate(perception, (200, 200))
+    return perception
+
+def get_depth(perception_raw):   
+    #TODO do clipping and normalization
+    from numpy import inf 
+    #the 4th channel is alpha we don't care 
+    dep = perception_raw['depth'][:, :, ]
+
+    #change everything at infinite distance to just be the ground 
+    dep[dep == inf] = np.max(dep[dep < 1000])
+    perception = torch.from_numpy(dep)
+    #normalizing
+    input = torch.reshape(perception, (640000, 1))
+    means = torch.mean(input, axis=0)
+    std = torch.std(input, dim=0)
+    normalized = (input - means)/std
+    input = torch.reshape(normalized, (800, 800, 1))
+
+    #reshaping to NCWH format for convolution 
+    perception = input.permute(2, 0, 1)
+    perception = perception.reshape([1, 1, 800, 800])
     perception = torch.nn.functional.interpolate(perception, (200, 200))
     return perception
 

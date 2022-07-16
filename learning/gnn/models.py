@@ -329,14 +329,6 @@ class PerceptionNetwork(nn.Module):
     
     def __init__(self):
         super().__init__()
-        # self.conv1 = nn.Conv2d(4, 6, 5)
-        # self.pool = nn.MaxPool2d(2, 2)
-        # self.conv2 = nn.Conv2d(6, 16, 5)
-        # fc_size = 16*(((((800-4)/2)-4)/2)**2)
-        # fc_size = int(fc_size)
-        # self.fc1 = nn.Linear(fc_size, 120)
-        # self.fc2 = nn.Linear(120, 84)
-        # self.fc3 = nn.Linear(84, 64)
         self.conv1 = nn.Conv2d(4, 10, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(10, 20, 5)
@@ -357,7 +349,7 @@ class PerceptionNetwork(nn.Module):
         x = self.fc3(x)
         return x 
 
-class StreamInstanceClassifierPerception(nn.Module):   
+class StreamInstanceClassifierRgbd(nn.Module):   
 
     def __init__(
         self,
@@ -428,7 +420,40 @@ class StreamInstanceClassifierPerception(nn.Module):
         return out
 
 
-class StreamInstanceClassifierPerceptionV2(nn.Module):
+
+class PerceptionNetworkV2(nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(2, 10, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(10, 20, 5)
+        self.conv3 = nn.Conv2d(20, 20, 5)
+        fc_size = 20*(((((((200-4)//2)-4)//2)-4)//2)**2)
+        fc_size = int(fc_size)
+        self.fc1 = nn.Linear(fc_size, 512)
+        self.fc2 = nn.Linear(512, 84)
+        self.fc3 = nn.Linear(84, 64)
+
+        self.fc21 = nn.Linear(128, 512)
+        self.fc22 = nn.Linear(512, 64)
+
+    def forward(self, depth, mask, rep):
+        perception = torch.cat((depth, mask), axis=1)
+        x = self.pool(F.relu(self.conv1(perception)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = self.pool(F.relu(self.conv3(x)))
+        x = torch.flatten(x, 1) 
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+
+        x = torch.cat((x.squeeze(), rep))
+        x = F.relu(self.fc21(x))
+        x = self.fc22(x)
+        return x 
+
+class StreamInstanceClassifierRgbdV2(nn.Module):
 
     def __init__(
         self,
@@ -460,27 +485,26 @@ class StreamInstanceClassifierPerceptionV2(nn.Module):
         for i, mlp in enumerate(self.mlps):
             setattr(self, f"mlp{i}", mlp)
 
-        self.perception_network = PerceptionNetwork()
+        self.perception_network = PerceptionNetworkV2()
 
 
-    def get_init_reps(self, problem_graph):
+    def get_init_reps(self, problem_graph, depth, object_masks):
         problem_graph = Batch().from_data_list([problem_graph])
         prob_x = self.problem_graph_network(problem_graph, return_x=True)
-        object_reps = {name: {"rep": prob_x[i], "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
+        object_reps = {name: {"rep": self.perception_network(depth, object_masks[name], prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
+        #here attach the perception to the reps for objects in the intiail iamge 
+        #add mlp before stream mlp to keep input dimension constant 
         return object_reps
 
-    def forward(self, data, object_reps=None, score=False, update_reps=False, perception_reps=None):
+    def forward(self, data, object_reps=None, score=False, update_reps=False):
         stream_schedule = data.stream_schedule
         if object_reps is None:
             assert hasattr(data, 'problem_graph')
             problem_graph = data.problem_graph
             assert isinstance(problem_graph, list) and len(problem_graph) == 1, "Batching not supported"
-            object_reps = self.get_init_reps(problem_graph[0])
+            object_reps = self.get_init_reps(problem_graph[0], data.perception, data.object_masks)
         else:
             assert not hasattr(data, 'problem_graph')
-
-        if perception_reps is None: 
-            perception_reps = self.perception_network(data.perception)
         
         assert isinstance(stream_schedule, list) and len(stream_schedule) == 1, "Batching not supported"
         stream_schedule = stream_schedule[0]
