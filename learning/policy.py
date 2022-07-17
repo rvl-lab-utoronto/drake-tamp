@@ -335,12 +335,15 @@ def MLP(layers, input_dim):
 
 
 class AttentionPolicy(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, action_dim, N=30, dropout=0, encoder_dim=64, encoder_layers=4, num_heads=4):
+    def __init__(self, node_dim, edge_dim, action_dim, N=30, dropout=0, encoder_dim=64, encoder_layers=2, num_heads=4):
         super().__init__()
         self.node_encoder = MLP([encoder_dim] * encoder_layers, node_dim)
+        self.edge_encoder = MLP([encoder_dim] * encoder_layers, edge_dim)
 
-        self.encoder = GATv2Conv(in_channels=encoder_dim,
-                 out_channels=int(encoder_dim / num_heads), heads = num_heads, edge_dim=edge_dim, dropout=dropout)
+        self.encoder_1 = GATv2Conv(in_channels=encoder_dim,
+                 out_channels=int(encoder_dim / num_heads), heads = num_heads, edge_dim=encoder_dim, dropout=dropout)
+        self.encoder_2 = GATv2Conv(in_channels=encoder_dim,
+                 out_channels=int(encoder_dim / num_heads), heads = num_heads, edge_dim=encoder_dim, dropout=dropout)
 
         self.action_encoder = MLP([encoder_dim] * encoder_layers, action_dim + encoder_dim * 2 + node_dim * 2)
         self.att = GATv2Conv(in_channels=encoder_dim,
@@ -349,7 +352,9 @@ class AttentionPolicy(torch.nn.Module):
 
     def forward(self, B):
         node_enc = self.node_encoder(B.x)
-        node_enc = self.encoder(node_enc, edge_index=B.edge_index, edge_attr=B.edge_attr)
+        edge_attr = self.edge_encoder(B.edge_attr)
+        node_enc = self.encoder_1(node_enc, edge_index=B.edge_index, edge_attr=edge_attr)
+        node_enc = self.encoder_2(node_enc, edge_index=B.edge_index, edge_attr=edge_attr)
 
         target_1_enc = node_enc[B.t1_index]
         target_2_enc = node_enc[B.t2_index]
