@@ -439,7 +439,7 @@ def make_dataset_lifted(probs):
         with open(f, 'r') as fb:
             problem_file = yaml.full_load(fb)
 
-        if not d or not d['solved']:
+        if not d or not d['solved'] or not "path_data" in d:
             continue
 
         for plan in [d["path_data"][-1]]:
@@ -684,8 +684,12 @@ if __name__ == '__main__':
     parser.add_argument("--dropout", type=float, default=0)
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--dataset_json_path", type=str, default=None)
-    parser.add_argument("--dataset_pkl_paths", type=str, default=None)
+    parser.add_argument("--dataset_pkl_paths", type=str, default="data/leapfrog_data_clutter.pkl")
+    parser.add_argument("--start_from", type=str, default=None)
+    parser.add_argument("--seed", type=int, default=500)
     args = parser.parse_args()
+    np.random.seed(args.seed)
+    torch.random.manual_seed(args.seed)
 
     if args.dataset_json_path:
         with open(args.dataset_json_path, "r") as f:
@@ -698,7 +702,7 @@ if __name__ == '__main__':
         for pkl_path in pkl_paths:
             with open(pkl_path, 'rb') as f:
                 data.update(pickle.load(f))
-        train_data, val_data = split_data(data, .90)
+        train_data, val_data = split_data(data, .85)
         print(len(train_data), len(val_data))
         train_dset, _ = make_dataset_lifted(train_data)
         val_dset, _ = make_dataset_lifted(val_data)
@@ -706,4 +710,6 @@ if __name__ == '__main__':
         raise ValueError("Did not pass a datset option.")
     print('Training model')
     model = AttentionPolicy(18,7,10, dropout=args.dropout)
+    if args.start_from:
+        model.load_state_dict(torch.load(args.start_from))
     train_model(model, train_dset, val_dset, args.model_path, args.epochs)
