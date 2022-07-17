@@ -94,6 +94,7 @@ class State:
             state.regions[surface] = {
                 "x": np.array(SURFACES[surface]['x']),
                 "size": np.array(SURFACES[surface]['size']),
+                "type": 0
             }
 
         assert all(predicate in ['on-block', 'on-table'] for predicate, _, _ in problem_file['goal'][1:])
@@ -104,13 +105,14 @@ class State:
         for block in problem_file['objects']:
             
             state.blocks[block] = {
+                "type": 1,
                 "x": np.array(problem_file['objects'][block]['X_WO'][:3]),
                 "x_uncertainty": np.array([0, 0, 0]),
                 "held": False,
                 "region": problem_file['objects'][block].get('on-table', (None, None))[0],
                 "is_below": None,
                 "is_above": None,
-                "size": np.array([.5, .5, 1. if 'blocker' in block else .5]),
+                "size": np.array([.05, .05, .1 if 'blocker' in block else .05]),
                 "goal_region": region_goals.get(block),
                 "goal_above": block_goals.get(block),
                 "goal_below": reverse_block_goal.get(block)
@@ -215,12 +217,13 @@ class State:
 def _get_model_input_nodes(state):
     node_feature_to_index = {
         "x": 0,
-        "x_uncertainty": 3,
-        "size": 6,
-        "held": 9,
-        "region": 10,
-        "goal_region": 14
+        "size": 3,
+        "held": 6,
+        "type": 7,
+        # "region": 10,
+        # "goal_region": 14
     }
+    node_feature_size = 7 + 2
     edge_feature_to_index = {
         "is_above": 0,
         "is_below": 1,
@@ -228,42 +231,64 @@ def _get_model_input_nodes(state):
         "goal_below": 3,
         "transform": 4
     }
-    regions = state.regions
-    blocks = state.blocks
-    nodes = sorted(list(blocks))
-    node_to_block = dict(enumerate(nodes))
-    node_features = torch.zeros((len(blocks), 18))
-    region_to_index = {r:i for i, r in enumerate(regions)}
+    edge_feature_size = 4 + 3
 
-    for node in node_to_block:
-        block = node_to_block[node]
-        block_info = blocks[block]
+    nodes = []
+    node_info = {}
+    for block in sorted(list(state.blocks)):
+        nodes.append(block)
+        node_info[block] = state.blocks[block]
+    for region in sorted(list(state.regions)):
+        nodes.append(region)
+        node_info[region] = state.regions[region]
+
+    node_features = torch.zeros((len(nodes), node_feature_size))
+
+    for node, node_name in enumerate(nodes):
+        block_info = node_info[node_name]
         node_features[node, node_feature_to_index["x"]: node_feature_to_index["x"] + 3] = torch.tensor(block_info["x"], dtype=torch.float)
-        node_features[node, node_feature_to_index["x_uncertainty"]:node_feature_to_index["x_uncertainty"] + 3] = torch.tensor(block_info["x_uncertainty"], dtype=torch.float)
-        node_features[node, node_feature_to_index["held"]:node_feature_to_index["held"] + 1] = torch.tensor(block_info["held"], dtype=torch.float)
+        node_features[node, node_feature_to_index["held"]:node_feature_to_index["held"] + 1] = torch.tensor(block_info.get("held", 0), dtype=torch.float)
         node_features[node, node_feature_to_index["size"]:node_feature_to_index["size"] + 3] = torch.tensor(block_info["size"], dtype=torch.float)
-        if block_info["region"]:
-            node_features[node, node_feature_to_index["region"] + region_to_index[block_info["region"]]] = 1
-        if block_info["goal_region"]:
-            node_features[node, node_feature_to_index["goal_region"] + region_to_index[block_info["goal_region"]]] = 1
+        node_features[node, node_feature_to_index["type"] + block_info["type"]] = 1
+    
+        # if block_info["region"] or :
+        #     edges.append((node, nodes.index(block_info["region"])))
+        #     node_features[node, node_feature_to_index["region"] + region_to_index[block_info["region"]]] = 1
+        # if block_info["goal_region"]:
+        #     node_features[node, node_feature_to_index["goal_region"] + region_to_index[block_info["goal_region"]]] = 1
 
     edges = []
-    edge_attributes = torch.zeros((len(blocks)**2 - len(blocks), 7))
-    for node in node_to_block:
-        for othernode in node_to_block:
+    edge_attributes_list = []
+    for node, objname in enumerate(nodes):
+        for othernode, otherobjname in enumerate(nodes):
             if node == othernode:
                 continue
-            block = node_to_block[node]
-            otherblock = node_to_block[othernode]
-            block_info = blocks[block]
-            edge_attributes[len(edges), edge_feature_to_index["is_above"]] = 1 if otherblock == block_info["is_above"] else 0
-            edge_attributes[len(edges), edge_feature_to_index["is_below"]] = 1 if otherblock == block_info["is_below"] else 0
-            edge_attributes[len(edges), edge_feature_to_index["goal_above"]] = 1 if otherblock == block_info["goal_above"] else 0
-            edge_attributes[len(edges), edge_feature_to_index["goal_below"]] = 1 if otherblock == block_info["goal_below"] else 0
-            edge_attributes[len(edges), edge_feature_to_index["transform"]:edge_feature_to_index["transform"] + 3] = torch.tensor(blocks[otherblock]["x"] - block_info["x"])
-            edges.append((node, othernode))
+            edge_attributes = torch.zeros((edge_feature_size,))
+            obj = node_info[objname]
+            otherobj = node_info[otherobjname]
+            include_edge = False
+            if otherobjname in [obj.get('region'), obj.get("is_above")]:
+                edge_attributes[edge_feature_to_index["is_above"]] = 1
+                include_edge = True
+            if otherobjname == obj.get("is_below") or otherobj.get("region") == objname:
+                edge_attributes[edge_feature_to_index["is_below"]] = 1
+                include_edge = True
+            if otherobjname in [obj.get('goal_region'), obj.get("goal_above")]:
+                edge_attributes[edge_feature_to_index["goal_above"]] = 1
+                include_edge = True
+            if otherobjname == obj.get("goal_below") or otherobj.get('goal_region') == objname:
+                edge_attributes[edge_feature_to_index["goal_below"]] = 1
+                include_edge = True
 
-    return nodes, node_features, edges, edge_attributes
+            if not include_edge:
+                continue
+
+            edge_attributes[edge_feature_to_index["transform"]:edge_feature_to_index["transform"] + 3] = torch.tensor(otherobj["x"] - obj["x"])
+
+            edges.append((node, othernode))
+            edge_attributes_list.append(edge_attributes)
+
+    return nodes, node_features, edges, torch.vstack(edge_attributes_list)
 
 def parse_action_name(action_name):
     result = re.search(r'(pick|place|stack|unstack)\(([^,]+),([^,]+),(.+)\)($| )', action_name)
@@ -279,21 +304,15 @@ def parse_action_name(action_name):
 def _get_model_input_actions(nodes, action_name):
     operator, block, region = parse_action_name(action_name)
     action_vocab = {
-        "pick.green_table": 0,
-        "pick.red_table": 1,
-        "pick.blue_table": 2,
-        "pick.purple_table": 3,
-        "place.green_table": 4,
-        "place.red_table": 5,
-        "place.blue_table": 6,
-        "place.purple_table": 7,
-        "stack": 8,
-        "unstack": 9
+        "pick": 0,
+        "place": 1,
+        "stack": 2,
+        "unstack": 3
     }
     operator_rep = torch.zeros((1, len(action_vocab)))
-    operator_rep[0, action_vocab[f"{operator}.{region}" if operator in ["pick", "place"] else operator]] = 1
+    operator_rep[0, action_vocab[operator]] = 1
     target_block_1 = nodes.index(block)
-    target_block_2 = -1 if operator in ["pick", "place"] else nodes.index(region)
+    target_block_2 = nodes.index(region)
 
     return operator_rep, target_block_1, target_block_2
 
@@ -709,7 +728,7 @@ if __name__ == '__main__':
     else:
         raise ValueError("Did not pass a datset option.")
     print('Training model')
-    model = AttentionPolicy(18,7,10, dropout=args.dropout)
+    model = AttentionPolicy(9,7,4, dropout=args.dropout)
     if args.start_from:
         model.load_state_dict(torch.load(args.start_from))
     train_model(model, train_dset, val_dset, args.model_path, args.epochs)
