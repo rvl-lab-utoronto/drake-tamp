@@ -392,7 +392,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         PandaStation.add_multi_body_triad(camera.body_frame(), self.scene_graph, length=.1, radius=0.005)
     
     def add_cameras(self):
-        #TODO make this adjustable slider in the meschat simuilator or just domain specific 
+        #TODO make this adjustable slider in the meschat simuilator or just domain specific  
         X_Camera = RigidTransform(
         RollPitchYaw(np.math.pi, 0, 0).ToRotationMatrix().multiply(
             RollPitchYaw(0, 0, 0).ToRotationMatrix()),

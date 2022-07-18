@@ -79,6 +79,7 @@ RUN printf "2\n" | update-alternatives --config x-terminal-emulator
 ENV PATH="/python_venvs/tamp/bin:$PATH"
 
 COPY requirements.txt requirements.txt
+RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
 RUN pip3 install torch==1.9.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
 RUN pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://pytorch-geometric.com/whl/torch-1.9.0+cu111.html

@@ -101,16 +101,37 @@ def construct_stream_classifier_input_v2_rgbd_v2(invocation, problem_info, model
 def get_object_masks(problem_info):
     import cv2 
     #TODO plez move this 
-    def get_object_mask(rgb, coords):
+    import matplotlib.pyplot as plt 
+    def get_object_mask(rgb, coords, test_plot=False):
         mask = np.zeros((rgb.shape[0]+2, rgb.shape[1]+2, 1), np.uint8)
-        retval = cv2.floodFill(rgb, mask, coords, (250, 250, 250))
-        # plt.imshow(mask.squeeze(axis=2))
-        # plt.show()
+        coords_abs = (int(rgb.shape[0]/2 + coords[0]*(rgb.shape[0]/2)), int(rgb.shape[1]/2 + coords[1]*(rgb.shape[1]/2)))
+        circle_image = rgb.copy()
+        cv2.circle(circle_image, coords_abs, 10, (255, 0, 255), 10)
+        retval = cv2.floodFill(rgb, mask, coords_abs, (250, 250, 250))
         m = torch.from_numpy(mask)
         m = m.permute(2, 0, 1)
         m = m.reshape(1, 1, 802, 802)
         m = torch.nn.functional.interpolate(m, (200, 200))
+        if test_plot:
+            plt.subplot(121)
+            plt.imshow(circle_image)
+            plt.title('Color image')
+            plt.subplot(122)
+            plt.imshow(m[0][0])
+            plt.title('Object mask')
+            plt.savefig('test.png')
         return m
+    
+    from math import pi, tan
+    def get_object_coords(world_position):
+        (x, y, z) = world_position
+        z_cam = 2 
+        fov = pi/3
+        w = (z_cam - z)*tan(fov/2)  
+        x_portion = x/w
+        y_portion = y/w 
+        #print(x, y, z)
+        return (x_portion, -y_portion)
 
     rgb = problem_info.perception['color'][:, :, :3].copy()
     inverted_map = {}
@@ -122,7 +143,8 @@ def get_object_masks(problem_info):
             
     for model in problem_info.model_poses:
         if not model['static']:
-            object_mask_dict[inverted_map[model['name']]] = get_object_mask(rgb, (200, 200))
+            coords = get_object_coords(model['X'].rigid_transform.translation())
+            object_mask_dict[inverted_map[model['name']]] = get_object_mask(rgb, coords)
 
     return object_mask_dict 
 
