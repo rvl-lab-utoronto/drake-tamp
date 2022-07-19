@@ -136,10 +136,11 @@ def get_object_masks(problem_info):
     rgb = problem_info.perception['color'][:, :, :3].copy()
     inverted_map = {}
     object_mask_dict = {}
+    
     for k, v in problem_info.object_mapping.items(): 
         if type(v) == str:
             inverted_map[v] = k
-        object_mask_dict[k] = torch.zeros((1, 1, 200, 200))
+        object_mask_dict[k] = 0
             
     for model in problem_info.model_poses:
         if not model['static']:

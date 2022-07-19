@@ -491,7 +491,14 @@ class StreamInstanceClassifierRgbdV2(nn.Module):
     def get_init_reps(self, problem_graph, depth, object_masks):
         problem_graph = Batch().from_data_list([problem_graph])
         prob_x = self.problem_graph_network(problem_graph, return_x=True)
-        object_reps = {name: {"rep": self.perception_network(depth, object_masks[name], prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
+        object_reps = {}
+        zer = torch.zeros((1, 1, 200, 200), device='cuda:0')
+        for i, name in enumerate(problem_graph.nodes[0]):
+            mask = object_masks[name]
+            if object_masks[name].shape == (1,):
+                mask = zer
+            object_reps[name] = {"rep": self.perception_network(depth, mask, prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)}
+        #object_reps = {name: {"rep": self.perception_network(depth, object_masks[name], prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
         #here attach the perception to the reps for objects in the intiail iamge 
         #add mlp before stream mlp to keep input dimension constant 
         return object_reps

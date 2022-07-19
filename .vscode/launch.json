@@ -157,10 +157,10 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "args": [   
-               "--model-home", "experiments/jobs/model_files/random-model-rgbd-3-3", 
-               "--model", "streamclassv2_rgbd", 
+               "--model-home", "experiments/jobs/model_files/rgbd2-random-test", 
+               "--model", "streamclassv2_rgbdv2", 
                "--epochs", "1000", 
-               "--save-every", "100", 
+               "--save-every", "1", 
                "--lr", "0.0001", 
                "--gradient-batch-size",  "32", 
                "--batch-size", "1", 
@@ -224,11 +224,11 @@
             "args": [
                 "--domain", "blocks_world",
                 "--algorithm", "informedV2",
-                "--mode", "multiheadmodelperception2",
+                "--mode", "multiheadmodelperception",
                 "--use-unique", 
-                "--oracle-options", "{\"model_path\":\"/home/alex/drake-tamp/experiments/jobs/model_files/random-rgbd2-test/best.pt\",\"feature_size\":64,\"hidden_size\":64}",
+                "--oracle-options", "{\"model_path\":\"/home/alex/drake-tamp/experiments/jobs/model_files/random-model-rgbd-3/best.pt\",\"feature_size\":64,\"hidden_size\":64}",
                 "--logpath", "${workspaceFolder}/experiments/jobs/tester", 
-                "--problem-file", "${workspaceFolder}/experiments/blocks_world/data_generation/random/test/2_0_1_39.yaml"
+                "--problem-file", "${workspaceFolder}/experiments/blocks_world/data_generation/clutter/test/2_4_1_21.yaml"
             ],
             "console": "integratedTerminal",
             "python": "/python_venvs/tamp/bin/python"
