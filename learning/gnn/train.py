@@ -28,6 +28,8 @@ def train_model_graphnetwork(
 
     trainset, validset = datasets["train"], datasets["val"]
 
+    training_stats = []
+
     for e in range(epochs):
 
         running_loss = 0.
@@ -48,6 +50,7 @@ def train_model_graphnetwork(
                 optimizer.zero_grad()
 
         print(f"== [EPOCH {e:03d} / {epochs}] Train loss: {(running_loss / running_num_samples):03.5f}")
+        training_stats.append({"epoch":e, "train_loss":(running_loss/running_num_samples)})
 
         if e % save_every == (save_every - 1):
 
@@ -59,6 +62,7 @@ def train_model_graphnetwork(
 
             val_eval = evaluate_model(model, criterion, validset, save_path = save_folder)
             print(f"===== [EPOCH {e:03d} / {epochs}] Val: {val_eval:03.5f}")
+            training_stats.append({"epoch":e, "val_eval":val_eval})
 
             if val_eval > best_seen_validation:
                 best_seen_validation = val_eval
@@ -69,6 +73,8 @@ def train_model_graphnetwork(
 
     time_elapsed = time.time() - since
     print(f"Training complete in {(time_elapsed // 60):.0f} m {(time_elapsed % 60):.0f} sec")
+    with open(os.path.join(save_folder, "training_stats.json"), 'w') as outfile:
+        json.dump(training_stats, outfile)
 
     return best_seen_model_weights
 
