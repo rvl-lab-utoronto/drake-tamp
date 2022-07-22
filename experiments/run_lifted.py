@@ -29,7 +29,8 @@ if __name__ == '__main__':
     parser.add_argument("--output_path", "-o", type=str, default=None)
     parser.add_argument("--problem_file", "-f", type=str, default=None)
     parser.add_argument("--profile", type=str, default=None)
-    parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking", "easy_distractors"])
+    parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking", "easy_distractors", "non_monotonic_v2"])
+    parser.add_argument("--split", type=str, default="test")
     parser.add_argument("--policy_path", type=str, default="policy.pt")
     parser.add_argument("--search_type", type=str, default="astar", choices=["beam", "astar"])
     parser.add_argument("--beam_size", type=int, default=5)
@@ -111,7 +112,7 @@ if __name__ == '__main__':
     if args.problem_file:
         problems = [args.problem_file]
     else:
-        problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
+        problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/{args.split}/*.yaml"))
 
     if args.profile:
         import cProfile, pstats, io
