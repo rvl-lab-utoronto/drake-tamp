@@ -461,7 +461,7 @@ def make_dataset_lifted(probs):
     for f,d in probs.items():
         f = f.replace('../', '')
         with open(f, 'r') as fb:
-            problem_file = yaml.full_load(fb)
+            problem_file = yaml.safe_load(fb)
 
         if not d or not d['solved'] or not "path_data" in d:
             continue
