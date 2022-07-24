@@ -335,7 +335,7 @@ def MLP(layers, input_dim):
 
 
 class AttentionPolicy(torch.nn.Module):
-    def __init__(self, node_dim, edge_dim, action_dim, N=30, dropout=0, encoder_dim=64, encoder_layers=2, num_heads=4):
+    def __init__(self, node_dim=9, edge_dim=7, action_dim=4, N=30, dropout=0, encoder_dim=64, encoder_layers=2, num_heads=4):
         super().__init__()
         self.node_encoder = MLP([encoder_dim] * encoder_layers, node_dim)
         self.edge_encoder = MLP([encoder_dim] * encoder_layers, edge_dim)
@@ -520,7 +520,7 @@ def invoke(state, model, temperature=1):
     return list(zip(p_A, data.action_names))
 
 def load_model(path='policy.pt'):
-    model = AttentionPolicy(18,7,10)
+    model = AttentionPolicy()
     model.load_state_dict(torch.load(path))
     model.eval()
     return model
@@ -733,7 +733,7 @@ if __name__ == '__main__':
     else:
         raise ValueError("Did not pass a datset option.")
     print('Training model')
-    model = AttentionPolicy(9,7,4, dropout=args.dropout)
+    model = AttentionPolicy(dropout=args.dropout)
     if args.start_from:
         model.load_state_dict(torch.load(args.start_from))
     train_model(model, train_dset, val_dset, args.model_path, args.epochs)
