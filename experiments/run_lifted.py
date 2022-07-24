@@ -16,10 +16,10 @@ sys.path.insert(
 )
 
 from experiments.blocks_world.run_lifted import create_problem
-from lifted.a_star import ActionStreamSearch, repeated_a_star, stream_cost, try_a_star, try_beam, try_policy_guided_beam, try_policy_guided
+from lifted.a_star import ActionStreamSearch, goalcount_heuristic, repeated_a_star, stream_cost, try_a_star, try_beam, try_policy_guided_beam, try_policy_guided
 from learning.policy import make_policy, load_model, extract_labels
 from pddlstream.language.object import Object
-
+from experiments.blocks_world.pyper_utils import BlocksWorldPyperTranslator
 
 #%%
 if __name__ == '__main__':
@@ -29,7 +29,8 @@ if __name__ == '__main__':
     parser.add_argument("--output_path", "-o", type=str, default=None)
     parser.add_argument("--problem_file", "-f", type=str, default=None)
     parser.add_argument("--profile", type=str, default=None)
-    parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking", "easy_distractors"])
+    parser.add_argument("--problem_type", "-p", type=str, default="random", choices=["random", "distractor", "clutter", "sorting", "stacking", "easy_distractors", "non_monotonic_v2"])
+    parser.add_argument("--split", type=str, default="test")
     parser.add_argument("--policy_path", type=str, default="policy.pt")
     parser.add_argument("--search_type", type=str, default="astar", choices=["beam", "astar"])
     parser.add_argument("--beam_size", type=int, default=5)
@@ -40,6 +41,7 @@ if __name__ == '__main__':
     parser.add_argument("--use_policy", action="store_true")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--save_label_path", type=str, default=None)
+    parser.add_argument("--heuristic", type=str, default=None, choices=["goalcount", "hff", "hadd", "lama"])
 
     args = parser.parse_args()
 
@@ -61,6 +63,15 @@ if __name__ == '__main__':
 
         init, goal, externals, actions = create_problem(problem_file_path)
 
+        if args.heuristic is not None:
+            if args.heuristic == 'goalcount':
+                h = goalcount_heuristic
+            else:
+                translator = BlocksWorldPyperTranslator()
+                h = translator.create_heuristic(init, goal, args.heuristic)
+        else:
+            h = None
+
         search = ActionStreamSearch(init, goal, externals, actions)
         if search.test_goal(search.init):
             return {"solved": True, "expand_count": 0}
@@ -81,6 +92,7 @@ if __name__ == '__main__':
             debug=args.debug,
             exclude_sampled_states_from_closed_list=not args.no_exclusion,
             use_closed=not args.no_closed_list,
+            heuristic=h
         )
         if args.save_label_path:
             path_data = []
@@ -111,7 +123,7 @@ if __name__ == '__main__':
     if args.problem_file:
         problems = [args.problem_file]
     else:
-        problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/test/*.yaml"))
+        problems = sorted(glob(f"/home/{USER}/drake-tamp/experiments/blocks_world/data_generation/{args.problem_type}/{args.split}/*.yaml"))
 
     if args.profile:
         import cProfile, pstats, io
