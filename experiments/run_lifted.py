@@ -132,6 +132,11 @@ if __name__ == '__main__':
 
     def exclude_keys(dictionary, exclude=["objects", "path_data"]):
         return {k:v for k,v in dictionary.items() if k not in exclude}
+    
+    if args.output_path:
+        with open(args.output_path, 'w') as f:
+            f.write(json.dumps(vars(args)))
+            f.write("\n")
 
     data = {}
     for problem_file_path in problems:

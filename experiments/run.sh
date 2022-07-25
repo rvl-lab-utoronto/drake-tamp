@@ -4,7 +4,7 @@ EXPDIR=$1
 PROBLEM_FILE_PATH=$(realpath $2)
 PROBLEMS=$(ls $PROBLEM_FILE_PATH/*.yaml)
 RUN_ARGS="${@:3}"
-if [ -z ${SEED+x} ]
+if [ ! -z "${SEED}" ];
 then
   EXPDIR="$EXPDIR-$SEED"
   SEED_ARG="--seed $SEED"

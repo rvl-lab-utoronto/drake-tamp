@@ -1,3 +1,5 @@
+import getpass
+USER = getpass.getuser()
 from pyperplan.planner import Parser
 from pyperplan.heuristics.relaxation import hAddHeuristic, hFFHeuristic, hMaxHeuristic
 from pyperplan.heuristics.landmarks import LandmarkHeuristic
@@ -6,7 +8,7 @@ from pyperplan.planner import _ground
 from pyperplan.grounding import _get_fact, _collect_facts
 from pyperplan.search.searchspace import SearchNode
 class BlocksWorldPyperTranslator:
-    domain_file = '/home/mohammed/drake-tamp/experiments/blocks_world/domain_logical.pddl'
+    domain_file = f'/home/{USER}/drake-tamp/experiments/blocks_world/domain_logical.pddl'
     heuristics = {
         "hadd": hAddHeuristic,
         "hff": hFFHeuristic,
