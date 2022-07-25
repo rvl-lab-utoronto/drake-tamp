@@ -13,8 +13,7 @@ import numpy as np
 import random
 import itertools
 
-np.random.seed(seed=int(time.time()))
-random.seed(int(time.time()))
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -57,8 +56,6 @@ from pddlstream.language.stream import StreamInfo
 VERBOSE = False
 
 np.set_printoptions(precision=4, suppress=True)
-np.random.seed(seed=0)
-random.seed(0)
 ARRAY = tuple
 SIM_INIT_TIME = 0.0
 GRASP_DIST = 0.04

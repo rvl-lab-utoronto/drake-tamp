@@ -117,6 +117,12 @@ def make_argument_parser():
         required=False,
         help="The maximum time before FastDownward times out (per call)"
     )
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=None,
+        required=False,
+    )
     return parser
 
 if __name__ == '__main__':
@@ -124,6 +130,11 @@ if __name__ == '__main__':
     run_exp = domains[args.domain]
     domain_options = json.loads(args.domain_options) if args.domain_options else {}
     oracle_options = json.loads(args.oracle_options) if args.oracle_options else {}
+    if args.seed:
+        import numpy as np
+        import random
+        np.random.seed(args.seed)
+        random.seed(args.seed)
     if args.problem_file:
         domain_options['problem_file'] = args.problem_file
     if args.logpath:
@@ -146,6 +157,7 @@ if __name__ == '__main__':
         f.write(f"Eager Mode: {args.eager_mode}\n")
         f.write(f"Domain: {args.domain}\n")
         f.write(f"Problem File: {args.problem_file}\n")
+        f.write(f"Seed: {args.seed}\n")
 
     run_exp(
         mode=args.mode,

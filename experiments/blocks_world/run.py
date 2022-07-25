@@ -12,8 +12,6 @@ import itertools
 import json
 import sys
 
-np.random.seed(seed=int(time.time()))
-random.seed(int(time.time()))
 import matplotlib
 import yaml
 

@@ -29,8 +29,6 @@ Q_NOMINAL = np.array([0.0, 0.55, 0.0, -1.45, 0.0, 1.58, 0.0])
 HAND_FRAME_NAME = "panda_hand"
 THETA_TOL = np.pi * 0.01
 DROP_HEIGHT = 0.02
-np.random.seed(0)
-random.seed(0)
 
 def find_grasp(shape_info):
     """

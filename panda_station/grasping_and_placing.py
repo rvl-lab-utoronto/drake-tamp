@@ -32,8 +32,6 @@ HAND_FRAME_NAME = "panda_hand"
 THETA_TOL = np.pi * 0.01
 DROP_HEIGHT = 0.015
 MAX_ITER = 100
-np.random.seed(0)
-
 
 class TargetSurface:
     """
