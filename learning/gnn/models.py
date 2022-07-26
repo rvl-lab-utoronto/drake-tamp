@@ -492,10 +492,18 @@ class StreamInstanceClassifierRgbdV2(nn.Module):
         problem_graph = Batch().from_data_list([problem_graph])
         prob_x = self.problem_graph_network(problem_graph, return_x=True)
         object_reps = {}
-        zer = torch.zeros((1, 1, 200, 200), device='cuda:0')
+        if torch.cuda.is_available():
+            zer = torch.zeros((1, 1, 200, 200), device='cuda:0')
+        else:
+            zer = torch.zeros((1, 1, 200, 200))
+            
         for i, name in enumerate(problem_graph.nodes[0]):
             mask = object_masks[name]
-            if object_masks[name].shape == (1,):
+            if type(mask) == torch.Tensor: 
+                if mask.shape == (1,):
+                    mask = zer
+            elif type(object_masks[name]) == int:
+            #if object_masks[name].shape == (1,):
                 mask = zer
             object_reps[name] = {"rep": self.perception_network(depth, mask, prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)}
         #object_reps = {name: {"rep": self.perception_network(depth, object_masks[name], prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
