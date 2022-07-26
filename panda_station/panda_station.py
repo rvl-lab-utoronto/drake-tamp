@@ -65,7 +65,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.panda_infos = {}
         self.frame_groups = {}
 
-        self.rgbd = None
+        self.rgbd = [] 
 
     def fix_collisions(self):
         """
@@ -245,10 +245,10 @@ class PandaStation(pydrake.systems.framework.Diagram):
         used.  If renderer is None, then we will assume the name 'my_renderer', and
         create a VTK renderer if a renderer of that name doesn't exist.
         """
-        # if sys.platform == "linux" and os.getenv("DISPLAY") is None:
-        #     from pyvirtualdisplay import Display
-        #     virtual_display = Display(visible=0, size=(1400, 900))
-        #     virtual_display.start()
+        if sys.platform == "linux" and os.getenv("DISPLAY") is None:
+            from pyvirtualdisplay import Display
+            virtual_display = Display(visible=0, size=(1400, 900))
+            virtual_display.start()
 
         if not renderer:
             renderer = "my_renderer"
@@ -384,20 +384,29 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 length, radius, opacity, frame.GetFixedPoseInBodyFrame())
     
     def add_camera(self, X_Camera):
-        self.rgbd = PandaStation.add_rgbd_sensor(self.builder, self.scene_graph, X_Camera)
+        self.rgbd.append(PandaStation.add_rgbd_sensor(self.builder, self.scene_graph, X_Camera))
         parser = pydrake.multibody.parsing.Parser(self.plant)
         camera_instance = parser.AddModelFromFile(construction_utils.find_resource("models/camera.sdf"))
         camera = self.plant.GetBodyByName("base", camera_instance)    
         self.plant.WeldFrames(self.plant.world_frame(), camera.body_frame(), X_Camera)
         PandaStation.add_multi_body_triad(camera.body_frame(), self.scene_graph, length=.1, radius=0.005)
     
-    def add_cameras(self):
+    def add_cameras_old(self):
         #TODO make this adjustable slider in the meschat simuilator or just domain specific  
         X_Camera = RigidTransform(
         RollPitchYaw(np.math.pi, 0, 0).ToRotationMatrix().multiply(
             RollPitchYaw(0, 0, 0).ToRotationMatrix()),
         [0, 0, 2])
         self.add_camera(X_Camera)
+        X_Camera2 = RigidTransform(
+        RollPitchYaw(np.math.pi, 0, 0).ToRotationMatrix().multiply(
+            RollPitchYaw(0, 0, 0).ToRotationMatrix()),
+        [0, 1, 2])
+        self.add_camera(X_Camera2)
+
+    def add_cameras(self):
+        PandaStation.add_rgbd_sensors(self.builder, self.plant, self.scene_graph, False)
+
 
     def setup_from_file(self, filename, names_and_links=None):
         """
@@ -790,12 +799,12 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 )
 
         # TODO(agro): cameras if needed
-        self.builder.ExportOutput(self.rgbd.color_image_output_port(),
-                                 "rgb_image")
-        self.builder.ExportOutput(self.rgbd.depth_image_32F_output_port(),
-                                "depth_image")
-        self.builder.ExportOutput(self.rgbd.label_image_output_port(),
-                                "label_image")
+        # self.builder.ExportOutput(self.rgbd.color_image_output_port(),
+        #                          "rgb_image")
+        # self.builder.ExportOutput(self.rgbd.depth_image_32F_output_port(),
+        #                         "depth_image")
+        # self.builder.ExportOutput(self.rgbd.label_image_output_port(),
+        #                         "label_image")
 
         # export cheat ports
         self.builder.ExportOutput(

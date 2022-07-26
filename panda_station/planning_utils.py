@@ -269,18 +269,18 @@ class ProblemInfo:
         import matplotlib.pyplot as plt 
         context = station.CreateDefaultContext()
         station.Publish(context)
-        color_image = station.GetOutputPort("rgb_image").Eval(context)
-        depth_image = station.GetOutputPort("depth_image").Eval(context)
+        color_image = station.GetOutputPort("camera0_rgb_image").Eval(context)
+        depth_image = station.GetOutputPort("camera0_depth_image").Eval(context)
         #TODO stack the color and depth image to make one 4D image 
         self.rgbd = np.copy(depth_image.data)
         self.color_image = np.copy(color_image.data)
-        # plt.subplot(121)
-        # plt.imshow(self.color_image.data)
-        # plt.title('Color image')
-        # plt.subplot(122)
-        # plt.imshow(np.squeeze(self.rgbd.data))
-        # plt.title('Depth image')
-        # plt.savefig('/home/alex/drake-tamp/experiments/rgbd_test_' + '.png')
+        plt.subplot(121)
+        plt.imshow(self.color_image.data)
+        plt.title('Color image')
+        plt.subplot(122)
+        plt.imshow(np.squeeze(self.rgbd.data))
+        plt.title('Depth image')
+        plt.savefig('/home/alex/drake-tamp/experiments/rgbd_test_' + '.png')
 
 
     @staticmethod
