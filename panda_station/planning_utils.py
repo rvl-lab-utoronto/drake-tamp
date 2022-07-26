@@ -169,9 +169,9 @@ class ProblemInfo:
                 name=name,
             )
 
-        station.add_cameras()
-        # self.capture_rgbd(station)
         station.finalize()
+        # station.add_cameras()
+        # self.capture_rgbd(station)
         return station
 
     def make_main_station(self, time_step = 1e-4):
@@ -271,8 +271,9 @@ class ProblemInfo:
         station.Publish(context)
         color_image = station.GetOutputPort("camera0_rgb_image").Eval(context)
         depth_image = station.GetOutputPort("camera0_depth_image").Eval(context)
+        label_image = station.GetOutputPort("camera0_label_image").Eval(context)
         #TODO stack the color and depth image to make one 4D image 
-        self.rgbd = np.copy(depth_image.data)
+        self.rgbd = np.copy(label_image.data)
         self.color_image = np.copy(color_image.data)
         plt.subplot(121)
         plt.imshow(self.color_image.data)

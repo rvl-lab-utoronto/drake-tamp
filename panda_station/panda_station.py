@@ -276,6 +276,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
                             depth_camera=depth_camera,
                             show_window=False))
                 rgbd.set_name(model_name)
+                PandaStation.add_multi_body_triad(plant.GetBodyFromFrameId(plant.GetBodyFrameIdOrThrow(body_index)).body_frame(), scene_graph, length=.1, radius=0.005)
 
                 builder.Connect(scene_graph.get_query_output_port(),
                                 rgbd.query_object_input_port())
@@ -405,7 +406,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.add_camera(X_Camera2)
 
     def add_cameras(self):
-        PandaStation.add_rgbd_sensors(self.builder, self.plant, self.scene_graph, False)
+        PandaStation.add_rgbd_sensors(self.builder, self.plant, self.scene_graph, True)
 
 
     def setup_from_file(self, filename, names_and_links=None):
@@ -629,6 +630,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
                     body_info.add_shape_info(ShapeInfo(shape, frame))
 
         self.plant.Finalize()
+        self.add_cameras()
         self.fix_collisions()
 
         for object_info, Xinit_WO in self.object_infos.values():
