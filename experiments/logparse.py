@@ -1,3 +1,4 @@
+from cProfile import label
 from glob import glob
 import yaml
 import json
@@ -315,6 +316,33 @@ def print_header(st):
     print(('\n' * 2) + ('#' * 10), st, ('#' * 10) + ('\n' * 1))
 
 
+def load_training_stats(model_location):
+    f = open(os.path.join(model_location, 'training_stats.json'))
+    data = json.load(f)
+    train_loss = [float('nan')]*len(data)
+    val_eval = [float('nan')]*len(data)
+    for point in data:
+        try:
+            train_loss[point['epoch']] = point['train_loss']
+        except:
+            val_eval[point['epoch']] = point['val_eval']
+    print('analyzed')
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    ax1.plot(train_loss, 'b-')
+    ax2.plot(val_eval, 'g*')
+    ax1.set_xlabel('epoch')
+    ax1.set_ylabel('train')
+    ax2.set_ylabel('val')
+    ax1.title.set_text(model_location)
+
+    # plt.plot(train_loss, label='Training loss')
+    # plt.plot(val_eval, secondary_y =True)
+    # plt.legend(["train", "val"])
+    # plt.title(model_location)
+    plt.savefig(os.path.join(model_location, 'training_stats.png'))
+
+
 
 if __name__ == '__main__':
 
@@ -324,13 +352,15 @@ if __name__ == '__main__':
     
     #bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
     #runtime_breakdown("breakdown_hanoi.png", data_adaptive + data_informed, "num_discs")
+
+    rgbd_train = load_training_stats(f'/home/alex/drake-tamp/experiments/jobs/model_files/rgbd2/random/02/')
     
     #ada = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test/', 'oracle')
-    ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
-    rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test-3-3-1/', 'rgb')
+    # ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
+    # rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/rgbd2-random/', 'rgb')
     #box_plot_compare("test_box_plot.png", ora, "num_goal", "run_time", bar_width = 0.25)
-    table_compare(ora)
-    table_compare(rgb)
+    # table_compare(ora)
+    # table_compare(rgb)
     #bar_plot_compare("test_plot.png", ora + ada, "num_blocks", "run_time", agg = "sum")
     #runtime_breakdown("breakdown_rgb-3-2.png", rgb, "num_blocks")
     
