@@ -85,26 +85,26 @@ directives:
         name: camera0_staging
         X_PF:
             base_frame: world
-            rotation: !Rpy { deg: [0, 0, 15.0]}
+            rotation: !Rpy { deg: [0, 0, 0]}
 
     - add_frame:
         name: camera1_staging
         X_PF:
             base_frame: world
-            rotation: !Rpy { deg: [0, 0, 130.0]}
+            rotation: !Rpy { deg: [0, 0, 180]}
 
-    - add_frame:
-        name: camera2_staging
-        X_PF:
-            base_frame: world
-            rotation: !Rpy { deg: [0, 0, 245.0]}
+    # - add_frame:
+    #     name: camera2_staging
+    #     X_PF:
+    #         base_frame: world
+    #         rotation: !Rpy { deg: [0, 0, 245.0]}
 
     - add_frame:
         name: camera0_origin
         X_PF:
             base_frame: camera0_staging
-            rotation: !Rpy { deg: [-150.0, 0, 90.0]}
-            translation: [.5, 0, 2]
+            rotation: !Rpy { deg: [-130, 0, 135]}
+            translation: [1.2, 1.2, 1.4]
 
     - add_model:
         name: camera0
@@ -118,8 +118,8 @@ directives:
         name: camera1_origin
         X_PF:
             base_frame: camera1_staging
-            rotation: !Rpy { deg: [-100.0, 0, 90.0]}
-            translation: [.5, 0, .2]
+            rotation: !Rpy { deg: [-130, 0, 135]}
+            translation: [1.2, 1.2, 1.4]
 
     - add_model:
         name: camera1
@@ -129,17 +129,17 @@ directives:
         parent: camera1_origin
         child: camera1::base
 
-    - add_frame:
-        name: camera2_origin
-        X_PF:
-            base_frame: camera2_staging
-            rotation: !Rpy { deg: [-100.0, 0, 90.0]}
-            translation: [.5, 0, .2]
+    # - add_frame:
+    #     name: camera2_origin
+    #     X_PF:
+    #         base_frame: camera2_staging
+    #         rotation: !Rpy { deg: [-100.0, 0, 90.0]}
+    #         translation: [.5, 0, .2]
 
-    - add_model:
-        name: camera2
-        file: package://blocks_world/sdf/camera.sdf
+    # - add_model:
+    #     name: camera2
+    #     file: package://blocks_world/sdf/camera.sdf
 
-    - add_weld:
-        parent: camera2_origin
-        child: camera2::base
+    # - add_weld:
+    #     parent: camera2_origin
+    #     child: camera2::base

@@ -10,7 +10,7 @@ import torch
 from torch_geometric.data.data import Data
 
 from learning.data_models import HyperModelInfo, InvocationInfo, ModelInfo, ProblemInfo, RuntimeInvocationInfo, StreamInstanceClassifierRgbdInfo, StreamInstanceClassifierRgbdV2Info, StreamInstanceClassifierV2Info
-from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level, get_depth, get_object_masks, get_rgbd_stacked
+from learning.gnn.data import construct_hypermodel_input_faster, construct_input, construct_problem_graph, construct_problem_graph_input, construct_with_problem_graph, fact_level, get_depth, get_object_labels, get_object_masks, get_rgbd_stacked
 from learning.gnn.models import HyperClassifier, StreamInstanceClassifier, StreamInstanceClassifierRgbd, StreamInstanceClassifierRgbdV2, StreamInstanceClassifierV2, PLOIAblationModel
 from learning.pddlstream_utils import *
 from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
@@ -1063,7 +1063,7 @@ class MultiHeadModelPerceptionV2(Oracle):
         self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
         problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
         self.problem_info.perception = self.perception
-        self.object_reps = self.model.get_init_reps(problem_graph_input, get_depth(self.problem_info.perception), get_object_masks(self.problem_info))
+        self.object_reps = self.model.get_init_reps(problem_graph_input, get_depth(self.problem_info), get_object_masks(self.problem_info), get_object_labels(self.problem_info))
         self.history = {}
         self.counts = {}
         self.init_objects = objects_from_facts(self.problem_info.initial_facts)

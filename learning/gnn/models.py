@@ -425,7 +425,8 @@ class PerceptionNetworkV2(nn.Module):
     
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(2, 10, 5)
+        #2*num_cameras
+        self.conv1 = nn.Conv2d(4, 10, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(10, 20, 5)
         self.conv3 = nn.Conv2d(20, 20, 5)
@@ -438,9 +439,13 @@ class PerceptionNetworkV2(nn.Module):
         self.fc21 = nn.Linear(128, 512)
         self.fc22 = nn.Linear(512, 64)
 
-    def forward(self, depth, mask, rep):
-        perception = torch.cat((depth, mask), axis=1)
+    def forward(self, depth, mask, label, rep):
+        perception = torch.cat((depth, mask == label), axis=1)
         x = self.pool(F.relu(self.conv1(perception)))
+        
+        # a = torch.vstack(tuple(perception[0, i, :, :] for i in range(4)))
+        # plt.imshow(a.cpu())
+
         x = self.pool(F.relu(self.conv2(x)))
         x = self.pool(F.relu(self.conv3(x)))
         x = torch.flatten(x, 1) 
@@ -488,24 +493,13 @@ class StreamInstanceClassifierRgbdV2(nn.Module):
         self.perception_network = PerceptionNetworkV2()
 
 
-    def get_init_reps(self, problem_graph, depth, object_masks):
+    def get_init_reps(self, problem_graph, depth, object_masks, object_labels):
         problem_graph = Batch().from_data_list([problem_graph])
         prob_x = self.problem_graph_network(problem_graph, return_x=True)
         object_reps = {}
-        if torch.cuda.is_available():
-            zer = torch.zeros((1, 1, 200, 200), device='cuda:0')
-        else:
-            zer = torch.zeros((1, 1, 200, 200))
             
         for i, name in enumerate(problem_graph.nodes[0]):
-            mask = object_masks[name]
-            if type(mask) == torch.Tensor: 
-                if mask.shape == (1,):
-                    mask = zer
-            elif type(object_masks[name]) == int:
-            #if object_masks[name].shape == (1,):
-                mask = zer
-            object_reps[name] = {"rep": self.perception_network(depth, mask, prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)}
+            object_reps[name] = {"rep": self.perception_network(depth, object_masks, object_labels[name], prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)}
         #object_reps = {name: {"rep": self.perception_network(depth, object_masks[name], prob_x[i]), "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
         #here attach the perception to the reps for objects in the intiail iamge 
         #add mlp before stream mlp to keep input dimension constant 
@@ -517,7 +511,7 @@ class StreamInstanceClassifierRgbdV2(nn.Module):
             assert hasattr(data, 'problem_graph')
             problem_graph = data.problem_graph
             assert isinstance(problem_graph, list) and len(problem_graph) == 1, "Batching not supported"
-            object_reps = self.get_init_reps(problem_graph[0], data.perception, data.object_masks)
+            object_reps = self.get_init_reps(problem_graph[0], data.depth, data.object_masks, data.object_labels)
         else:
             assert not hasattr(data, 'problem_graph')
         

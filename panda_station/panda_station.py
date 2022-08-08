@@ -12,7 +12,7 @@ from .panda_hand_position_controller import (
     make_multibody_state_to_panda_hand_state_system,
 )
 from pydrake.all import (
-    AddMultibodyPlantSceneGraph, BaseField, CameraInfo, ClippingRange, CsdpSolver, DiagramBuilder, DepthImageToPointCloud, DepthRange, DepthRenderCamera, FindResourceOrThrow, ge, MakeRenderEngineVtk, Parser, RenderCameraCore, RenderEngineVtkParams, RgbdSensor, RigidTransform, RollPitchYaw, RotationMatrix)
+    AddMultibodyPlantSceneGraph, Role, BaseField, CameraInfo, ClippingRange, CsdpSolver, DiagramBuilder, DepthImageToPointCloud, DepthRange, DepthRenderCamera, FindResourceOrThrow, ge, MakeRenderEngineVtk, Parser, RenderCameraCore, RenderEngineVtkParams, RgbdSensor, RigidTransform, RollPitchYaw, RotationMatrix)
 
 from pydrake.all import (
     AbstractValue, Adder, AddMultibodyPlantSceneGraph, BallRpyJoint, BaseField,
@@ -54,6 +54,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         ) = pydrake.multibody.plant.AddMultibodyPlantSceneGraph(
             self.builder, time_step=self.time_step
         )
+        self.inspector = self.scene_graph.model_inspector()
         # dict in the form: {object_name: (ObjectInfo, Xinit_WO)}
         self.object_infos = {}  # list of tuples (ObjectInfo, Xinit_WO)
         self.directive = None  # the directive used to setup the environment
@@ -65,7 +66,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.panda_infos = {}
         self.frame_groups = {}
 
-        self.rgbd = [] 
+        self.cameras = []
 
     def fix_collisions(self):
         """
@@ -231,10 +232,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         return rgbd
 
 
-    #TODO move these helper functions to a utils file 
-    def add_rgbd_sensors(builder,
-                    plant,
-                    scene_graph,
+    def add_rgbd_sensors(self,
                     also_add_point_clouds=True,
                     model_instance_prefix="camera",
                     depth_camera=None,
@@ -245,6 +243,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         used.  If renderer is None, then we will assume the name 'my_renderer', and
         create a VTK renderer if a renderer of that name doesn't exist.
         """
+        plant = self.plant 
         if sys.platform == "linux" and os.getenv("DISPLAY") is None:
             from pyvirtualdisplay import Display
             virtual_display = Display(visible=0, size=(1400, 900))
@@ -253,51 +252,51 @@ class PandaStation(pydrake.systems.framework.Diagram):
         if not renderer:
             renderer = "my_renderer"
 
-        if not scene_graph.HasRenderer(renderer):
-            scene_graph.AddRenderer(renderer,
+        if not self.scene_graph.HasRenderer(renderer):
+            self.scene_graph.AddRenderer(renderer,
                                     MakeRenderEngineVtk(RenderEngineVtkParams()))
 
         if not depth_camera:
             depth_camera = DepthRenderCamera(
                 RenderCameraCore(
-                    renderer, CameraInfo(width=640, height=640, fov_y=np.pi / 4.0),
+                    renderer, CameraInfo(width=200, height=200, fov_y=50*np.pi / 180.0),
                     ClippingRange(near=0.1, far=10.0), RigidTransform()),
                 DepthRange(0.1, 10.0))
 
-        for index in range(plant.num_model_instances()):
+        for index in range(self.plant.num_model_instances()):
             model_instance_index = ModelInstanceIndex(index)
-            model_name = plant.GetModelInstanceName(model_instance_index)
-
+            model_name = self.plant.GetModelInstanceName(model_instance_index)
             if model_name.startswith(model_instance_prefix):
-                body_index = plant.GetBodyIndices(model_instance_index)[0]
-                rgbd = builder.AddSystem(
-                    RgbdSensor(parent_id=plant.GetBodyFrameIdOrThrow(body_index),
+                self.cameras.append(model_name)
+                body_index = self.plant.GetBodyIndices(model_instance_index)[0]
+                rgbd = self.builder.AddSystem(
+                    RgbdSensor(parent_id=self.plant.GetBodyFrameIdOrThrow(body_index),
                             X_PB=RigidTransform(),
                             depth_camera=depth_camera,
                             show_window=False))
                 rgbd.set_name(model_name)
-                PandaStation.add_multi_body_triad(plant.GetBodyFromFrameId(plant.GetBodyFrameIdOrThrow(body_index)).body_frame(), scene_graph, length=.1, radius=0.005)
+                PandaStation.add_multi_body_triad(self.plant.GetBodyFromFrameId(self.plant.GetBodyFrameIdOrThrow(body_index)).body_frame(), self.scene_graph, length=.1, radius=0.005)
 
-                builder.Connect(scene_graph.get_query_output_port(),
+                self.builder.Connect(self.scene_graph.get_query_output_port(),
                                 rgbd.query_object_input_port())
 
                 # Export the camera outputs
-                builder.ExportOutput(rgbd.color_image_output_port(),
+                self.builder.ExportOutput(rgbd.color_image_output_port(),
                                     f"{model_name}_rgb_image")
-                builder.ExportOutput(rgbd.depth_image_32F_output_port(),
+                self.builder.ExportOutput(rgbd.depth_image_32F_output_port(),
                                     f"{model_name}_depth_image")
-                builder.ExportOutput(rgbd.label_image_output_port(),
+                self.builder.ExportOutput(rgbd.label_image_output_port(),
                                     f"{model_name}_label_image")
 
                 if also_add_point_clouds:
                     # Add a system to convert the camera output into a point cloud
-                    to_point_cloud = builder.AddSystem(
+                    to_point_cloud = self.builder.AddSystem(
                         DepthImageToPointCloud(camera_info=rgbd.depth_camera_info(),
                                             fields=BaseField.kXYZs
                                             | BaseField.kRGBs))
-                    builder.Connect(rgbd.depth_image_32F_output_port(),
+                    self.builder.Connect(rgbd.depth_image_32F_output_port(),
                                     to_point_cloud.depth_image_input_port())
-                    builder.Connect(rgbd.color_image_output_port(),
+                    self.builder.Connect(rgbd.color_image_output_port(),
                                     to_point_cloud.color_image_input_port())
 
                     class ExtractBodyPose(LeafSystem):
@@ -319,14 +318,14 @@ class PandaStation(pydrake.systems.framework.Diagram):
                             output.get_mutable_value().set(pose.rotation(),
                                                         pose.translation())
 
-                    camera_pose = builder.AddSystem(ExtractBodyPose(body_index))
-                    builder.Connect(plant.get_body_poses_output_port(),
+                    camera_pose = self.builder.AddSystem(ExtractBodyPose(body_index))
+                    self.builder.Connect(self.plant.get_body_poses_output_port(),
                                     camera_pose.get_input_port())
-                    builder.Connect(camera_pose.get_output_port(),
+                    self.builder.Connect(camera_pose.get_output_port(),
                                     to_point_cloud.GetInputPort("camera_pose"))
 
                     # Export the point cloud output.
-                    builder.ExportOutput(to_point_cloud.point_cloud_output_port(),
+                    self.builder.ExportOutput(to_point_cloud.point_cloud_output_port(),
                                         f"{model_name}_point_cloud")
 
     def add_triad(source_id,
@@ -384,30 +383,8 @@ class PandaStation(pydrake.systems.framework.Diagram):
                 plant.GetBodyFrameIdOrThrow(frame.body().index()), scene_graph,
                 length, radius, opacity, frame.GetFixedPoseInBodyFrame())
     
-    def add_camera(self, X_Camera):
-        self.rgbd.append(PandaStation.add_rgbd_sensor(self.builder, self.scene_graph, X_Camera))
-        parser = pydrake.multibody.parsing.Parser(self.plant)
-        camera_instance = parser.AddModelFromFile(construction_utils.find_resource("models/camera.sdf"))
-        camera = self.plant.GetBodyByName("base", camera_instance)    
-        self.plant.WeldFrames(self.plant.world_frame(), camera.body_frame(), X_Camera)
-        PandaStation.add_multi_body_triad(camera.body_frame(), self.scene_graph, length=.1, radius=0.005)
-    
-    def add_cameras_old(self):
-        #TODO make this adjustable slider in the meschat simuilator or just domain specific  
-        X_Camera = RigidTransform(
-        RollPitchYaw(np.math.pi, 0, 0).ToRotationMatrix().multiply(
-            RollPitchYaw(0, 0, 0).ToRotationMatrix()),
-        [0, 0, 2])
-        self.add_camera(X_Camera)
-        X_Camera2 = RigidTransform(
-        RollPitchYaw(np.math.pi, 0, 0).ToRotationMatrix().multiply(
-            RollPitchYaw(0, 0, 0).ToRotationMatrix()),
-        [0, 1, 2])
-        self.add_camera(X_Camera2)
-
-    def add_cameras(self):
-        PandaStation.add_rgbd_sensors(self.builder, self.plant, self.scene_graph, True)
-
+    def add_cameras(self): 
+        self.add_rgbd_sensors(True)
 
     def setup_from_file(self, filename, names_and_links=None):
         """
@@ -471,6 +448,14 @@ class PandaStation(pydrake.systems.framework.Diagram):
             name = "added_model_" + num
         model = parser.AddModelFromFile(path, name)
         indices = self.plant.GetBodyIndices(model)
+
+        #https://manipulation.csail.mit.edu/segmentation.html 
+        frame_id = self.plant.GetBodyFrameIdOrThrow(self.plant.GetBodyIndices(model)[0])
+        geometry_ids = self.inspector.GetGeometries(frame_id, Role.kPerception)
+        for geom_id in geometry_ids:
+            label = int(self.inspector.GetPerceptionProperties(geom_id).GetProperty('label', 'id'))
+            #this gets default to the body index in the obejct info ds 
+
         assert (len(indices) == 1) or (
             main_body_name is not None
         ), "You must specify the main link name"
@@ -501,6 +486,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         object_info = ObjectInfo(name, welded_to_frame=offset_frame, path=path)
         object_info.body_infos = body_infos  # add all the other body infos
         object_info.set_main_body_info(main_body_info)
+        object_info.label = label
         self.object_infos[name] = (object_info, Xinit_WO)
         if welded:
             if P not in self.frame_groups:
@@ -852,6 +838,7 @@ class ObjectInfo:
         self.placeable_shapes = []
         # the Surface instances of the shapes that objects can be placed on
         self.surfaces = {}
+        self.label = None
 
     def query_shape_infos(self, criteria_func = None):
         """

@@ -465,8 +465,6 @@ def make_and_init_simulation(zmq_url, prob):
         meshcat.start_recording()
     simulator.AdvanceTo(SIM_INIT_TIME)
 
-    problem_info.capture_rgbd(station)
-
     return simulator, stations, directors, meshcat, problem_info
 
 
@@ -562,9 +560,9 @@ def run_blocks_world(
     oracle = construct_oracle(mode, problem, prob_info, model_poses, **oracle_kwargs)
 
     #save the depth image to the oracle 
-    perception = {"color":prob_info.color_image, "depth":prob_info.rgbd}
     #use the coords of each static:False object in model_poses 
-    oracle.save_perception(perception)
+    prob_info.capture_rgbd(station_dict['main'], True, path)
+    oracle.save_perception(prob_info.perception)
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))
@@ -611,16 +609,7 @@ def run_blocks_world(
         # oracle.save_perception(perception)
         #plot_rgbd(prob_info, save_path=path+ "rgbd.png")
     
-    log_perception = True 
-    if log_perception: 
-        import matplotlib.pyplot as plt 
-        plt.subplot(121)
-        plt.imshow(prob_info.color_image)
-        plt.title('Color image')
-        plt.subplot(122)
-        plt.imshow(np.squeeze(prob_info.rgbd))
-        plt.title('Depth image')
-        plt.savefig(path + 'perception.png')
+    
 
     if simulate:
         action_map = {

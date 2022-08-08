@@ -1,4 +1,5 @@
 import itertools
+from pickletools import int4
 from tqdm import tqdm
 from glob import glob
 import math
@@ -94,60 +95,105 @@ def construct_stream_classifier_input_v2_rgbd_v2(invocation, problem_info, model
     roots = objects_from_facts(problem_info.initial_facts)
     data.stream_schedule = get_stream_schedule(invocation, roots)
     data.problem_graph = construct_problem_graph_input(problem_info, model_info)
-    data.perception = get_depth(problem_info.perception)
+    data.depth = get_depth(problem_info)
     data.object_masks = get_object_masks(problem_info)
+    data.object_labels = get_object_labels(problem_info)
     return data 
 
-def get_object_masks(problem_info):
-    import cv2 
-    #TODO plez move this 
-    import matplotlib.pyplot as plt 
-    def get_object_mask(rgb, coords, test_plot=False):
-        mask = np.zeros((rgb.shape[0]+2, rgb.shape[1]+2, 1), np.uint8)
-        coords_abs = (int(rgb.shape[0]/2 + coords[0]*(rgb.shape[0]/2)), int(rgb.shape[1]/2 + coords[1]*(rgb.shape[1]/2)))
-        circle_image = rgb.copy()
-        cv2.circle(circle_image, coords_abs, 10, (255, 0, 255), 10)
-        retval = cv2.floodFill(rgb, mask, coords_abs, (250, 250, 250))
-        m = torch.from_numpy(mask)
-        m = m.permute(2, 0, 1)
-        m = m.reshape(1, 1, 802, 802)
-        m = torch.nn.functional.interpolate(m, (200, 200))
-        if test_plot:
-            plt.subplot(121)
-            plt.imshow(circle_image)
-            plt.title('Color image')
-            plt.subplot(122)
-            plt.imshow(m[0][0])
-            plt.title('Object mask')
-            plt.savefig('test.png')
-        return m
-    
-    from math import pi, tan
-    def get_object_coords(world_position):
-        (x, y, z) = world_position
-        z_cam = 2 
-        fov = pi/3
-        w = (z_cam - z)*tan(fov/2)  
-        x_portion = x/w
-        y_portion = y/w 
-        #print(x, y, z)
-        return (x_portion, -y_portion)
-
-    rgb = problem_info.perception['color'][:, :, :3].copy()
+def get_object_labels(problem_info):
+    #return problem_info.perception.labels
     inverted_map = {}
     object_mask_dict = {}
     
     for k, v in problem_info.object_mapping.items(): 
         if type(v) == str:
             inverted_map[v] = k
-        object_mask_dict[k] = 0
+        object_mask_dict[k] = -1
             
     for model in problem_info.model_poses:
         if not model['static']:
-            coords = get_object_coords(model['X'].rigid_transform.translation())
-            object_mask_dict[inverted_map[model['name']]] = get_object_mask(rgb, coords)
+            object_mask_dict[inverted_map[model['name']]] = problem_info.perception.labels[model['name']]
 
-    return object_mask_dict 
+    return object_mask_dict
+
+
+def get_object_masks(problem_info):
+    import cv2 
+    #TODO plez move this 
+    import matplotlib.pyplot as plt 
+    # def get_object_mask(rgb, coords, test_plot=False):
+    #     mask = np.zeros((rgb.shape[0]+2, rgb.shape[1]+2, 1), np.uint8)
+    #     coords_abs = (int(rgb.shape[0]/2 + coords[0]*(rgb.shape[0]/2)), int(rgb.shape[1]/2 + coords[1]*(rgb.shape[1]/2)))
+    #     circle_image = rgb.copy()
+    #     cv2.circle(circle_image, coords_abs, 10, (255, 0, 255), 10)
+    #     retval = cv2.floodFill(rgb, mask, coords_abs, (250, 250, 250))
+    #     m = torch.from_numpy(mask)
+    #     m = m.permute(2, 0, 1)
+    #     m = m.reshape(1, 1, 802, 802)
+    #     m = torch.nn.functional.interpolate(m, (200, 200))
+    #     if test_plot:
+    #         plt.subplot(121)
+    #         plt.imshow(circle_image)
+    #         plt.title('Color image')
+    #         plt.subplot(122)
+    #         plt.imshow(m[0][0])
+    #         plt.title('Object mask')
+    #         plt.savefig('test.png')
+    #     return m
+    
+    # from math import pi, tan
+    # def get_object_coords(world_position):
+    #     (x, y, z) = world_position
+    #     z_cam = 2 
+    #     fov = pi/3
+    #     w = (z_cam - z)*tan(fov/2)  
+    #     x_portion = x/w
+    #     y_portion = y/w 
+    #     #print(x, y, z)
+    #     return (x_portion, -y_portion)
+
+    # def get_object_mask(label_image, label):
+    #     mask = label_image == label
+    #     mask = mask.astype(np.short)
+    #     mask = torch.from_numpy(mask)
+    #     mask = mask.permute(2, 0, 1)
+    #     mask = mask.reshape((1, 1, mask.shape[1], mask.shape[2]))
+    #     mask = torch.nn.functional.interpolate(mask, (200, 200))
+    #     return mask 
+
+    # rgb = problem_info.perception.cameras['color'][:, :, :3].copy()
+    # inverted_map = {}
+    # object_mask_dict = {}
+    
+    # for k, v in problem_info.object_mapping.items(): 
+    #     if type(v) == str:
+    #         inverted_map[v] = k
+    #         object_mask_dict[k] = {}
+            
+    # for model in problem_info.model_poses:
+    #     if not model['static']:
+    #         for camera in problem_info.perception.cameras.keys():
+    #             #coords = get_object_coords(model['X'].rigid_transform.translation())
+    #             object_mask_dict[inverted_map[model['name']]][camera] = get_object_mask(problem_info.perception.cameras[camera]['label'], problem_info.perception.labels[model['name']])
+
+    output = torch.empty(0)
+
+    for camera in problem_info.perception.cameras.keys(): 
+        frame = problem_info.perception.cameras[camera]['label']
+        # frame[frame > 60] = 0 
+        # plt.clf()
+        # plt.imshow(frame.squeeze())
+        # plt.savefig('test.png')
+
+        frame = torch.from_numpy(frame)
+        
+        #reshaping to NCWH format for convolution 
+        frame = frame.permute(2, 0, 1)
+        frame = frame.reshape([1, 1, frame.shape[1], frame.shape[2]])
+        output = torch.cat((output, frame), 1)
+    
+    #output = torch.nn.functional.interpolate(output, (200, 200))
+    return output
 
 def get_rgbd_stacked(perception_raw):
     # import matplotlib.pyplot as plt 
@@ -184,27 +230,35 @@ def get_rgbd_stacked(perception_raw):
     perception = torch.nn.functional.interpolate(perception, (200, 200))
     return perception
 
-def get_depth(perception_raw):   
+def get_depth(problem_info):
+    perception_raw = problem_info.perception
     #TODO do clipping and normalization
     from numpy import inf 
+    n_cameras = len(perception_raw.cameras)
+    output = torch.empty(0)
     #the 4th channel is alpha we don't care 
-    dep = perception_raw['depth'][:, :, ]
+    for camera in perception_raw.cameras.keys():
 
-    #change everything at infinite distance to just be the ground 
-    dep[dep == inf] = np.max(dep[dep < 1000])
-    perception = torch.from_numpy(dep)
-    #normalizing
-    input = torch.reshape(perception, (640000, 1))
-    means = torch.mean(input, axis=0)
-    std = torch.std(input, dim=0)
-    normalized = (input - means)/std
-    input = torch.reshape(normalized, (800, 800, 1))
+        frame = perception_raw.cameras[camera]['depth'][:, :, ]
 
-    #reshaping to NCWH format for convolution 
-    perception = input.permute(2, 0, 1)
-    perception = perception.reshape([1, 1, 800, 800])
-    perception = torch.nn.functional.interpolate(perception, (200, 200))
-    return perception
+        #change everything at infinite distance to just be the ground 
+        frame[frame == inf] = np.max(frame[frame < 1000])
+        frame = torch.from_numpy(frame)
+        #normalizing
+        input = torch.reshape(frame, (torch.numel(frame), 1))
+        means = torch.mean(input, axis=0)
+        std = torch.std(input, dim=0)
+        normalized = (input - means)/std
+        input = torch.reshape(normalized, frame.shape)
+
+        #reshaping to NCWH format for convolution 
+        frame = input.permute(2, 0, 1)
+        frame = frame.reshape([1, 1, frame.shape[1], frame.shape[2]])
+        output = torch.cat((output, frame), 1)
+    
+    #output = torch.nn.functional.interpolate(output, (200, 200))
+
+    return output
 
 def construct_scene_graph(model_poses):
     """

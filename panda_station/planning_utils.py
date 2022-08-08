@@ -25,6 +25,11 @@ from .grasping_and_placing import (
 
 img_count = 0 
 
+class Perception:
+    def __init__(self):
+        self.labels = dict() 
+        self.cameras = dict()
+
 class ProblemInfo:
     """
     Class for storing information about the intial setup of a problem
@@ -89,8 +94,8 @@ class ProblemInfo:
             (name, main_link) for name, main_link in self.main_links.items()
         ]
 
-        self.rgbd = None  
-        self.color_image = None 
+
+        self.perception = Perception() 
 
     def make_station(
         self,
@@ -146,7 +151,7 @@ class ProblemInfo:
                 panda_info = info
 
         plant = station.get_multibody_plant()
-
+ 
         for name in self.objects:
             welded = False
             P = None
@@ -168,10 +173,9 @@ class ProblemInfo:
                 P=P,
                 name=name,
             )
+            self.perception.labels[object_info.name] = object_info.label
 
         station.finalize()
-        # station.add_cameras()
-        # self.capture_rgbd(station)
         return station
 
     def make_main_station(self, time_step = 1e-4):
@@ -264,24 +268,27 @@ class ProblemInfo:
         return res
     
 
-    def capture_rgbd(self, station):
+    def capture_rgbd(self, station, log_perception=True, log_path=''):
         global img_count 
         import matplotlib.pyplot as plt 
         context = station.CreateDefaultContext()
         station.Publish(context)
-        color_image = station.GetOutputPort("camera0_rgb_image").Eval(context)
-        depth_image = station.GetOutputPort("camera0_depth_image").Eval(context)
-        label_image = station.GetOutputPort("camera0_label_image").Eval(context)
-        #TODO stack the color and depth image to make one 4D image 
-        self.rgbd = np.copy(label_image.data)
-        self.color_image = np.copy(color_image.data)
-        plt.subplot(121)
-        plt.imshow(self.color_image.data)
-        plt.title('Color image')
-        plt.subplot(122)
-        plt.imshow(np.squeeze(self.rgbd.data))
-        plt.title('Depth image')
-        plt.savefig('/home/alex/drake-tamp/experiments/rgbd_test_' + '.png')
+        for camera in station.cameras: 
+            color_image = station.GetOutputPort(camera+"_rgb_image").Eval(context)
+            depth_image = station.GetOutputPort(camera+"_depth_image").Eval(context)
+            label_image = station.GetOutputPort(camera+"_label_image").Eval(context)
+            self.perception.cameras[camera] = {
+                'rgba':np.copy(color_image.data), 
+                'depth':np.copy(depth_image.data),
+                'label':np.copy(label_image.data)
+            }
+        if log_perception: 
+            fig, axs = plt.subplots(nrows=1, ncols=len(self.perception.cameras))
+            for camera, ax in zip(station.cameras, axs.ravel()):
+                ax.imshow(self.perception.cameras[camera]['rgba'])
+                ax.set_title(camera)
+            
+            plt.savefig(log_path + 'perception.png')
 
 
     @staticmethod
