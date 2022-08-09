@@ -169,7 +169,7 @@ if __name__ == "__main__":
         input_fn,
         model_info_class,
         preprocess_all=args.preprocess_all,
-        clear_memory=False
+        clear_memory=True
     )
     valset.from_pkl_files(*val_files)
     valset.prepare()
