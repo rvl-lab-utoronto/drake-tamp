@@ -1,3 +1,4 @@
+from cProfile import label
 from glob import glob
 import yaml
 import json
@@ -352,6 +353,7 @@ if __name__ == '__main__':
     
     #bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
     #runtime_breakdown("breakdown_hanoi.png", data_adaptive + data_informed, "num_discs")
+<<<<<<< HEAD
     final = {}
     for model in ["informed", "rgbd2"]:
         final[model] = {}
@@ -382,6 +384,17 @@ if __name__ == '__main__':
     #box_plot_compare("test_box_plot.png", ora, "num_goal", "run_time", bar_width = 0.25)
     #table_compare(informed)
     #table_compare(rgbd2)
+=======
+
+    rgbd_train = load_training_stats(f'/home/alex/drake-tamp/experiments/jobs/model_files/rgbd2/random/02/')
+    
+    #ada = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test/', 'oracle')
+    # ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
+    # rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/rgbd2-random/', 'rgb')
+    #box_plot_compare("test_box_plot.png", ora, "num_goal", "run_time", bar_width = 0.25)
+    # table_compare(ora)
+    # table_compare(rgb)
+>>>>>>> 108c263d2994981b8ab9c5acdaed85a9402edd8f
     #bar_plot_compare("test_plot.png", ora + ada, "num_blocks", "run_time", agg = "sum")
     #runtime_breakdown("breakdown_rgb-3-2.png", rgb, "num_blocks")
     
