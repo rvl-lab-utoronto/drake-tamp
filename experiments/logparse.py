@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import tikzplotlib
+#import tikzplotlib
 import pandas as pd
 import matplotlib.patches as mpatches
 
@@ -128,7 +128,8 @@ def table_compare(data):
             ['evaluations', 'std'],
         ]
     ]
-    print(aggregates.to_string(float_format="%.2f"))
+    #print(aggregates.to_string(float_format="%.2f"))
+    return aggregates
     # print(aggregates.to_latex(float_format="%.2f", bold_rows=True))
 
 def num_blocks_vs_max_stack(data):
@@ -315,6 +316,33 @@ def print_header(st):
     print(('\n' * 2) + ('#' * 10), st, ('#' * 10) + ('\n' * 1))
 
 
+def load_training_stats(model_location):
+    f = open(os.path.join(model_location, 'training_stats.json'))
+    data = json.load(f)
+    train_loss = [float('nan')]*len(data)
+    val_eval = [float('nan')]*len(data)
+    for point in data:
+        try:
+            train_loss[point['epoch']] = point['train_loss']
+        except:
+            val_eval[point['epoch']] = point['val_eval']
+    print('analyzed')
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    ax1.plot(train_loss, 'b-')
+    ax2.plot(val_eval, 'g*')
+    ax1.set_xlabel('epoch')
+    ax1.set_ylabel('train')
+    ax2.set_ylabel('val')
+    ax1.title.set_text(model_location)
+
+    # plt.plot(train_loss, label='Training loss')
+    # plt.plot(val_eval, secondary_y =True)
+    # plt.legend(["train", "val"])
+    # plt.title(model_location)
+    plt.savefig(os.path.join(model_location, 'training_stats.png'))
+
+
 
 if __name__ == '__main__':
 
@@ -324,13 +352,36 @@ if __name__ == '__main__':
     
     #bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
     #runtime_breakdown("breakdown_hanoi.png", data_adaptive + data_informed, "num_discs")
+    final = {}
+    for model in ["informed", "rgbd2"]:
+        final[model] = {}
+        for exp in ["random", "stacking", "clutter", "sorting"]:
+            final[model][exp] = {}
+            percent_solved = []
+            for i in ["0", "1", "2", "3", "4"]:
+                print("model:", model, " exp:", exp, " i:", i)
+                stats = load_results_from_stats(f'/scratch/alexiev4/jobs/'+model+'/'+exp+'/'+i, model)
+                table = table_compare(stats)
+                percent_solved.append(float(table['solved']['mean']))
+                #rgbd2 = load_results_from_stats(f'/scratch/alexiev4/jobs/rgbd2/stacking/3', 'rgbd2')
+
+            mean = np.mean(percent_solved)
+            std = np.std(percent_solved)
+            final[model][exp]['mean'] = mean
+            final[model][exp]['std'] = std 
+            # print(mean)
+            # print(std)
+    print(final)
+
+    #stats = load_results_from_stats(f'/scratch/alexiev4/jobs/rgbd1/stacking/4', 'rgbd')
     
-    #ada = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test/', 'oracle')
-    ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
-    rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test-3-3-1/', 'rgb')
+
+    #load_training_stats(f'/scratch/alexiev4/jobs/model-files/informed/clutter/0')
+    # ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
+    # rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test-3-3-1/', 'rgb')
     #box_plot_compare("test_box_plot.png", ora, "num_goal", "run_time", bar_width = 0.25)
-    table_compare(ora)
-    table_compare(rgb)
+    #table_compare(informed)
+    #table_compare(rgbd2)
     #bar_plot_compare("test_plot.png", ora + ada, "num_blocks", "run_time", agg = "sum")
     #runtime_breakdown("breakdown_rgb-3-2.png", rgb, "num_blocks")
     
