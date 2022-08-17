@@ -160,10 +160,12 @@ if __name__ == "__main__":
         raise ValueError
 
 
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+    # if torch.cuda.is_available():
+    #     device = torch.device("cuda")
+    # else:
+    #     device = torch.device("cpu")
+
+    device = torch.device("cpu")
 
     valset = Dataset(
         input_fn,
@@ -225,9 +227,12 @@ if __name__ == "__main__":
         # Load the best checkoibt for evaluation
         model.load_state_dict(torch.load(os.path.join(args.model_home, "best.pt")))
 
+    import time 
+    start_time = time.perf_counter() 
     evaluate_model(
         model,
         criterion,
         DeviceAwareLoaderWrapper(val_loader, device),
         save_path=args.model_home,
     )
+    print("TIME:", time.perf_counter() - start_time)
