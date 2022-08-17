@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import tikzplotlib
+#import tikzplotlib
 import pandas as pd
 import matplotlib.patches as mpatches
 
@@ -129,7 +129,8 @@ def table_compare(data):
             ['evaluations', 'std'],
         ]
     ]
-    print(aggregates.to_string(float_format="%.2f"))
+    #print(aggregates.to_string(float_format="%.2f"))
+    return aggregates
     # print(aggregates.to_latex(float_format="%.2f", bold_rows=True))
 
 def num_blocks_vs_max_stack(data):
@@ -352,8 +353,38 @@ if __name__ == '__main__':
     
     #bar_plot_compare("test_bar_plot.png", data_adaptive, "num_goal", "run_time", bar_width = 0.25)
     #runtime_breakdown("breakdown_hanoi.png", data_adaptive + data_informed, "num_discs")
+    final = {}
+    for model in ["informed", "rgbd2"]:
+        final[model] = {}
+        for exp in ["random", "stacking", "clutter", "sorting"]:
+            final[model][exp] = {}
+            percent_solved = []
+            for i in ["0", "1", "2", "3", "4"]:
+                print("model:", model, " exp:", exp, " i:", i)
+                stats = load_results_from_stats(f'/scratch/alexiev4/jobs/'+model+'/'+exp+'/'+i, model)
+                table = table_compare(stats)
+                percent_solved.append(float(table['solved']['mean']))
+                #rgbd2 = load_results_from_stats(f'/scratch/alexiev4/jobs/rgbd2/stacking/3', 'rgbd2')
 
-    rgbd_train = load_training_stats(f'/home/alex/drake-tamp/experiments/jobs/model_files/rgbd2-random')
+            mean = np.mean(percent_solved)
+            std = np.std(percent_solved)
+            final[model][exp]['mean'] = mean
+            final[model][exp]['std'] = std 
+            # print(mean)
+            # print(std)
+    print(final)
+
+    #stats = load_results_from_stats(f'/scratch/alexiev4/jobs/rgbd1/stacking/4', 'rgbd')
+    
+
+    #load_training_stats(f'/scratch/alexiev4/jobs/model-files/informed/clutter/0')
+    # ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
+    # rgb = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test-3-3-1/', 'rgb')
+    #box_plot_compare("test_box_plot.png", ora, "num_goal", "run_time", bar_width = 0.25)
+    #table_compare(informed)
+    #table_compare(rgbd2)
+
+    #rgbd_train = load_training_stats(f'/home/alex/drake-tamp/experiments/jobs/model_files/rgbd2/random/02/')
     
     #ada = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-rgbd/test/', 'oracle')
     # ora = load_results_from_stats(f'/home/alex/drake-tamp/experiments/jobs/random-vanilla/test-3/', 'vanilla')
