@@ -12,7 +12,7 @@ MAXPLAN=30
 BUFFER=180
 OUTER_TIMEOUT=$(($TIMEOUT + $BUFFER))
 
-rm -rf $EXPDIR
+#rm -rf $EXPDIR
 mkdir -p $EXPDIR && cd $EXPDIR && mkdir -p save && mkdir -p oracle
 echo "timeout: $TIMEOUT" > ./collect-label-params.txt
 echo "max_plan_time: $MAXPLAN" >> ./collect-label-params.txt

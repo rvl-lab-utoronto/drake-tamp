@@ -23,24 +23,32 @@ MAX_ARM_REACH = 0.7 # Note: the actual limit is 0.855, https://www.generationrob
 
 
 # table_name: (center point, extent)
+# TABLES = {
+#     "red_table": [
+#         np.array([0.6, 0]),
+#         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
+#     ],
+#     "blue_table": [
+#         np.array([-0.6, 0]),
+#         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
+#     ],
+#     "green_table": [
+#         np.array([0, 0.6]),
+#         PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
+#     ],
+#     "purple_table": [
+#         np.array([0, -0.6]),
+#         PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
+#     ],
+# }
+
 TABLES = {
     "red_table": [
         np.array([0.6, 0]),
         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
-    ],
-    "blue_table": [
-        np.array([-0.6, 0]),
-        PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
-    ],
-    "green_table": [
-        np.array([0, 0.6]),
-        PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
-    ],
-    "purple_table": [
-        np.array([0, -0.6]),
-        PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
-    ],
+    ]
 }
+
 
 TEMPLATE_PATH = "models/blocks_world/sdf/red_block.sdf"
 MODELS_PATH = "models/blocks_world/sdf/"
