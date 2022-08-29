@@ -538,6 +538,106 @@ class StreamInstanceClassifierRgbdV2(nn.Module):
 
         return out
 
+
+class PerceptionNetwork3(nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        #2*num_cameras
+        self.conv1 = nn.Conv2d(2, 5, 5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(5, 10, 5)
+        fc_size = 6840#20*(((((((200-4)//2)-4)//2)-4)//2)**2)
+        fc_size = int(fc_size)
+        self.fc1 = nn.Linear(fc_size, 500)
+        self.fc2 = nn.Linear(500, 64)
+
+    def forward(self, depth, mask, label):
+        perception = torch.cat((depth, mask == label), axis=1)
+        x = self.pool(F.relu(self.conv1(perception)))
+        
+        # a = torch.vstack(tuple(perception[0, i, :, :] for i in range(4)))
+        # plt.imshow(a.cpu())
+
+        x = self.pool(F.relu(self.conv2(x)))
+        x = torch.flatten(x, 1) 
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+
+        return x.squeeze()
+
+class StreamInstanceClassifierRgbd3(nn.Module):
+
+    def __init__(
+        self,
+        model_info,
+        feature_size=16,
+        hidden_size=16,
+    ):
+        super().__init__()
+
+        stream_domains = model_info.stream_domains[1:]
+        stream_num_inputs = model_info.stream_num_inputs[1:]
+        stream_num_outputs = model_info.stream_num_outputs[1:]
+        self.stream_to_index = model_info.stream_to_index
+        assert len(stream_domains) == len(stream_num_inputs), "Inequal number of streams"
+        self.stream_num_inputs = stream_num_inputs
+        self.stream_num_outputs = stream_num_outputs
+
+        self.mlps = []
+        for num_inputs, num_outputs in zip(stream_num_inputs, stream_num_outputs):
+            self.mlps.append(
+                MultiHeadStreamMLP(num_inputs, num_outputs, feature_size=feature_size, hidden_size=hidden_size)
+            )
+
+        for i, mlp in enumerate(self.mlps):
+            setattr(self, f"mlp{i}", mlp)
+
+        self.perception_network = PerceptionNetwork3()
+
+
+    def get_init_reps(self, problem_graph, depth, object_masks, object_labels):
+        problem_graph = Batch().from_data_list([problem_graph])
+        object_reps = {}
+            
+        for i, name in enumerate(problem_graph.nodes[0]):
+            object_reps[name] = {"rep": self.perception_network(depth, object_masks, object_labels[name]), "logit": torch.tensor([100.], device = depth.device)}
+
+        return object_reps
+
+    def forward(self, data, object_reps=None, score=False, update_reps=False):
+        stream_schedule = data.stream_schedule
+        if object_reps is None:
+            assert hasattr(data, 'problem_graph')
+            problem_graph = data.problem_graph
+            assert isinstance(problem_graph, list) and len(problem_graph) == 1, "Batching not supported"
+            object_reps = self.get_init_reps(problem_graph[0], data.depth, data.object_masks, data.object_labels)
+        else:
+            assert not hasattr(data, 'problem_graph')
+        
+        assert isinstance(stream_schedule, list) and len(stream_schedule) == 1, "Batching not supported"
+        stream_schedule = stream_schedule[0]
+
+        for stream in stream_schedule:
+            stream_index = self.stream_to_index[stream["name"]] - 1
+            stream_mlp = self.mlps[stream_index]
+            
+            stream_inputs = torch.cat([object_reps[n]["rep"] for n in stream["input_objects"]], dim=0)
+            stream_logits = torch.cat([object_reps[n]["logit"] for n in stream["input_objects"]], dim=0)
+            prev_log = (stream_logits*torch.softmax(-stream_logits, dim=0)).sum(0, keepdim=True)
+
+            out, outputs = stream_mlp(stream_inputs)
+            out = out + prev_log - torch.logsumexp(torch.cat([out, prev_log, torch.tensor([1.], device=out.device)], dim=0), dim=0)
+            for out_name, out_rep in zip(stream["output_objects"], outputs):
+                object_reps[out_name] = {"rep": out_rep, "logit": out}
+
+        out = out.unsqueeze(0)
+        # candidate object embeddings, and candidate fact embeddings to mlp
+        if score:
+            return torch.sigmoid(out)
+
+        return out
+
 class StreamInstanceClassifierV2(nn.Module):
 
     def __init__(

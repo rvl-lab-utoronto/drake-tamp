@@ -67,6 +67,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         self.frame_groups = {}
 
         self.cameras = []
+        self.virtual_display = None 
 
     def fix_collisions(self):
         """
@@ -199,7 +200,7 @@ class PandaStation(pydrake.systems.framework.Diagram):
         """
         if sys.platform == "linux" and os.getenv("DISPLAY") is None:
             from pyvirtualdisplay import Display
-            virtual_display = Display(visible=0, size=(1400, 900))
+            virtual_display = Display(visible=1, size=(1400, 900))
             virtual_display.start()
             #https://stackoverflow.com/questions/32173839/easyprocess-easyprocesscheckinstallederror-cmd-xvfb-help-oserror-errno
 
@@ -246,8 +247,8 @@ class PandaStation(pydrake.systems.framework.Diagram):
         plant = self.plant 
         if sys.platform == "linux" and os.getenv("DISPLAY") is None:
             from pyvirtualdisplay import Display
-            virtual_display = Display(visible=0, size=(1400, 900))
-            virtual_display.start()
+            self.virtual_display = Display(visible=0, size=(1400, 900))
+            self.virtual_display.start()
 
         if not renderer:
             renderer = "my_renderer"

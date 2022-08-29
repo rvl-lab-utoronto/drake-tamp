@@ -1,5 +1,6 @@
 import itertools
 from pickletools import int4
+import random
 from tqdm import tqdm
 from glob import glob
 import math
@@ -95,8 +96,20 @@ def construct_stream_classifier_input_v2_rgbd_v2(invocation, problem_info, model
     roots = objects_from_facts(problem_info.initial_facts)
     data.stream_schedule = get_stream_schedule(invocation, roots)
     data.problem_graph = construct_problem_graph_input(problem_info, model_info)
-    data.depth = get_depth(problem_info)
-    data.object_masks = get_object_masks(problem_info)
+    camera_keys = ['camera0', 'camera1']
+    data.depth = get_depth(problem_info, camera_keys)
+    data.object_masks = get_object_masks(problem_info, camera_keys)
+    data.object_labels = get_object_labels(problem_info)
+    return data 
+
+def construct_stream_classifier_input_rgbd3(invocation, problem_info, model_info):
+    data = Data(x=torch.tensor([1]))
+    roots = objects_from_facts(problem_info.initial_facts)
+    data.stream_schedule = get_stream_schedule(invocation, roots)
+    data.problem_graph = construct_problem_graph_input(problem_info, model_info)
+    camera_keys = ["camera2"]
+    data.depth = get_depth(problem_info, camera_keys)
+    data.object_masks = get_object_masks(problem_info, camera_keys)
     data.object_labels = get_object_labels(problem_info)
     return data 
 
@@ -117,7 +130,7 @@ def get_object_labels(problem_info):
     return object_mask_dict
 
 
-def get_object_masks(problem_info):
+def get_object_masks(problem_info, camera_keys):
     import cv2 
     #TODO plez move this 
     import matplotlib.pyplot as plt 
@@ -178,7 +191,9 @@ def get_object_masks(problem_info):
 
     output = torch.empty(0)
 
-    for camera in problem_info.perception.cameras.keys(): 
+    #for camera in problem_info.perception.cameras.keys(): 
+    for camera in camera_keys: 
+
         frame = problem_info.perception.cameras[camera]['label']
         # frame[frame > 60] = 0 
         # plt.clf()
@@ -190,6 +205,7 @@ def get_object_masks(problem_info):
         #reshaping to NCWH format for convolution 
         frame = frame.permute(2, 0, 1)
         frame = frame.reshape([1, 1, frame.shape[1], frame.shape[2]])
+        frame = frame[:, :, 57:143, 17:182]
         output = torch.cat((output, frame), 1)
     
     #output = torch.nn.functional.interpolate(output, (200, 200))
@@ -230,14 +246,15 @@ def get_rgbd_stacked(perception_raw):
     perception = torch.nn.functional.interpolate(perception, (200, 200))
     return perception
 
-def get_depth(problem_info):
+def get_depth(problem_info, camera_keys):
     perception_raw = problem_info.perception
     #TODO do clipping and normalization
     from numpy import inf 
     n_cameras = len(perception_raw.cameras)
     output = torch.empty(0)
     #the 4th channel is alpha we don't care 
-    for camera in perception_raw.cameras.keys():
+    #for camera in perception_raw.cameras.keys():
+    for camera in camera_keys: 
 
         frame = perception_raw.cameras[camera]['depth'][:, :, ]
 
@@ -254,6 +271,7 @@ def get_depth(problem_info):
         #reshaping to NCWH format for convolution 
         frame = input.permute(2, 0, 1)
         frame = frame.reshape([1, 1, frame.shape[1], frame.shape[2]])
+        frame = frame[:, :, 57:143, 17:182]
         output = torch.cat((output, frame), 1)
     
     #output = torch.nn.functional.interpolate(output, (200, 200))
@@ -886,7 +904,7 @@ class Dataset:
         self.clear_memory = clear_memory
         self.datastores = []
 
-    def load_pkl(self, file_path):
+    def load_pkl(self, file_path, use_first_n=-1):
         with open(file_path, "rb") as f:
             data = pickle.load(f)
         if not data["labels"] or not any(l.label for l in data["labels"]):
@@ -902,7 +920,11 @@ class Dataset:
                 self.model_info.domain_pddl == data["domain_pddl"]
                 and self.model_info.stream_pddl == data["stream_pddl"]
             ), "Make sure the model infos in these pkls are identical!"
-
+        
+        if use_first_n != -1 and data["num_labels"] > use_first_n:
+            data["labels"] = data['labels'][:use_first_n]#random.choices(data["labels"], k=use_first_n) 
+            data["num_labels"] = use_first_n
+            
         dirpath = os.path.splitext(file_path)[0]
         label_paths = [
             os.path.join(dirpath, f"label_{i}.pkl") for i in range(data["num_labels"])
@@ -921,7 +943,7 @@ class Dataset:
         # self.problem_labels.append(data['labels'])
         self.num_examples += data['num_labels']
 
-    def from_pkl_files(self, *file_paths):
+    def from_pkl_files(self, *file_paths, use_first_n=-1):
         """
         Take in a list of *top level* pickle files (ie containing
         ModelInfo, ProblemInfo, ...). These will all be loaded to start.
@@ -930,7 +952,7 @@ class Dataset:
         # self.load_pkl(file_path)
         print("Loading top level pkls")
         for file_path in tqdm(file_paths):
-            self.load_pkl(file_path)
+            self.load_pkl(file_path, use_first_n=use_first_n)
 
     def construct_datas(self):
         datas = []

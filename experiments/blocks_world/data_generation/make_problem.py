@@ -23,30 +23,23 @@ MAX_ARM_REACH = 0.7 # Note: the actual limit is 0.855, https://www.generationrob
 
 
 # table_name: (center point, extent)
-# TABLES = {
-#     "red_table": [
-#         np.array([0.6, 0]),
-#         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
-#     ],
-#     "blue_table": [
-#         np.array([-0.6, 0]),
-#         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
-#     ],
-#     "green_table": [
-#         np.array([0, 0.6]),
-#         PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
-#     ],
-#     "purple_table": [
-#         np.array([0, -0.6]),
-#         PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
-#     ],
-# }
-
 TABLES = {
     "red_table": [
         np.array([0.6, 0]),
         PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
-    ]
+    ],
+    "blue_table": [
+        np.array([-0.6, 0]),
+        PoissonSampler(X_TABLE_DIMS, r=R, centered=True),
+    ],
+    "green_table": [
+        np.array([0, 0.6]),
+        PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
+    ],
+    "purple_table": [
+        np.array([0, -0.6]),
+        PoissonSampler(Y_TABLE_DIMS, r=R, centered=True),
+    ],
 }
 
 
@@ -229,7 +222,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
 
 
     for stack in stacking:
-        table = pick_random_table()
+        table = "red_table"#pick_random_table()
         if len(positions[table]) == 0:
             res = samplers[table].make_samples(filter = filter)
             if len(res) == 0:
@@ -289,7 +282,7 @@ def make_random_problem(num_blocks, num_blockers, colorize=False, buffer_radius=
     yaml_data["goal"] = goal
 
     for blocker in blockers:
-        table = pick_random_table()
+        table = 'red_table'#pick_random_table()
         if len(positions[table]) == 0:
             res = samplers[table].make_samples(filter = filter)
             if len(res) == 0:

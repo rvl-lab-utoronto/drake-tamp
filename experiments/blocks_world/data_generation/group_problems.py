@@ -1,6 +1,6 @@
 import os 
 
-base_dir = f'/home/alex/drake-tamp/experiments/blocks_world/data_generation/perception_random/train'
+base_dir = f'/home/alex/drake-tamp/experiments/blocks_world/data_generation/perception_random_5/train'
 
 def split_problems():
     i = 0 
@@ -31,7 +31,7 @@ def run_split_problems():
         if os.path.isdir(d): 
             i = i + 1
             os.system('tmux new-window -t %s:%d'%(tmux_session, i))
-            collect_command = './collect-labels.sh jobs/random-perception-large-01 blocks_world blocks_world/data_generation/perception_random/train/'+filename
+            collect_command = './collect-labels.sh jobs/random-perception-large-05 blocks_world blocks_world/data_generation/perception_random_5/train/'+filename
             os.system('tmux send-keys -t %s:%d \'%s\' C-m'%(tmux_session, i,collect_command))
     return 
 
@@ -45,4 +45,5 @@ def test():
 
 
 if __name__ == '__main__': 
+    #split_problems()
     run_split_problems() 

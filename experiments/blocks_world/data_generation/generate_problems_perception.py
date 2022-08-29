@@ -22,7 +22,7 @@ if __name__ == '__main__':
     # max_start_stack: 1
     # max_goal_stack: [1,6]
 
-    base_output = f"{FILEPATH}/perception_random/train/" 
+    base_output = f"{FILEPATH}/perception_random_5/train/" 
     try: 
         os.makedirs(base_output)
     except OSError: 

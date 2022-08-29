@@ -3,7 +3,7 @@ import json
 import os
 
 from torch_geometric.loader import DataLoader
-from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierRgbdV2Info, StreamInstanceClassifierV2Info, StreamInstanceClassifierRgbdInfo
+from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierRgbd3Info, StreamInstanceClassifierRgbdV2Info, StreamInstanceClassifierV2Info, StreamInstanceClassifierRgbdInfo
 from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
     EvaluationDatasetSampler,
@@ -14,13 +14,14 @@ from learning.gnn.data import (
     TrainingDataset,
     Dataset,
     construct_hypermodel_input_faster,
+    construct_stream_classifier_input_rgbd3,
     construct_stream_classifier_input_v2,
     construct_stream_classifier_input_v2_rgbd,
     construct_stream_classifier_input_v2_rgbd_v2,
     construct_with_problem_graph,
     get_base_datapath,
 )
-from learning.gnn.models import HyperClassifier, PLOIAblationModel, StreamInstanceClassifier, StreamInstanceClassifierRgbdV2, StreamInstanceClassifierV2, StreamInstanceClassifierRgbd
+from learning.gnn.models import HyperClassifier, PLOIAblationModel, StreamInstanceClassifier, StreamInstanceClassifierRgbd3, StreamInstanceClassifierRgbdV2, StreamInstanceClassifierV2, StreamInstanceClassifierRgbd
 from learning.gnn.train import evaluate_model_loss, evaluate_model_stream, train_model_graphnetwork
 from functools import partial
 import torch
@@ -40,7 +41,7 @@ def make_argument_parser():
         help = "If you only want to test a model (not end-to-end)"
     )
     parser.add_argument(
-        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2", "streamclassv2_rgbd", "streamclassv2_rgbdv2", "ploiablation"], default="hyper",
+        "--model", type=str, choices=["hyper", "streamclass", "streamclassv2", "streamclassv2_rgbd", "streamclassv2_rgbdv2", "rgbd3", "ploiablation"], default="hyper",
         help = "The type of model you want to train. See learning/gnn/models.py for more information"
     )
     parser.add_argument(
@@ -147,6 +148,11 @@ if __name__ == "__main__":
         input_fn = construct_stream_classifier_input_v2_rgbd_v2
         model_info_class = StreamInstanceClassifierRgbdV2Info
         model_fn = lambda model_info: StreamInstanceClassifierRgbdV2(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
+    elif args.model == "rgbd3":
+        assert args.batch_size == 1, "Batching not yet supported for StreamInstanceClassifierV2Info"
+        input_fn = construct_stream_classifier_input_rgbd3
+        model_info_class = StreamInstanceClassifierRgbd3Info
+        model_fn = lambda model_info: StreamInstanceClassifierRgbd3(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
     elif args.model == "ploiablation":
         TrainingDataset = PLOIAblationDataset
         Dataset = PLOIAblationDataset
@@ -160,12 +166,11 @@ if __name__ == "__main__":
         raise ValueError
 
 
-    # if torch.cuda.is_available():
-    #     device = torch.device("cuda")
-    # else:
-    #     device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
 
-    device = torch.device("cpu")
 
     valset = Dataset(
         input_fn,
@@ -173,7 +178,7 @@ if __name__ == "__main__":
         preprocess_all=args.preprocess_all,
         clear_memory=True
     )
-    valset.from_pkl_files(*val_files)
+    valset.from_pkl_files(*val_files, use_first_n=10)
     valset.prepare()
     val_sampler = EvaluationDatasetSampler(valset)
     val_loader = DataLoader(
@@ -198,7 +203,7 @@ if __name__ == "__main__":
             model_info_class,
             preprocess_all=args.preprocess_all,
         )
-        trainset.from_pkl_files(*train_files)
+        trainset.from_pkl_files(*train_files, use_first_n=10)
         trainset.prepare()
         train_sampler = TrainingDatasetSampler(
             trainset, epoch_size=args.epoch_size, stratify_prop=args.stratify_train_prop

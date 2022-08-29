@@ -20,6 +20,7 @@ import yaml
 matplotlib.use("Agg")
 from experiments.shared import construct_oracle
 import os
+import signal
 from re import I
 import argparse
 from datetime import datetime
@@ -563,6 +564,7 @@ def run_blocks_world(
     #use the coords of each static:False object in model_poses 
     prob_info.capture_rgbd(station_dict['main'], True, path)
     oracle.save_perception(prob_info.perception)
+    os.kill(int(station_dict['main'].virtual_display.pid), signal.SIGKILL) #https://stackoverflow.com/questions/18476510/how-to-avoid-hanging-xvfb-processes-while-using-pyvirtualdisplay
 
     print("Initial:", str_from_object(problem.init))
     print("Goal:", str_from_object(problem.goal))

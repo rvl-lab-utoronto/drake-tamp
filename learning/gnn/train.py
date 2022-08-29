@@ -131,6 +131,7 @@ def evaluate_dataset(model, criterion, dataset):
             losses.setdefault(problem_key, []).append(loss.detach().cpu().numpy().item())
             logits.setdefault(problem_key, []).append(logit[row_index].detach().cpu().numpy().item())
             labels.setdefault(problem_key, []).append(d.y[row_index].detach().cpu().numpy().item())
+        a = 2
     return logits, labels, losses
 
 def evaluate_model_stream(model, criterion, dataset, save_path=None):

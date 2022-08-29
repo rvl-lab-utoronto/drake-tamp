@@ -31,10 +31,20 @@ sudo docker run -it \
     --shm-size 8G \
     --gpus all \
     -p $port:22 \
-    -e DISPLAY=$DISPLAY \
-    -v $XSOCK:$XSOCK \
-    -v $XAUTH:$XAUTH \
-    -e XAUTHORITY=$XAUTH \
     --name $name \
     drake-tamp-$USER \
     /bin/bash
+
+# sudo docker run -it \
+#     -v /home/$USER/drake-tamp:/home/$USER/drake-tamp \
+#     --privileged \
+#     --shm-size 8G \
+#     --gpus all \
+#     -p $port:22 \
+#     -e DISPLAY=$DISPLAY \
+#     -v $XSOCK:$XSOCK \
+#     -v $XAUTH:$XAUTH \
+#     -e XAUTHORITY=$XAUTH \
+#     --name $name \
+#     drake-tamp-$USER \
+#     /bin/bash

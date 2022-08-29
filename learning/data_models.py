@@ -118,6 +118,15 @@ class StreamInstanceClassifierRgbdV2Info(ModelInfo):
     def problem_graph_edge_feature_size(self):
         return self.num_predicates + 1
 
+class StreamInstanceClassifierRgbd3Info(ModelInfo):
+
+    @property
+    def problem_graph_node_feature_size(self):
+        return 3 + 1 #xyz + a boolean
+    
+    @property
+    def problem_graph_edge_feature_size(self):
+        return self.num_predicates + 1
 
 
 @dataclass
