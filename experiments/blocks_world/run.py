@@ -4,6 +4,7 @@ The module for running the blocks world TAMP problem.
 See `problem 2` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+from copy import deepcopy
 import time
 import psutil
 import numpy as np
@@ -26,6 +27,7 @@ from datetime import datetime
 import pydrake.all
 from pydrake.all import RigidTransform
 from pydrake.all import Role
+from experiments.shared_ploi import PLOIFilter
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
@@ -183,10 +185,10 @@ def construct_problem_from_sim(simulator, stations, problem_info, planning_objec
     static_link_names = []
 
     for object_name in problem_info.surfaces:
-        if planning_objects is not None and object_name not in planning_objects:
-            continue
         for link_name in problem_info.surfaces[object_name]:
             table = (object_name, link_name)
+            if planning_objects is not None and table not in planning_objects:
+                continue
             init += [("table", table)]
             static_model_names.append(object_name)
             static_link_names.append(link_name)
@@ -514,14 +516,14 @@ def run_ploi(
     path=None,  
     max_planner_time = 10,
 ):
-    time = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
+    time_str = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
     if not os.path.isdir(f"{file_path}/logs"):
         os.mkdir(f"{file_path}/logs")
-    if not os.path.isdir(f"{file_path}/logs/{time}"):
-        os.mkdir(f"{file_path}/logs/{time}")
+    if not os.path.isdir(f"{file_path}/logs/{time_str}"):
+        os.mkdir(f"{file_path}/logs/{time_str}")
 
     if path is None:
-        path = f"{file_path}/logs/{time}/"
+        path = f"{file_path}/logs/{time_str}/"
 
     (
         sim,
@@ -532,27 +534,38 @@ def run_ploi(
     ) = make_and_init_simulation(url, problem_file)
     # pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, prob_info, planning_objects=None)
 
-    pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, prob_info, planning_objects=["blocker1","block0", "block1", "blue_table", "purple_table",  "red_table"])
+    pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, deepcopy(prob_info), planning_objects=None)
+    ploi = PLOIFilter(pddlstream_problem, "model_files/ploi/best.pt", model_poses_initial)
     print("Initial:", str_from_object(pddlstream_problem.init))
     print("Goal:", str_from_object(pddlstream_problem.goal))
-    
-    solution = solve(
-        pddlstream_problem,
-        algorithm="adaptive",
-        verbose=VERBOSE,
-        logpath=path,
-        use_unique=use_unique,
-        max_time=15,
-        max_planner_time = max_planner_time,
-        problem_file_path = problem_file,
-        stream_info = {
-            'find-ik': StreamInfo(use_unique=True)
-        },
-    )
-    pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, prob_info, planning_objects=["blocker0","blocker1","block0", "block1", "blue_table", "purple_table",  "red_table"])
+    start_time = time.time()
+    while time.time() - start_time < max_time:
+        ploi.reduce_problem()
 
-    print(f"\n\n{algorithm} solution:")
-    print_solution(solution)
+        pddlstream_problem, _ = construct_problem_from_sim(sim, station_dict, deepcopy(prob_info), planning_objects=ploi.relevant)
+        print("Initial:", str_from_object(pddlstream_problem.init))
+        solution = solve(
+            pddlstream_problem,
+            algorithm="adaptive",
+            verbose=VERBOSE,
+            logpath=path,
+            use_unique=use_unique,
+            max_time=max_time - (time.time() - start_time),
+            max_planner_time = max_planner_time,
+            problem_file_path = problem_file,
+            stream_info = {
+                'find-ik': StreamInfo(use_unique=True)
+            },
+        )
+
+        plan, _, evaluations = solution
+        if plan is not None:
+            print(f"\n\n{algorithm} solution:")
+            print_solution(solution)
+
+            return solution
+
+        ploi.reduce_threshold()
 
 def run_blocks_world(
     num_blocks=2,
