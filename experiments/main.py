@@ -1,6 +1,6 @@
 from experiments.blocks_world.run import run_blocks_world, run_ploi as run_blocks_world_ploi
 from experiments.two_arm_blocks_world.run import run_blocks_world as run_two_arm_blocks_world
-from experiments.kitchen.run import run_kitchen
+from experiments.kitchen.run import run_kitchen, run_ploi as run_kitchen_ploi
 from experiments.kitchen_less_axioms.run import run_kitchen_less_axioms
 from experiments.hanoi.run import run_hanoi
 from experiments.basement_blocks_world.run import run_basement_blocks_world
@@ -8,7 +8,7 @@ import argparse
 import json
 import os
 domains = {
-    'kitchen': (run_kitchen, None),
+    'kitchen': (run_kitchen, run_kitchen_ploi),
     'blocks_world':(run_blocks_world, run_blocks_world_ploi),
     'two_arm_blocks_world': (run_two_arm_blocks_world, None),
     'hanoi': (run_hanoi, None),

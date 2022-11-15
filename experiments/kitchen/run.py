@@ -4,6 +4,8 @@ The module for running the kitchen TAMP problem.
 See `problem 5` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+from copy import deepcopy
+from experiments.shared_ploi import PLOIFilter
 from sre_constants import NOT_LITERAL_IGNORE
 from experiments.shared import construct_oracle
 import json
@@ -103,7 +105,7 @@ def retrieve_model_poses(
     return res
 
 
-def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal', **oracle_kwargs):
+def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal', planning_objects=None, **oracle_kwargs):
     """
     Construct pddlstream problem from simulator
     """
@@ -120,6 +122,8 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal
 
 
     for name, pose in start_poses.items():
+        if planning_objects is not None and name not in planning_objects:
+            continue
         X_wrapper = RigidTransformWrapper(pose, name=f"X_W{name}")
         init += [
             ("item", name),
@@ -151,6 +155,8 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal
     for object_name in problem_info.surfaces:
         for link_name in problem_info.surfaces[object_name]:
             region = (object_name, link_name)
+            if planning_objects is not None and region not in planning_objects:
+                continue
             init += [("region", region)]
             if object_name == "sink":
                 init += [("sink", region)]
@@ -325,7 +331,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal
         lprint(f"{Colors.BLUE}Starting ik stream for {item}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
-            station, station_context, [("aspose", item, X_WI)], set_others_to_inf=True
+            station, station_context, [("aspose", item, X_WI)], set_to_inf=planning_objects
         )
         object_info = station.object_infos[item][0]
         # shape_info = update_graspable_shapes(object_info)[0]
@@ -347,7 +353,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal
                 station,
                 station_context,
                 [("atpose", item, X_WI)],
-                set_others_to_inf=True,
+                set_to_inf=planning_objects,
             )
 
     def check_safe(q, item, X_WI):
@@ -356,7 +362,7 @@ def construct_problem_from_sim(simulator, stations, problem_info, mode = 'normal
         lprint(f"{Colors.BLUE}Checking for collisions with {item}{Colors.RESET}")
         station, station_context = get_station("move_free")
         update_station(
-            station, station_context, [("atpose", item, X_WI)], set_others_to_inf=True
+            station, station_context, [("atpose", item, X_WI)], set_to_inf=planning_objects
         )
         res = kitchen_streamsv2.check_safe_conf(station, station_context, q)
         if res:
@@ -472,6 +478,70 @@ def setup_parser():
     )
     return parser
 
+def run_ploi(
+    problem_file=None,
+    url=None,
+    max_time=float("inf"),
+    algorithm="adaptive",
+    use_unique=False,
+    path=None,  
+    max_planner_time = 10,
+    model_path="model_files/kitchen-ploi/best.pt",
+    simulate=False
+):
+    time_str = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
+    if not os.path.isdir(f"{file_path}/logs"):
+        os.mkdir(f"{file_path}/logs")
+    if not os.path.isdir(f"{file_path}/logs/{time_str}"):
+        os.mkdir(f"{file_path}/logs/{time_str}")
+
+    if path is None:
+        path = f"{file_path}/logs/{time_str}/"
+
+    (
+        sim,
+        station_dict,
+        traj_directors,
+        meshcat_vis,
+        prob_info,
+    ) = make_and_init_simulation(url, problem_file)
+    # pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, prob_info, planning_objects=None)
+
+    pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, deepcopy(prob_info), planning_objects=None)
+    ploi = PLOIFilter(pddlstream_problem, model_path, model_poses_initial)
+    print("Initial:", str_from_object(pddlstream_problem.init))
+    print("Goal:", str_from_object(pddlstream_problem.goal))
+    start_time = time.time()
+    while time.time() - start_time < max_time:
+        ploi.reduce_problem()
+
+        pddlstream_problem, _ = construct_problem_from_sim(sim, station_dict, deepcopy(prob_info), planning_objects=ploi.relevant)
+        print("Initial:", str_from_object(pddlstream_problem.init))
+        solution = solve(
+            pddlstream_problem,
+            algorithm="adaptive",
+            verbose=VERBOSE,
+            logpath=path,
+            use_unique=use_unique,
+            max_time=max_time - (time.time() - start_time),
+            max_planner_time = max_planner_time,
+            problem_file_path = problem_file,
+            stream_info = {
+                'find-ik': StreamInfo(use_unique=True)
+            },
+        )
+
+        plan, _, evaluations = solution
+        if plan is not None:
+            print(f"\n\n{algorithm} solution:")
+            print_solution(solution)
+            break
+
+        ploi.reduce_threshold()
+    else:
+        print('Failed to find a solution.')
+        return None
+    
 
 def run_kitchen(
     num_cabbages=1,
@@ -690,11 +760,15 @@ def generate_data(
 if __name__ == "__main__":
 
     url = "tcp://127.0.0.1:6000"
-    res, problem_file = run_kitchen(
+    # res, problem_file = run_kitchen(
+    #     problem_file=os.path.join(file_path, "kitchen_data_generation", "test_problem.yaml"),
+    #     mode="normal",
+    #     algorithm='adaptive',
+    #     url = url,
+    #     simulate = False,
+    #     max_time = 90,
+    # )
+    run_ploi(
         problem_file=os.path.join(file_path, "kitchen_data_generation", "test_problem.yaml"),
-        mode="normal",
-        algorithm='adaptive',
-        url = url,
-        simulate = False,
-        max_time = 90,
+        max_time=90
     )

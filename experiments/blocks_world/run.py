@@ -515,7 +515,8 @@ def run_ploi(
     use_unique=False,
     path=None,  
     max_planner_time = 10,
-    model_path="model_files/ploi/best.pt"
+    model_path="model_files/ploi/best.pt",
+    simulate=False
 ):
     time_str = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
     if not os.path.isdir(f"{file_path}/logs"):
@@ -563,11 +564,13 @@ def run_ploi(
         if plan is not None:
             print(f"\n\n{algorithm} solution:")
             print_solution(solution)
-
-            return solution
+            break
 
         ploi.reduce_threshold()
-
+    else:
+        print('Failed to find a solution.')
+        return None
+    
 def run_blocks_world(
     num_blocks=2,
     num_blockers=2,
