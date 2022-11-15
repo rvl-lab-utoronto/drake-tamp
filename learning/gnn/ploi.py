@@ -98,14 +98,14 @@ def evaluate_dataset(model, criterion, dataset):
 
 def load_pkl(fpath):
     if fpath.startswith('/jobs'):
-        fpath = fpath.replace('/jobs', '/home/mohammed/drake-tamp/jobs-feb/jobs')
+        fpath = fpath.replace('/jobs', JOBS_HOME)
     with open(fpath, 'rb') as f:
         d = pickle.load(f)
     return d
 
 def load_json(fpath):
     if fpath.startswith('/jobs'):
-        fpath = fpath.replace('/jobs', '/home/mohammed/drake-tamp/jobs-feb/jobs')
+        fpath = fpath.replace('/jobs', JOBS_HOME)
     with open(fpath, 'r') as f:
         d = json.load(f)
     return d
@@ -169,9 +169,9 @@ def load_data(data_files):
     return X
 # %%
 if __name__ == '__main__':
-    import sys
-    # data_json, model_home = sys.argv[1:]
+    JOBS_HOME = '/home/mohammed/drake-tamp/jobs-feb/jobs'
     data_json, model_home = 'results-corl/blocksworld-dset.json', 'model_files/ploi'
+
     if not os.path.exists(model_home):
         os.makedirs(model_home, exist_ok=True)
     with open(data_json, 'r') as f:
@@ -189,17 +189,15 @@ if __name__ == '__main__':
     # %%
     f_data = load_pkl(train_files[0])
     model_info = StreamInstanceClassifierV2Info(**f_data["model_info"].__dict__)
-    num_predicates = f_data['model_info'].num_predicates
-    problem_graph_node_feature_size = 3 + 1
-    problem_graph_edge_feature_size = num_predicates + 1
-
-    model = PLOIAblationModel(model_info, 16, 16).to(device)
-
-    datasets = dict(train=DataLoader(load_data(train_files), batch_size=32, shuffle=True), val=DataLoader(load_data(val_files), batch_size=32))
+    model = PLOIAblationModel(model_info).to(device)
+    datasets = dict(
+        train=DataLoader(load_data(train_files), batch_size=32, shuffle=True),
+        val=DataLoader(load_data(val_files), batch_size=32)
+    )
 
 
     # %%
     lr = 0.0001
     criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    train_model_graphnetwork(model, datasets, criterion=criterion, optimizer=optimizer, epochs=5000, save_folder=model_home)
+    train_model_graphnetwork(model, datasets, criterion=criterion, optimizer=optimizer, epochs=1000, save_folder=model_home)

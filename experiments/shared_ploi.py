@@ -1,17 +1,13 @@
-from collections import defaultdict
 from learning.data_models import ModelInfo, ProblemInfo
 from learning.gnn.data import construct_problem_graph, construct_problem_graph_input
 from torch_geometric.data import Batch
 
 import torch
 from learning.gnn.models import PLOIAblationModel
-from learning import oracle as ora
 from pddlstream.algorithms.algorithm import parse_problem
-from pddlstream.language.constants import PDDLProblem
-from pddlstream.language.conversion import evaluation_from_fact, fact_from_evaluation
+from pddlstream.language.conversion import fact_from_evaluation
 from pddlstream.language.object import Object
 from learning.pddlstream_utils import fact_to_pddl
-from pddlstream.algorithms.meta import solve
 
 class PLOIFilter:
     def __init__(self, problem, path, model_poses):
@@ -104,67 +100,3 @@ class PLOIFilter:
         preds = torch.sigmoid(preds)
         self.preds = dict(zip(map(Object.from_name, problem_graph_input.nodes), preds.flatten().detach().numpy()))
 
-def solve_ploi(problem, *args, **kwargs):
-    if 'ploi_filter' in kwargs:
-        kwargs.pop('algorithm')
-        reset = kwargs.pop('reset')
-        ploi_filter = PLOIFilter(problem, kwargs.pop('ploi_filter'), model_poses=kwargs.pop('model_poses'))
-        while True:
-            reduced_problem = ploi_filter.reduce_problem()
-            reset(ploi_filter.relevant)
-            solution = solve(
-                reduced_problem,
-                *args, 
-                algorithm='adaptive',
-                max_complexity=15,
-                **kwargs
-            )
-            if solution.plan is not None:
-                return solution
-            if not ploi_filter.reduce_threshold():
-                break
-    else:
-        return solve(problem, *args, **kwargs)
-        
-
-    return None
-
-def construct_oracle(mode, pddl_problem, problem_info, model_poses, **kwargs):
-    if mode in ["oracle", "save"]:
-        oracle_class = ora.Oracle
-    elif mode == "oraclemodel":
-        oracle_class = ora.OracleModel
-    elif mode == "oracleexpansion":
-        oracle_class = ora.OracleModelExpansion
-    elif mode == "complexityV3":
-        oracle_class = ora.ComplexityModelV3
-    elif mode == "complexityandstructure":
-        oracle_class = ora.ComplexityModelV3StructureAware
-    elif mode == "model":
-        oracle_class = ora.Model
-    elif mode == "cachingmodel":
-        oracle_class = ora.CachingModel
-    elif mode == "multiheadmodel":
-        oracle_class = ora.MultiHeadModel
-    elif mode == "complexitycollector":
-        oracle_class = ora.ComplexityDataCollector
-    elif mode == "complexitoracle":
-        oracle_class = ora.OracleAndComplexityModelExpansion
-    elif mode == "oracledagger":
-        oracle_class = ora.OracleDAggerModel
-    elif mode == "normal":
-        return None
-    elif mode == "statsablation":
-        oracle_class = ora.StatsAblation
-    else:
-        raise ValueError(f"Unrecognized mode {mode}")
-    oracle = oracle_class(
-        pddl_problem.domain_pddl,
-        pddl_problem.stream_pddl,
-        pddl_problem.init,
-        pddl_problem.goal,
-        model_poses=model_poses,
-        **kwargs
-    )
-    oracle.set_run_attr(problem_info.attr)
-    return oracle
