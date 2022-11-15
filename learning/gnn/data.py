@@ -899,7 +899,7 @@ class PLOIAblationDataset(Dataset):
                 [None],
             )
         )
-        init_objects = set(problem_info.object_mapping)
+        init_objects = objects_from_facts(problem_info.initial_facts)
         positive = set()
         for label in data["labels"]:
             if label.label:

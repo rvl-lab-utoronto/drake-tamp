@@ -318,7 +318,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 q_initial=q_initial,
             )
             if not np.isfinite(cost):
-                lprint(f"{Colors.RED}Failed ik for {block}{Colors.RESET}")
+                print(f"{Colors.RED}Failed ik for {block}{Colors.RESET}")
                 return
             pre_q = find_pregrasp(
                 station, station_context, q, 0.07, panda_info=panda_info
@@ -388,9 +388,12 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         update_station(
             station, station_context, [("atpose", block, X_WB)], set_others_to_inf=True
         )
-        return blocks_world_streams.check_colfree_block(
+        free = blocks_world_streams.check_colfree_block(
             station, station_context, arm_name, q
         )
+        if not free:
+            print(f"{Colors.RED}Detected collisions between {arm_name} and {block}{Colors.RESET}")
+        return free
 
     stream_map = {
         "find-traj": from_gen_fn(find_motion),

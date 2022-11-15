@@ -32,7 +32,7 @@ class PLOIAblationModel(nn.Module):
             graph_hidden_size=hidden_size,
             dropout=.5
         )
-        self.pg_mlp = MLP([hidden_size, 1], hidden_size, dropout=.5)
+        self.pg_mlp = MLP([hidden_size, 1], hidden_size, dropout=0.5)
 
 
     def forward(self, data, object_reps=None, score=False, update_reps=False):
@@ -223,11 +223,13 @@ class StreamInstanceClassifierV2(nn.Module):
         for i, mlp in enumerate(self.mlps):
             setattr(self, f"mlp{i}", mlp)
 
+        self.pg_mlp = MLP([hidden_size, 1], hidden_size)
 
     def get_init_reps(self, problem_graph):
         problem_graph = Batch().from_data_list([problem_graph])
-        prob_x = self.problem_graph_network(problem_graph, return_x=True)
-        object_reps = {name: {"rep": prob_x[i], "logit": torch.tensor([100.], device = prob_x.device)} for i,name in enumerate(problem_graph.nodes[0])}
+        rep_x = self.problem_graph_network(problem_graph, return_x=True)
+        prob_x = self.pg_mlp(rep_x)
+        object_reps = {name: {"rep": rep_x[i], "logit": prob_x[i]} for i,name in enumerate(problem_graph.nodes[0])}
         return object_reps
 
     def forward(self, data, object_reps=None, score=False, update_reps=False):
