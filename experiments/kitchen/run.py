@@ -559,11 +559,11 @@ def run_kitchen(
     if should_save or mode == 'save':
         oracle.save_stats(path + "stats.json")
 
-    if not algorithm.startswith("informed"):
-        make_plot(path + "stats.json", save_path=path + "plots.png")
-        visualization.stats_to_graph(
-            path + "stats.json", save_path=path + "preimage_graph.html"
-        )
+    # if not algorithm.startswith("informed"):
+    #     make_plot(path + "stats.json", save_path=path + "plots.png")
+    #     visualization.stats_to_graph(
+    #         path + "stats.json", save_path=path + "preimage_graph.html"
+    #     )
 
 
     if simulate:

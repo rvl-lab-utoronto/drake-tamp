@@ -172,7 +172,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             ("arm", arm),
             ("empty", arm),
             ("conf", arm, conf),
-            ("atconf", arm, conf),
+            # ("atconf", arm, conf),
         ]
 
     static_model_names = []
@@ -592,11 +592,11 @@ def run_blocks_world(
     if should_save or mode == 'save':
         oracle.save_stats(path + "stats.json")
 
-    if not algorithm.startswith("informed"):
-        make_plot(path + "stats.json", save_path=path + "plots.png")
-        visualization.stats_to_graph(
-            path + "stats.json", save_path=path + "preimage_graph.html"
-        )
+    # if not algorithm.startswith("informed"):
+    #     make_plot(path + "stats.json", save_path=path + "plots.png")
+    #     visualization.stats_to_graph(
+    #         path + "stats.json", save_path=path + "preimage_graph.html"
+    #     )
 
     if simulate:
         action_map = {

@@ -16,7 +16,7 @@ sys.path.insert(
 )
 
 from experiments.blocks_world.run_lifted import create_problem
-from lifted.a_star import ActionStreamSearch, goalcount_heuristic, repeated_a_star, stream_cost, try_a_star, try_beam, try_policy_guided_beam, try_policy_guided
+from lifted.a_star import ActionStreamSearch, goalcount_heuristic, repeated_a_star, stream_cost, default_action_cost,  try_a_star, try_beam, try_policy_guided_beam, try_policy_guided
 from learning.policy import make_policy, load_model, extract_labels
 from pddlstream.language.object import Object
 from experiments.blocks_world.pyper_utils import BlocksWorldPyperTranslator
@@ -41,16 +41,29 @@ if __name__ == '__main__':
     parser.add_argument("--use_policy", action="store_true")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--save_label_path", type=str, default=None)
+    parser.add_argument("--cost_fn", type=str, default="stream", choices=["stream", "edge"])
     parser.add_argument("--heuristic", type=str, default=None, choices=["goalcount", "hff", "hadd", "lama"])
+    parser.add_argument("--seed", type=int, default=None)
 
     args = parser.parse_args()
+
+    if args.seed:
+        import numpy as np
+        import random
+        np.random.seed(args.seed)
+        random.seed(args.seed)
 
     search_types = {
         "astar": try_a_star if not args.use_policy else try_policy_guided,
         "beam": try_beam if not args.use_policy else try_policy_guided_beam,
     }
-
     search_func = search_types[args.search_type]
+
+    cost_fns = {
+        "stream": stream_cost,
+        "edge": default_action_cost,
+    }
+    cost_fn = cost_fns[args.cost_fn]
 
     model = None
 
@@ -85,7 +98,7 @@ if __name__ == '__main__':
             beam_size=args.beam_size,
             stats=stats,
             policy_ts=policy,
-            cost=stream_cost,
+            cost=cost_fn,
             max_steps=100,
             edge_eval_steps=args.edge_eval_steps,
             max_time=args.timeout,

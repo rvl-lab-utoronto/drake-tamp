@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from torch_geometric.data.dataloader import DataLoader
+from torch_geometric.loader import DataLoader
 from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierV2Info
 from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
