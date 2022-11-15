@@ -515,6 +515,7 @@ def run_ploi(
     use_unique=False,
     path=None,  
     max_planner_time = 10,
+    model_path="model_files/ploi/best.pt"
 ):
     time_str = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
     if not os.path.isdir(f"{file_path}/logs"):
@@ -535,7 +536,7 @@ def run_ploi(
     # pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, prob_info, planning_objects=None)
 
     pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, deepcopy(prob_info), planning_objects=None)
-    ploi = PLOIFilter(pddlstream_problem, "model_files/ploi/best.pt", model_poses_initial)
+    ploi = PLOIFilter(pddlstream_problem, model_path, model_poses_initial)
     print("Initial:", str_from_object(pddlstream_problem.init))
     print("Goal:", str_from_object(pddlstream_problem.goal))
     start_time = time.time()
@@ -817,7 +818,10 @@ if __name__ == '__main__':
     #url = "tcp://127.0.0.1:6003"
 
     run_ploi(
-        problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/non_monotonic/train/2_2_1_33.yaml",
+        # problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/2_2_1_33.yaml",
+        # problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/3_6_1_54.yaml",
+        # problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/3_6_2_71.yaml",
+        problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/4_8_1_4.yaml",
         # problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
         #url = url,
         #simulate = False,

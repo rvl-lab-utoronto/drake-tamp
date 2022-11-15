@@ -1,4 +1,4 @@
-from experiments.blocks_world.run import run_blocks_world
+from experiments.blocks_world.run import run_blocks_world, run_ploi as run_blocks_world_ploi
 from experiments.two_arm_blocks_world.run import run_blocks_world as run_two_arm_blocks_world
 from experiments.kitchen.run import run_kitchen
 from experiments.kitchen_less_axioms.run import run_kitchen_less_axioms
@@ -8,12 +8,12 @@ import argparse
 import json
 import os
 domains = {
-    'kitchen': run_kitchen,
-    'blocks_world':run_blocks_world,
-    'two_arm_blocks_world': run_two_arm_blocks_world,
-    'hanoi': run_hanoi,
-    'kitchen_less_axioms': run_kitchen_less_axioms,
-    'basement_blocks_world': run_basement_blocks_world
+    'kitchen': (run_kitchen, None),
+    'blocks_world':(run_blocks_world, run_blocks_world_ploi),
+    'two_arm_blocks_world': (run_two_arm_blocks_world, None),
+    'hanoi': (run_hanoi, None),
+    'kitchen_less_axioms': (run_kitchen_less_axioms, None),
+    'basement_blocks_world': (run_basement_blocks_world, None)
 }
 
 example = '{"model_path":"/home/agrobenj/drake-tamp/model_files/blocksworld_V2_adaptive/best.pt"}'
@@ -46,7 +46,7 @@ def make_argument_parser():
         "--algorithm",
         type=str,
         default="adaptive",
-        choices=["informedV2", "adaptive"],
+        choices=["informedV2", "adaptive", "ploi"],
         help = "Which algorithm do you want to run the trial with?"
     )
     parser.add_argument(
@@ -146,21 +146,32 @@ if __name__ == '__main__':
         f.write(f"Eager Mode: {args.eager_mode}\n")
         f.write(f"Domain: {args.domain}\n")
         f.write(f"Problem File: {args.problem_file}\n")
-
-    run_exp(
-        mode=args.mode,
-        algorithm=args.algorithm,
-        use_unique=args.use_unique,
-        max_time=args.max_time,
-        eager_mode=args.eager_mode,
-        should_save=args.should_save,
-        url=args.url if args.url else None,
-        simulate=False,
-        oracle_kwargs=oracle_options,
-        path=args.logpath,
-        max_planner_time = args.max_planner_time,
-        **domain_options
-    )
+    if args.algorithm == 'ploi':
+        assert run_exp[1] is not None, f"No runner for ploi on {args.domain} is registered"
+        run_exp[1](
+            use_unique=args.use_unique,
+            max_time=args.max_time,
+            url=args.url if args.url else None,
+            path=args.logpath,
+            max_planner_time = args.max_planner_time,
+            model_path=oracle_options["model_path"],
+            **domain_options
+        )
+    else:
+        run_exp[0](
+            mode=args.mode,
+            algorithm=args.algorithm,
+            use_unique=args.use_unique,
+            max_time=args.max_time,
+            eager_mode=args.eager_mode,
+            should_save=args.should_save,
+            url=args.url if args.url else None,
+            simulate=False,
+            oracle_kwargs=oracle_options,
+            path=args.logpath,
+            max_planner_time = args.max_planner_time,
+            **domain_options
+        )
     if args.profile:
         pr.disable()
         s = io.StringIO()
