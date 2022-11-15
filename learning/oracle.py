@@ -754,6 +754,10 @@ class MultiHeadModel(Oracle):
             self.use_level = kwargs.pop("use_level")
         else:
             self.use_level = True
+        if "use_count" in kwargs:
+            self.use_count = kwargs.pop("use_count")
+        else:
+            self.use_count = True
 
         super().__init__(*args, **kwargs)
         self.model_path = model_path
@@ -812,12 +816,13 @@ class MultiHeadModel(Oracle):
         return result_key
 
     def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
-        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1  + result.call_index
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1
         if not all([d in node_from_atom for d in result.domain]):
             return self.running_average / l
 
         result_key = self.calculate_result_key(result, atom_map)
-        count = self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        count = result.call_index if not self.use_count else self.counts[result_key] - 1
         if result_key in self.history:
             score, reps = self.history[result_key]
             outputs = tuple()
@@ -830,6 +835,67 @@ class MultiHeadModel(Oracle):
             score = self.model(data, object_reps=self.object_reps, score=True).detach().numpy()[0][0]
             self.history[result_key] = (score, [self.object_reps[o] for o in outputs])
             self.running_average = (self.running_average*(self.N-1) + score) / self.N
+        if self.use_level:
+            return score/(l  + count)
+        else:
+            return score/count
+
+class PLOIAblation(MultiHeadModel):
+    def __init__(self, *args, **kwargs):
+        self.use_count = True
+        if 'use_count' in kwargs:
+            self.use_count = kwargs.pop('use_count')
+        super().__init__(*args, **kwargs)
+    def load_model(self):
+        print(self.feature_size, self.hidden_size)
+        self.model = PLOIAblationModel(
+            self.model_info, feature_size = self.feature_size, hidden_size = self.hidden_size
+        )
+        self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
+        self.model.eval()
+
+        self.problem_info.problem_graph = construct_problem_graph(self.problem_info)#, self.model_info)
+        problem_graph_input = construct_problem_graph_input(self.problem_info, self.model_info)
+        probs = torch.nn.functional.sigmoid(self.model(Batch.from_data_list([problem_graph_input]))).detach().numpy().flatten()
+        self.object_reps = {problem_graph_input.nodes[i]:probs[i] for i in range(len(probs))}
+        self.history = {}
+        self.counts = {}
+        self.init_objects = objects_from_facts(self.problem_info.initial_facts)
+    
+    def calculate_result_key(self, result, atom_map):
+        facts = [fact_to_pddl(f) for f in result.get_certified()]
+        domain = [fact_to_pddl(f) for f in result.domain]
+        result_key = tuple()
+        objs = set()
+        for fact in facts:
+            atom_map[fact] = domain
+            anc = ancestors_tuple(fact, atom_map=atom_map)
+            objs |= objects_from_facts(anc)
+            result_key += standardize_facts(anc, self.init_objects)
+        return result_key, objs
+
+    def predict(self, result, node_from_atom, levels, atom_map, **kwargs):
+        l = max(levels[evaluation_from_fact(f)] for f in result.domain) + 1
+        assert l > 0
+
+        if not all([d in node_from_atom for d in result.domain]):
+            assert False, "Cannot use this in unrefined mode."
+
+        result_key, ancestor_objects = self.calculate_result_key(result, atom_map)
+        self.counts[result_key] = self.counts.get(result_key, 0) + 1
+        count = result.call_index if not self.use_count else self.counts[result_key]
+        if result_key in self.history:
+            score = self.history[result_key]
+        else:
+            score = 0
+            k = 0
+            for o in ancestor_objects:
+                if o in self.object_reps:
+                    score += self.object_reps[o]
+                    k += 1
+            score = score/k
+            assert score > 0 and score < 1
+            self.history[result_key] = score
         if self.use_level:
             return score/(l  + count  - 1)
         else:
