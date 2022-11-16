@@ -218,8 +218,14 @@ class KitchenProblemMaker:
 
         if tp < prob_tray:
             self.put_at_start(region_list, "tray")
-        elif prob_tray < tp < prob_tray + prob_sink:
+        else:
+            region_list.remove("tray")
+
+        if prob_tray < tp < prob_tray + prob_sink:
             self.put_at_start(region_list, "sink")
+            print("sink!")
+        else:
+            region_list.remove("sink")
 
         for region in region_list:
             region_name = self.regions[region].name
