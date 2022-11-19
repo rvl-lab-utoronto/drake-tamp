@@ -74,7 +74,7 @@ def make_argument_parser():
     parser.add_argument("--ablation", action="store_true", help = "Are you doing an ablation study?") # what exactly does this do?
     parser.add_argument("--feature-size", type=int, default = 16) 
     parser.add_argument("--hidden-size", type=int, default = 16)    
-    parser.add_argument("--decrease-with-depth", action="store_true") 
+    parser.add_argument("--decrease-score-with-depth", action="store_true") 
     parser.add_argument("--score-initial-objects", action="store_true")    
     return parser
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
             model_info,
             feature_size=args.feature_size,
             hidden_size=args.hidden_size,
-            decrease_score_with_depth=args.decrease_with_depth,
+            decrease_score_with_depth=args.decrease_score_with_depth,
             score_initial_objects=args.score_initial_objects
         )
     elif args.model == "ploiablation":

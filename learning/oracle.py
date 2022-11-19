@@ -750,6 +750,15 @@ class MultiHeadModel(Oracle):
         else:
             hidden_size = 16
 
+        if "score_initial_objects" in kwargs:
+            score_initial_objects = kwargs.pop('score_initial_objects')
+        else:
+            score_initial_objects = True
+        if "decrease_score_with_depth"  in kwargs:
+            decrease_score_with_depth = kwargs.pop('decrease_score_with_depth')
+        else:
+            decrease_score_with_depth = True
+
         if "use_level" in kwargs:
             self.use_level = kwargs.pop("use_level")
         else:
@@ -763,6 +772,8 @@ class MultiHeadModel(Oracle):
         self.model_path = model_path
         self.feature_size = feature_size
         self.hidden_size = hidden_size
+        self.score_initial_objects = score_initial_objects
+        self.decrease_score_with_depth = decrease_score_with_depth
         self.model = None
     
     def set_model_info(self, domain, externals):
@@ -792,7 +803,11 @@ class MultiHeadModel(Oracle):
     def load_model(self):
         print(self.feature_size, self.hidden_size)
         self.model = StreamInstanceClassifierV2(
-            self.model_info, feature_size = self.feature_size, hidden_size = self.hidden_size
+            self.model_info,
+            feature_size=self.feature_size,
+            hidden_size=self.hidden_size,
+            score_initial_objects=self.score_initial_objects,
+            decrease_score_with_depth=self.decrease_score_with_depth
         )
         self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
         self.model.eval()
