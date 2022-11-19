@@ -4,6 +4,7 @@ The module for running the blocks world TAMP problem.
 See `problem 2` at this link for details:
 http://tampbenchmark.aass.oru.se/index.php?title=Problems
 """
+from copy import deepcopy
 import time
 import psutil
 import numpy as np
@@ -26,6 +27,7 @@ from datetime import datetime
 import pydrake.all
 from pydrake.all import RigidTransform
 from pydrake.all import Role
+from experiments.shared_ploi import PLOIFilter
 from pddlstream.language.generator import from_gen_fn, from_test
 from pddlstream.utils import str_from_object
 from pddlstream.language.constants import PDDLProblem, print_solution
@@ -104,7 +106,7 @@ def retrieve_model_poses(
 
     return res
 
-def construct_problem_from_sim(simulator, stations, problem_info):
+def construct_problem_from_sim(simulator, stations, problem_info, planning_objects=None):
     """
     Construct pddlstream problem from simulator
     """
@@ -140,6 +142,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         goal[i] = tuple(goal[i])
 
     for name, pose in start_poses.items():
+        if planning_objects is not None and name not in planning_objects:
+            continue
         init += [
             ("block", name),
             ("worldpose", name, pose),
@@ -183,6 +187,8 @@ def construct_problem_from_sim(simulator, stations, problem_info):
     for object_name in problem_info.surfaces:
         for link_name in problem_info.surfaces[object_name]:
             table = (object_name, link_name)
+            if planning_objects is not None and table not in planning_objects:
+                continue
             init += [("table", table)]
             static_model_names.append(object_name)
             static_link_names.append(link_name)
@@ -296,7 +302,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             station,
             station_context,
             [("atworldpose", block, X_WB)],
-            set_others_to_inf=True,
+            set_to_inf=planning_objects,
         )
         object_info = station.object_infos[block][0]
         panda_info = station.panda_infos[arm_name]
@@ -329,7 +335,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 station,
                 station_context,
                 [("atworldpose", block, X_WB)],
-                set_others_to_inf=True,
+                set_to_inf=planning_objects,
             )
 
     def find_table_place(block, table):
@@ -358,7 +364,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
             station,
             station_context,
             [("atworldpose", lowerblock, X_WL)],
-            set_others_to_inf=True,
+            set_to_inf=planning_objects,
         )
         holding_object_info = station.object_infos[block][0]
         shape_info = update_placeable_shapes(holding_object_info)[0]
@@ -377,7 +383,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
                 station,
                 station_context,
                 [("atworldpose", lowerblock, X_WL)],
-                set_others_to_inf=True,
+                set_to_inf=planning_objects,
             )
 
     def check_colfree_block(arm_name, q, block, X_WB):
@@ -386,7 +392,7 @@ def construct_problem_from_sim(simulator, stations, problem_info):
         )
         station, station_context = get_station("move_free")
         update_station(
-            station, station_context, [("atpose", block, X_WB)], set_others_to_inf=True
+            station, station_context, [("atpose", block, X_WB)], set_to_inf=planning_objects
         )
         free = blocks_world_streams.check_colfree_block(
             station, station_context, arm_name, q
@@ -501,7 +507,70 @@ def setup_parser():
     )
     return parser
 
+def run_ploi(
+    problem_file=None,
+    url=None,
+    max_time=float("inf"),
+    algorithm="adaptive",
+    use_unique=False,
+    path=None,  
+    max_planner_time = 10,
+    model_path="model_files/ploi/best.pt",
+    simulate=False
+):
+    time_str = datetime.today().strftime("%Y-%m-%d-%H:%M:%S")
+    if not os.path.isdir(f"{file_path}/logs"):
+        os.mkdir(f"{file_path}/logs")
+    if not os.path.isdir(f"{file_path}/logs/{time_str}"):
+        os.mkdir(f"{file_path}/logs/{time_str}")
 
+    if path is None:
+        path = f"{file_path}/logs/{time_str}/"
+
+    (
+        sim,
+        station_dict,
+        traj_directors,
+        meshcat_vis,
+        prob_info,
+    ) = make_and_init_simulation(url, problem_file)
+    # pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, prob_info, planning_objects=None)
+
+    pddlstream_problem, model_poses_initial = construct_problem_from_sim(sim, station_dict, deepcopy(prob_info), planning_objects=None)
+    ploi = PLOIFilter(pddlstream_problem, model_path, model_poses_initial)
+    print("Initial:", str_from_object(pddlstream_problem.init))
+    print("Goal:", str_from_object(pddlstream_problem.goal))
+    start_time = time.time()
+    while time.time() - start_time < max_time:
+        ploi.reduce_problem()
+
+        pddlstream_problem, _ = construct_problem_from_sim(sim, station_dict, deepcopy(prob_info), planning_objects=ploi.relevant)
+        print("Initial:", str_from_object(pddlstream_problem.init))
+        solution = solve(
+            pddlstream_problem,
+            algorithm="adaptive",
+            verbose=VERBOSE,
+            logpath=path,
+            use_unique=use_unique,
+            max_time=max_time - (time.time() - start_time),
+            max_planner_time = max_planner_time,
+            problem_file_path = problem_file,
+            stream_info = {
+                'find-ik': StreamInfo(use_unique=True)
+            },
+        )
+
+        plan, _, evaluations = solution
+        if plan is not None:
+            print(f"\n\n{algorithm} solution:")
+            print_solution(solution)
+            break
+
+        ploi.reduce_threshold()
+    else:
+        print('Failed to find a solution.')
+        return None
+    
 def run_blocks_world(
     num_blocks=2,
     num_blockers=2,
@@ -751,18 +820,14 @@ if __name__ == '__main__':
     # main_generation_loop()
     #url = "tcp://127.0.0.1:6003"
 
-    res, _ = run_blocks_world(
-        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
-        mode="save",
+    run_ploi(
+        # problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/2_2_1_33.yaml",
+        # problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/3_6_1_54.yaml",
+        # problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/3_6_2_71.yaml",
+        problem_file="/home/mohammed/drake-tamp/experiments/blocks_world/data_generation/clutter/test/4_8_1_4.yaml",
+        # problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
         #url = url,
         #simulate = False,
         max_time = 180
     )
 
-    res, _ = run_blocks_world(
-        problem_file=os.path.join(file_path, "data_generation", "test_problem.yaml"),
-        mode="oracle",
-        #url = url,
-        #simulate = False,
-        max_time = 180
-    )

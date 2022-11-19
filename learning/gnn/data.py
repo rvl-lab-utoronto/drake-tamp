@@ -458,6 +458,41 @@ def construct_problem_graph(problem_info: ProblemInfo):
     return nodes, node_attributes, edges, edge_attributes
 
 
+def construct_geometric_scene_graph(nodes, node_attributes):
+    edges, edge_attributes = [], []
+    actual_object_inds = [i for i in range(len(nodes)) if node_attributes[i]['has_pose']]
+    for obj1, obj2 in itertools.permutations(actual_object_inds, 2):
+        edges.append((obj1, obj2))
+        edge_attributes.append({
+            "predicate": None,
+            "is_initial": True,
+            "translation": node_attributes[obj1]["pose"].translation() - node_attributes[obj2]["pose"].translation(),
+            "dist": np.sqrt(np.square(node_attributes[obj1]["pose"].translation() - node_attributes[obj2]["pose"].translation()).mean())
+        })
+    return [nodes[i] for i in actual_object_inds], [node_attributes[i] for i in actual_object_inds], edges, edge_attributes
+
+def construct_geometric_scene_graph_input(problem_info: ProblemInfo):
+    nodes, node_attr, _, _ = problem_info.problem_graph
+    _, _, edges, edge_attr = construct_geometric_scene_graph(nodes, node_attr)
+    node_features = torch.zeros((len(nodes), 3), dtype=torch.float)
+    edge_features = torch.zeros(
+        (len(edges), 3 + 1), dtype=torch.float
+    )
+    for i in range(len(nodes)):
+        node_features[i, :3] = torch.from_numpy(node_attr[i]["pose"].translation()) if node_attr[i]["pose"] is not None else 0
+    for i in range(len(edges)):
+        edge_features[i, :3] = torch.from_numpy(edge_attr[i]["translation"])
+        edge_features[i, 3] = edge_attr[i]["dist"]
+
+    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+
+    return Data(
+        nodes=nodes,
+        x=node_features,
+        edge_attr=edge_features,
+        edge_index=edge_index
+    )
+
 def construct_problem_graph_input(problem_info: ProblemInfo, model_info: ModelInfo):
     nodes, node_attr, edges, edge_attr = problem_info.problem_graph
     # construct_problem_graph(problem_info)

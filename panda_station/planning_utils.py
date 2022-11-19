@@ -380,7 +380,7 @@ def update_arm(station, station_context, panda_name, q):
     panda = station.panda_infos[panda_name].panda
     plant.SetPositions(plant_context, panda, q)
 
-def update_station(station, station_context, pose_fluents, set_others_to_inf=False):
+def update_station(station, station_context, pose_fluents, set_to_inf=[]):
     """
     Update the poses of the welded objects in the
     PandaStation based on the poses in pose_fluents.
@@ -395,7 +395,7 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf=Fal
         [('atpose', object_info_name, X_WO), ..., ('atgraspose', object_info_name, X_WH)]
         X* can be either Drake's RigidTransform or a RigidTransformWrapper
 
-        set_others_to_inf: if True, the poses of any unspecified objects will be set to
+        set_to_inf: A list of object names whose poses will be set to
         infinity (far away) so they are not considerd in planning
     Returns:
         None, but updates the welded station provided in welded_station
@@ -414,12 +414,14 @@ def update_station(station, station_context, pose_fluents, set_others_to_inf=Fal
         ), "you are trying to set the pose of a free object"
         offset_frame.SetPoseInBodyFrame(plant_context, X_PO)
 
-    if set_others_to_inf:
+    if set_to_inf:
         X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
         for object_info, Xinit_WO in list(station.object_infos.values()):
             if object_info.get_name() in set_pose:  # its pose has been set
                 continue
             if Xinit_WO is None:  # it is not a manipuland
+                continue
+            if object_info.get_name() not in set_to_inf:
                 continue
             offset_frame = object_info.get_frame()
             offset_frame.SetPoseInBodyFrame(plant_context, X_WO)
