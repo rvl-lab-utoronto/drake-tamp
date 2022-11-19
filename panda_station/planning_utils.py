@@ -414,19 +414,19 @@ def update_station(station, station_context, pose_fluents, set_to_inf=[]):
         ), "you are trying to set the pose of a free object"
         offset_frame.SetPoseInBodyFrame(plant_context, X_PO)
 
-    if set_to_inf:
-        X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
-        for object_info, Xinit_WO in list(station.object_infos.values()):
-            if object_info.get_name() in set_pose:  # its pose has been set
-                continue
-            if Xinit_WO is None:  # it is not a manipuland
-                continue
-            if object_info.get_name() not in set_to_inf:
-                continue
-            offset_frame = object_info.get_frame()
-            offset_frame.SetPoseInBodyFrame(plant_context, X_WO)
-            # spacing of 5 m should be far enough
-            X_WO.set_translation(X_WO.translation() + np.array([5, 0, 0]))
+
+    X_WO = RigidTransform(RotationMatrix(), [10, 0, 0])
+    for object_info, Xinit_WO in list(station.object_infos.values()):
+        if object_info.get_name() in set_pose:  # its pose has been set
+            continue
+        if Xinit_WO is None:  # it is not a manipuland
+            continue
+        if (set_to_inf is not None) and object_info.get_name() not in set_to_inf:
+            continue
+        offset_frame = object_info.get_frame()
+        offset_frame.SetPoseInBodyFrame(plant_context, X_WO)
+        # spacing of 5 m should be far enough
+        X_WO.set_translation(X_WO.translation() + np.array([5, 0, 0]))
 
 
 def update_graspable_shapes(object_info):
