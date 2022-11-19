@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 
-from torch_geometric.data.dataloader import DataLoader
+from torch_geometric.loader import DataLoader
 from learning.data_models import StreamInstanceClassifierInfo, StreamInstanceClassifierV2Info
 from learning.gnn.data import (
     DeviceAwareLoaderWrapper,
@@ -74,6 +74,8 @@ def make_argument_parser():
     parser.add_argument("--ablation", action="store_true", help = "Are you doing an ablation study?") # what exactly does this do?
     parser.add_argument("--feature-size", type=int, default = 16) 
     parser.add_argument("--hidden-size", type=int, default = 16)    
+    parser.add_argument("--decrease-with-depth", action="store_true") 
+    parser.add_argument("--score-initial-objects", action="store_true")    
     return parser
 
 
@@ -134,7 +136,13 @@ if __name__ == "__main__":
         assert args.batch_size == 1, "Batching not yet supported for StreamInstanceClassifierV2Info"
         input_fn = construct_stream_classifier_input_v2
         model_info_class = StreamInstanceClassifierV2Info
-        model_fn = lambda model_info: StreamInstanceClassifierV2(model_info, feature_size = args.feature_size, hidden_size = args.hidden_size)
+        model_fn = lambda model_info: StreamInstanceClassifierV2(
+            model_info,
+            feature_size=args.feature_size,
+            hidden_size=args.hidden_size,
+            decrease_score_with_depth=args.decrease_with_depth,
+            score_initial_objects=args.score_initial_objects
+        )
     elif args.model == "ploiablation":
         TrainingDataset = PLOIAblationDataset
         Dataset = PLOIAblationDataset

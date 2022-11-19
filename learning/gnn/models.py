@@ -198,8 +198,12 @@ class StreamInstanceClassifierV2(nn.Module):
         model_info,
         feature_size=16,
         hidden_size=16,
+        score_initial_objects=True,
+        decrease_score_with_depth=True,
     ):
         super().__init__()
+        self.score_initial_objects = score_initial_objects
+        self.decrease_score_with_depth = decrease_score_with_depth
         self.problem_graph_network = ProblemGraphNetwork(
             node_feature_size=model_info.problem_graph_node_feature_size,
             edge_feature_size=model_info.problem_graph_edge_feature_size,
@@ -228,7 +232,10 @@ class StreamInstanceClassifierV2(nn.Module):
     def get_init_reps(self, problem_graph):
         problem_graph = Batch().from_data_list([problem_graph])
         rep_x = self.problem_graph_network(problem_graph, return_x=True)
-        prob_x = self.pg_mlp(rep_x)
+        if self.score_initial_objects:
+            prob_x = self.pg_mlp(rep_x)
+        else:
+            prob_x = 100. * torch.ones((rep_x.shape[0], 1), device=rep_x.device)
         object_reps = {name: {"rep": rep_x[i], "logit": prob_x[i]} for i,name in enumerate(problem_graph.nodes[0])}
         return object_reps
 
@@ -250,11 +257,12 @@ class StreamInstanceClassifierV2(nn.Module):
             stream_mlp = self.mlps[stream_index]
             
             stream_inputs = torch.cat([object_reps[n]["rep"] for n in stream["input_objects"]], dim=0)
-            stream_logits = torch.cat([object_reps[n]["logit"] for n in stream["input_objects"]], dim=0)
-            prev_log = (stream_logits*torch.softmax(-stream_logits, dim=0)).sum(0, keepdim=True)
 
             out, outputs = stream_mlp(stream_inputs)
-            out = out + prev_log - torch.logsumexp(torch.cat([out, prev_log, torch.tensor([1.], device=out.device)], dim=0), dim=0)
+            if self.decrease_score_with_depth:
+                stream_logits = torch.cat([object_reps[n]["logit"] for n in stream["input_objects"]], dim=0)
+                prev_log = (stream_logits*torch.softmax(-stream_logits, dim=0)).sum(0, keepdim=True)
+                out = out + prev_log - torch.logsumexp(torch.cat([out, prev_log, torch.tensor([0.], device=out.device)], dim=0), dim=0)
             for out_name, out_rep in zip(stream["output_objects"], outputs):
                 object_reps[out_name] = {"rep": out_rep, "logit": out}
 
