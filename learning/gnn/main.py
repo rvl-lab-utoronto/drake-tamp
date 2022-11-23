@@ -223,8 +223,8 @@ if __name__ == "__main__":
             epochs=args.epochs,
             save_folder=args.model_home,
         )
-        # Load the best checkoibt for evaluation
-        model.load_state_dict(torch.load(os.path.join(args.model_home, "best.pt")))
+    # Load the best checkoibt for evaluation
+    model.load_state_dict(torch.load(os.path.join(args.model_home, "best.pt")))
 
     evaluate_model(
         model,
