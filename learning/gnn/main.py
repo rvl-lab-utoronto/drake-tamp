@@ -76,6 +76,7 @@ def make_argument_parser():
     parser.add_argument("--hidden-size", type=int, default = 16)    
     parser.add_argument("--decrease-score-with-depth", action="store_true") 
     parser.add_argument("--score-initial-objects", action="store_true")    
+    parser.add_argument("--trainset-prop", type=float, default = 1)    
     return parser
 
 
@@ -85,6 +86,8 @@ if __name__ == "__main__":
     with open(args.datafile, "r") as f:
         data = json.load(f)
     train_files = [os.path.join(base_datapath, d) if not d.startswith('/') else d for d in data["train"]]
+    if args.trainset_prop < 1:
+        train_files = train_files[:int(len(train_files) * args.trainset_prop)]
     val_files = [os.path.join(base_datapath, d) if not d.startswith('/') else d for d in data["validation"]]
     print(f"Number of training files: {len(train_files)}")
     print(f"Number of validation files: {len(val_files)}")
@@ -111,6 +114,8 @@ if __name__ == "__main__":
             if args.model == "streamclassv2":
                 f.write(f"Feature size {args.feature_size}\n")
                 f.write(f"Hidden size {args.hidden_size}\n")
+                f.write(f"Score Initial {args.score_initial_objects}\n")
+                f.write(f"Decrease With Depth {args.decrease_score_with_depth}\n")
 
     evaluate_model = evaluate_model_stream
     if args.model == "hyper":

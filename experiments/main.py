@@ -17,6 +17,16 @@ domains = {
 }
 
 example = '{"model_path":"/home/agrobenj/drake-tamp/model_files/blocksworld_V2_adaptive/best.pt"}'
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def make_argument_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -41,6 +51,36 @@ def make_argument_parser():
         "--oracle-options",
         type=str,
         help = f"Keyword arguments passed to the model in json format, like {example}"
+    )
+    parser.add_argument(
+        "--oracle-options.model_path",
+        type=str,
+        default=None
+    )
+    parser.add_argument(
+        "--oracle-options.feature_size",
+        type=int,
+        default=None
+    )
+    parser.add_argument(
+        "--oracle-options.hidden_size",
+        type=int,
+        default=None
+    )
+    parser.add_argument(
+        "--oracle-options.decrease_score_with_depth",
+        type=str2bool,
+        default=None
+    )
+    parser.add_argument(
+        "--oracle-options.score_initial_objects",
+        type=str2bool,
+        default=None
+    )
+    parser.add_argument(
+        "--oracle-options.use_level",
+        type=str2bool,
+        default=None
     )
     parser.add_argument(
         "--algorithm",
@@ -124,6 +164,12 @@ if __name__ == '__main__':
     run_exp = domains[args.domain]
     domain_options = json.loads(args.domain_options) if args.domain_options else {}
     oracle_options = json.loads(args.oracle_options) if args.oracle_options else {}
+    for name in dir(args):
+        if name.startswith('oracle_options.'):
+            key = name.split('.')[1]
+            value = getattr(args, name)
+            if value is not None:
+                oracle_options[key] = value
     if args.problem_file:
         domain_options['problem_file'] = args.problem_file
     if args.logpath:
@@ -177,4 +223,4 @@ if __name__ == '__main__':
         s = io.StringIO()
         ps = pstats.Stats(pr, stream=s)
         ps.print_stats()
-        ps.dump_stats(args.profile)   
+        ps.dump_stats(args.profile)
