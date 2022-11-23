@@ -9,10 +9,14 @@ export CUDA_VISIBLE_DEVICES=""
 
 mkdir -p $EXPDIR && cd $EXPDIR
 for FILE in $PROBLEMS; do
-  echo "Running $(realpath $FILE)"
   RUN=$(basename $FILE)
   LOGDIR=$(realpath ./$RUN)_logs/
-  mkdir -p $LOGDIR && cd $LOGDIR
-  timeout --signal 2 --foreground 130s python -O $DIR/experiments/main.py $RUN_ARGS --logpath $LOGDIR --problem-file $FILE --max_planner_time 30 | tee $EXPDIR/$RUN.log
-  cd ..
+  if [ -f "${EXPDIR}/${RUN}_logs/stats.json" ]; then
+    echo "${RUN} exists"
+  else
+    echo "Running $(realpath $FILE) with ${RUN_ARGS}"
+    mkdir -p $LOGDIR && cd $LOGDIR
+    timeout --signal 2 --foreground 130s python -O $DIR/experiments/main.py $RUN_ARGS --logpath $LOGDIR --problem-file $FILE --max_planner_time 30 | tee $EXPDIR/$RUN.log
+    cd ..
+  fi
 done

@@ -2,8 +2,8 @@
 set -e
 EXPDIR=$1
 DOMAIN=$2
-PROBLEM_FILE_PATH=$(realpath $3)
-PROBLEMS=$(ls $PROBLEM_FILE_PATH/*.yaml)
+PROBLEM_FILE_PATH=$3
+PROBLEMS=$(ls $PROBLEM_FILE_PATH)
 DIR=$HOME/drake-tamp/
 export CUDA_VISIBLE_DEVICES=""
 
@@ -19,8 +19,10 @@ echo "outer_timeout: $OUTER_TIMEOUT" >> ./collect-label-params.txt
 for FILE in $PROBLEMS; do
   echo "Running $FILE"
   RUN=$(basename $FILE)
-  LOGDIR=$(realpath ./oracle/$RUN)_logs/
+  LOGDIR="${EXPDIR}/oracle/${RUN}_logs/"
+  mkdir -p $LOGDIR && cd $LOGDIR
   JSON='{"data_collection_mode":true}' # don't add spaces to this or it will break
-  timeout --signal 2 --foreground ${OUTER_TIMEOUT}s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode oracle --oracle-options=$JSON --logpath $LOGDIR --max-time $TIMEOUT --problem-file $FILE  --max_planner_time $MAXPLAN | tee ./oracle/$RUN.log
+  timeout --signal 2 --foreground ${OUTER_TIMEOUT}s python -O $DIR/experiments/main.py --domain=$DOMAIN --algorithm adaptive --mode oracle --oracle-options=$JSON --logpath $LOGDIR --max-time $TIMEOUT --problem-file $FILE  --max_planner_time $MAXPLAN | tee $EXPDIR/oracle/$RUN.log
+  cd $EXPDIR
 done
 
