@@ -711,6 +711,7 @@ if __name__ == '__main__':
     parser.add_argument("--dataset_pkl_paths", type=str, default="data/leapfrog_data_clutter.pkl")
     parser.add_argument("--start_from", type=str, default=None)
     parser.add_argument("--seed", type=int, default=500)
+    parser.add_argument("--train-prop", type=float, default=1)
     args = parser.parse_args()
     np.random.seed(args.seed)
     torch.random.manual_seed(args.seed)
@@ -720,6 +721,8 @@ if __name__ == '__main__':
             all_files = json.load(f)
         train_dset, _ = make_dataset(all_files["train"])
         val_dset, _ = make_dataset(all_files["validation"])
+        if args.train_prop <=1:
+            raise ValueError("train-prop supported for json path, for no good reason")
     elif args.dataset_pkl_paths:
         pkl_paths = args.dataset_pkl_paths.split(',')
         data = {}
@@ -727,6 +730,17 @@ if __name__ == '__main__':
             with open(pkl_path, 'rb') as f:
                 data.update(pickle.load(f))
         train_data, val_data = split_data(data, .85)
+
+        if args.train_prop <= 1:
+            num_train = int(np.round(args.train_prop * len(train_data)))
+            print(f'Using {num_train}/{len(train_data)} training examples')
+            train_data = {k:v for i, (k,v) in enumerate(train_data.items()) if i < num_train}
+            print(list(train_data.keys()))
+            assert num_train == len(train_data)
+            
+        else:
+            raise ValueError("train-prop must be <= 1")
+
         print(len(train_data), len(val_data))
         train_dset, _ = make_dataset_lifted(train_data)
         val_dset, _ = make_dataset_lifted(val_data)

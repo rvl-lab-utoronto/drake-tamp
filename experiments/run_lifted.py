@@ -42,8 +42,9 @@ if __name__ == '__main__':
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--save_label_path", type=str, default=None)
     parser.add_argument("--cost_fn", type=str, default="stream", choices=["stream", "edge"])
-    parser.add_argument("--heuristic", type=str, default=None, choices=["goalcount", "hff", "hadd", "lama"])
+    parser.add_argument("--heuristic", type=str, default=None, choices=["goalcount", "hff", "hadd", "lama", "zero"])
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--max-skeletons", type=int, default=100)
 
     args = parser.parse_args()
 
@@ -79,6 +80,8 @@ if __name__ == '__main__':
         if args.heuristic is not None:
             if args.heuristic == 'goalcount':
                 h = goalcount_heuristic
+            elif args.heuristic == 'zero':
+                h = lambda s, g: 0
             else:
                 translator = BlocksWorldPyperTranslator()
                 h = translator.create_heuristic(init, goal, args.heuristic)
@@ -99,7 +102,7 @@ if __name__ == '__main__':
             stats=stats,
             policy_ts=policy,
             cost=cost_fn,
-            max_steps=100,
+            max_steps=args.max_skeletons,
             edge_eval_steps=args.edge_eval_steps,
             max_time=args.timeout,
             debug=args.debug,
