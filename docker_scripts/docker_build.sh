@@ -44,4 +44,4 @@ echo "git name: $gitname"
 echo "git email: $gitemail"
 echo ""
 
-sudo docker image build --build-arg password=$1 --build-arg user=$USER --build-arg id=$UID --build-arg gitemail="$gitemail" --build-arg gitname="$gitname" -t drake-tamp-$USER .
+docker image build -f Dockerfile --build-arg password=$1 --build-arg user=$USER --build-arg id=$UID --build-arg gitemail="$gitemail" --build-arg gitname="$gitname" -t drake-tamp-$USER   .

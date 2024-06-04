@@ -20,7 +20,7 @@ done
 echo "Using port: $port"
 echo "Using container name: $name"
 
-sudo docker run -it \
+docker run -it \
     -v /home/$USER/drake-tamp:/home/$USER/drake-tamp \
     --shm-size 8G \
     --gpus all \
